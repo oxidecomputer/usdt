@@ -110,6 +110,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
             );
             let possibly_argument = argument_list.next().expect("Expected an argument list");
             let mut probe_arguments = Vec::new();
+            let mut probe_inputs = Vec::new();
             if matches!(possibly_argument.as_rule(), Rule::ARGUMENT) {
                 let data_types = possibly_argument.into_inner();
                 // The point of this loop is to generate an actual argument signature from each
@@ -129,15 +130,9 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
                                 let bit_width: u8 = pair.into_inner().as_str().parse().unwrap();
                                 format_ident!("i{}", bit_width)
                             }
-                            Rule::STRING => {
-                                format_ident!("String")
-                            }
-                            Rule::FLOAT => {
-                                format_ident!("f32")
-                            }
-                            Rule::DOUBLE => {
-                                format_ident!("f64")
-                            }
+                            Rule::STRING => format_ident!("String"),
+                            Rule::FLOAT => format_ident!("f32"),
+                            Rule::DOUBLE => format_ident!("f64"),
                             _ => {
                                 unreachable!(format!(
                                     "Parsed unexpected DTrace argument type: {}",
@@ -146,6 +141,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
                             }
                         };
                         probe_arguments.push(quote! {#arg: #typ});
+                        probe_inputs.push(quote! {#arg});
                     }
                 }
             } else {
@@ -155,12 +151,15 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
                 );
             }
 
+            let print_args = &probe_inputs.iter().map(|_| " {}").collect::<String>();
+            let print_fmt = format!("{}{}", "probe {}:{}", print_args);
+
             // Construct the full function signature for the corresponding DTrace probe. The list
             // of these will be expanded inside the resulting impl block below.
             probes.push(quote! {
                 #[allow(dead_code)]
                 pub fn #probe_ident(#(#probe_arguments,)*) {
-                    println!("probe {}:{}", #provider_name, #probe_name);
+                    println!(stringify!(#print_fmt), #provider_name, #probe_name, #(#probe_inputs,)*);
                 }
             });
         }
