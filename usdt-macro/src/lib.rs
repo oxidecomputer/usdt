@@ -78,7 +78,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         Err(e) => match e.kind() {
             io::ErrorKind::NotFound => {
                 panic!(concat!(
-                    "Could not find provider definition file. Please ensure",
+                    "Could not find provider definition file. Please ensure ",
                     "the path is absolute or relative to the project root directory"
                 ));
             }
@@ -190,6 +190,7 @@ fn process_provider(pair: Pair<Rule>) -> TokenStream {
                 #[allow(dead_code)]
                 pub fn #probe_ident(#(#probe_arguments,)*) {
                     println!(stringify!(#print_fmt), #provider_name, #probe_name, #(#probe_inputs,)*);
+                    unsafe { emit0(#probe_name.as_ptr() as *const ::std::os::raw::c_char); }
                 }
             });
         }
@@ -200,6 +201,11 @@ fn process_provider(pair: Pair<Rule>) -> TokenStream {
     // This is a simple public unit struct and an impl block with a public function for each probe,
     // with signatures matching the provider definition.
     quote! {
+        #[link(name = "usdt")]
+        extern "C" {
+            fn emit0(_: *const ::std::os::raw::c_char);
+        }
+
         #[allow(non_camel_case_types)]
         #[allow(dead_code)]
         pub struct #provider_ident;

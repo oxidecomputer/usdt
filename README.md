@@ -32,8 +32,22 @@ fn main() {
 }
 ```
 
-## TODO
+This all currently relies on a native static library, generated from a build script, which must
+be linked into any final artifact. This linking itself happens automatically, but users must
+currently tell Cargo where to find the library. It is located in `./target/native`, relative to
+this project's root.
 
-- [ ] Write the C code that actually implements the shared probe function.
-- [ ] The generated functions currently just print the function name. They should call
-the above `extern "C"` function.
+So to build the example that comes with this package, run:
+
+```bash
+$ cargo build
+$ RUSTFLAGS="-L ./target/native" cargo run --example simple
+```
+
+To build an out-of-tree application or library, do so with:
+
+```bash
+$ RUSTFLAGS="-L /path/to/usdt/target/native" cargo build
+```
+
+Hopefully this build process will be smoothed out in the future.
