@@ -82,7 +82,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
                     "the path is absolute or relative to the project root directory"
                 ));
             }
-            other => panic!(format!("Failed to read provider definition: {:?}", other)),
+            other => panic!("I/O error reading the provider definition file"),
         },
     };
     let mut contents = DTraceParser::parse(Rule::FILE, &contents)
@@ -130,22 +130,21 @@ fn process_provider(pair: Pair<Rule>) -> TokenStream {
             );
             let probe_name = pairs.next().expect("Expected a probe name").as_str();
             let probe_ident = format_ident!("{}", probe_name);
-            let mut argument_list = pairs
-                .next()
-                .expect("Expected an argument list")
-                .into_inner();
-
-            // Parse the list of probe argument data types, generating a function signature
-            let left_paren = argument_list.next().expect("Expected a literal \"(\")");
             assert!(
-                matches!(left_paren.as_rule(), Rule::LEFT_PAREN),
-                "Expected a literal \"(\" to open the probe argument list"
+                matches!(
+                    pairs.next().expect("Expected a literal \"(").as_rule(),
+                    Rule::LEFT_PAREN
+                )
             );
-            let possibly_argument = argument_list.next().expect("Expected an argument list");
+
+            // Parse the list of probe arguments, generating a function signature
+            let possibly_argument_list = pairs
+                .next()
+                .expect("Expected an argument list or literal \")\"");
             let mut probe_arguments = Vec::new();
             let mut probe_inputs = Vec::new();
-            if matches!(possibly_argument.as_rule(), Rule::ARGUMENT) {
-                let data_types = possibly_argument.into_inner();
+            if matches!(possibly_argument_list.as_rule(), Rule::ARGUMENT_LIST) {
+                let data_types = possibly_argument_list.into_inner();
                 // The point of this loop is to generate an actual argument signature from each
                 // DTrace argument token. For example, this makes the following transformation:
                 //
@@ -174,11 +173,6 @@ fn process_provider(pair: Pair<Rule>) -> TokenStream {
                         probe_inputs.push(quote! {#arg});
                     }
                 }
-            } else {
-                assert!(
-                    matches!(possibly_argument.as_rule(), Rule::RIGHT_PAREN),
-                    "Expected a literal \")\" to close an empty probe argument list"
-                );
             }
 
             let print_args = &probe_inputs.iter().map(|_| " {}").collect::<String>();

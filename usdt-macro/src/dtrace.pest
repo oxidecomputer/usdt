@@ -22,22 +22,16 @@ DOUBLE = @{ "double" }
 STRING = @{ "string" }
 DATA_TYPE = { STRING | UNSIGNED_INT | SIGNED_INT | FLOAT | DOUBLE}
 
-// Argument and argument lists
-ARGUMENT = {
-	DATA_TYPE
-	~ ("," ~ DATA_TYPE)*
-}
-ARGUMENT_LIST = {
-	LEFT_PAREN
-	~ ARGUMENT*
-	~ RIGHT_PAREN
-}
+// A list of probe arguments, which are just data types
+ARGUMENT_LIST = { ( DATA_TYPE ~ ("," ~ DATA_TYPE)* )* }
 
 // Definition of a probe
 PROBE = {
 	PROBE_KEY
 	~ IDENTIFIER
+	~ LEFT_PAREN
 	~ ARGUMENT_LIST
+	~ RIGHT_PAREN
 	~ SEMICOLON
 }
 
