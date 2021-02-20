@@ -1,11 +1,11 @@
-//! Tests of the DTrace provider grammar parsing.
+//! A small library for parsing DTrace provider files.
 // Copyright 2021 Oxide Computer Company
 
 use pest_derive::Parser;
 
 #[derive(Parser, Debug)]
 #[grammar = "dtrace.pest"]
-pub(crate) struct DTraceParser;
+pub struct DTraceParser;
 
 #[cfg(test)]
 mod tests {

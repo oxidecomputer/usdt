@@ -1,2 +1,2 @@
 [workspace]
-members = ["usdt-macro", "usdt"]
+members = ["dtrace-parser", "usdt-macro", "usdt"]

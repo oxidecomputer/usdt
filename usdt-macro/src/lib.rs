@@ -9,8 +9,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, Lit};
 
-mod dtrace;
-use dtrace::{DTraceParser, Rule};
+use dtrace_parser::{DTraceParser, Rule};
 
 /// Parse a DTrace provider file into a Rust struct.
 ///
@@ -63,7 +62,7 @@ use dtrace::{DTraceParser, Rule};
 /// Note
 /// ----
 /// This macro currently supports only a subset of the full D language, with the focus being on
-/// parsing a provider definition. As such, pragmas, predicates, and actions are not supported. The
+/// parsing a provider definition. As such, predicates and actions are not supported. The
 /// only supported probe argument types are integers of specific bit-width, e.g., `uint16_t`,
 /// `string`s, `float`s, and `double`s.
 #[proc_macro]
@@ -82,7 +81,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
                     "the path is absolute or relative to the project root directory"
                 ));
             }
-            other => panic!("I/O error reading the provider definition file"),
+            _ => panic!("I/O error reading the provider definition file"),
         },
     };
     let mut contents = DTraceParser::parse(Rule::FILE, &contents)
@@ -108,7 +107,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
     .into()
 }
 
-/// Convent a Pair representing a single DTrace provider definition into the related Rust impl.
+/// Convert a Pair representing a single DTrace provider definition into the related Rust impl.
 fn process_provider(pair: Pair<Rule>) -> TokenStream {
     let mut provider = pair.into_inner();
 
@@ -130,12 +129,10 @@ fn process_provider(pair: Pair<Rule>) -> TokenStream {
             );
             let probe_name = pairs.next().expect("Expected a probe name").as_str();
             let probe_ident = format_ident!("{}", probe_name);
-            assert!(
-                matches!(
-                    pairs.next().expect("Expected a literal \"(").as_rule(),
-                    Rule::LEFT_PAREN
-                )
-            );
+            assert!(matches!(
+                pairs.next().expect("Expected a literal \"(").as_rule(),
+                Rule::LEFT_PAREN
+            ));
 
             // Parse the list of probe arguments, generating a function signature
             let possibly_argument_list = pairs
