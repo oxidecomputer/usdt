@@ -4,7 +4,8 @@
 use std::fs::read_to_string;
 use std::io;
 
-use pest::Parser;
+use pest::{iterators::Pair, Parser};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, Lit};
 
@@ -84,12 +85,32 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
             other => panic!(format!("Failed to read provider definition: {:?}", other)),
         },
     };
-    let mut contents = DTraceParser::parse(Rule::PROVIDER, &contents)
+    let mut contents = DTraceParser::parse(Rule::FILE, &contents)
         .expect("DTrace provider file contents are not valid");
-    let mut provider = contents
-        .next()
-        .expect("Expected at least one token parsing DTrace provider")
-        .into_inner();
+
+    let file = contents.next().expect("Expected a file").into_inner();
+    assert!(contents.next().is_none());
+
+    let providers = file
+        .into_iter()
+        .filter_map(|pair| {
+            if matches!(pair.as_rule(), Rule::PROVIDER) {
+                Some(process_provider(pair))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    (quote! {
+        #(#providers)*
+    })
+    .into()
+}
+
+/// Convent a Pair representing a single DTrace provider definition into the related Rust impl.
+fn process_provider(pair: Pair<Rule>) -> TokenStream {
+    let mut provider = pair.into_inner();
 
     // First token is the literal "provider", second is the name
     let _ = provider.next();
@@ -146,10 +167,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
                             Rule::FLOAT => format_ident!("f32"),
                             Rule::DOUBLE => format_ident!("f64"),
                             _ => {
-                                unreachable!(format!(
-                                    "Parsed unexpected DTrace argument type: {}",
-                                    pair
-                                ));
+                                unreachable!("Parsed unexpected DTrace argument type: {}", pair);
                             }
                         };
                         probe_arguments.push(quote! {#arg: #typ});
@@ -181,7 +199,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
     //
     // This is a simple public unit struct and an impl block with a public function for each probe,
     // with signatures matching the provider definition.
-    (quote! {
+    quote! {
         #[allow(non_camel_case_types)]
         #[allow(dead_code)]
         pub struct #provider_ident;
@@ -189,6 +207,5 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         impl #provider_ident {
             #(#probes)*
         }
-    })
-    .into()
+    }
 }

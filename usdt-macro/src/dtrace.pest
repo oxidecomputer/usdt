@@ -2,62 +2,74 @@
 // Copyright 2021 Oxide Computer Company
 
 // Some basic tokens
-PROBE_KEY = { "probe" }
-PROVIDER_KEY = { "provider" }
-SEMICOLON = { ";" }
-LEFT_PAREN = { "(" }
-RIGHT_PAREN = { ")" }
-LEFT_BRACE = { "{" }
-RIGHT_BRACE = { "}" }
+PROBE_KEY = @{ "probe" }
+PROVIDER_KEY = @{ "provider" }
+SEMICOLON = @{ ";" }
+LEFT_PAREN = @{ "(" }
+RIGHT_PAREN = @{ ")" }
+LEFT_BRACE = @{ "{" }
+RIGHT_BRACE = @{ "}" }
 
 // A valid identifier for a provider or probe
-IDENTIFIER = { ASCII_ALPHA+ ~ (ASCII_ALPHANUMERIC | "_")* }
+IDENTIFIER = @{ ASCII_ALPHA+ ~ (ASCII_ALPHANUMERIC | "_")* }
 
 // Data types
-BIT_WIDTH = { "8" | "16" | "32" | "64" }
-SIGNED_INT = { "int" ~ BIT_WIDTH ~ "_t" }
-UNSIGNED_INT = { "uint" ~ BIT_WIDTH ~ "_t" }
-FLOAT = { "float" }
-DOUBLE = { "double" }
-STRING = { "string" }
+BIT_WIDTH = @{ "8" | "16" | "32" | "64" }
+SIGNED_INT = ${ "int" ~ BIT_WIDTH ~ "_t" }
+UNSIGNED_INT = ${ "uint" ~ BIT_WIDTH ~ "_t" }
+FLOAT = @{ "float" }
+DOUBLE = @{ "double" }
+STRING = @{ "string" }
 DATA_TYPE = { STRING | UNSIGNED_INT | SIGNED_INT | FLOAT | DOUBLE}
 
 // Argument and argument lists
 ARGUMENT = {
 	DATA_TYPE
-	~ ("," ~ WHITE_SPACE* ~ DATA_TYPE)*
+	~ ("," ~ DATA_TYPE)*
 }
 ARGUMENT_LIST = {
 	LEFT_PAREN
-	~ WHITE_SPACE*
 	~ ARGUMENT*
-	~ WHITE_SPACE*
 	~ RIGHT_PAREN
 }
 
 // Definition of a probe
 PROBE = {
 	PROBE_KEY
-	~ WHITE_SPACE+
 	~ IDENTIFIER
 	~ ARGUMENT_LIST
 	~ SEMICOLON
-	~ WHITE_SPACE*
 }
 
 // Definition of a provider
 PROVIDER = {
-	WHITE_SPACE*
-	~ PROVIDER_KEY
-    ~ WHITE_SPACE+
+	PROVIDER_KEY
     ~ IDENTIFIER
-    ~ WHITE_SPACE*
     ~ LEFT_BRACE
-    ~ WHITE_SPACE*
-    ~ (PROBE ~ WHITE_SPACE*)+
+    ~ (PROBE)+
     ~ RIGHT_BRACE
-    ~ WHITE_SPACE*
     ~ SEMICOLON
-	~ WHITE_SPACE*
-	~ EOI
 }
+
+PRAGMA = ${
+	"#pragma"
+	~ SPACE+
+	~ (!("\n") ~ ANY)*
+	~ SPACE*
+	~ "\n"
+}
+
+SPACE = _{ " " | "\t" }
+
+// Files consist of providers and pragmas
+FILE = {
+	SOI
+	~(
+		PROVIDER
+		| PRAGMA
+	)*
+	~EOI
+}
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }

@@ -55,16 +55,60 @@ mod tests {
     }
 
     #[test]
-    fn test_provider() {
+    fn test_basic_provider() {
         let defn = r#"
             provider foo {
                 probe bar();
                 probe baz(string, float, uint8_t);
             };"#;
-        assert!(DTraceParser::parse(Rule::PROVIDER, defn).is_ok());
-        assert!(DTraceParser::parse(Rule::PROVIDER, &defn[..defn.len() - 2]).is_err());
+        println!("{:?}", DTraceParser::parse(Rule::FILE, defn));
+        assert!(DTraceParser::parse(Rule::FILE, defn).is_ok());
+        assert!(DTraceParser::parse(Rule::FILE, &defn[..defn.len() - 2]).is_err());
+    }
 
+    #[test]
+    fn test_null_provider() {
         let defn = "provider foo { };";
-        assert!(DTraceParser::parse(Rule::PROVIDER, defn).is_err());
+        assert!(DTraceParser::parse(Rule::FILE, defn).is_err());
+    }
+
+    #[test]
+    fn test_comment_provider() {
+        let defn = r#"
+            /* Check out this fly provider */
+            provider foo {
+                probe bar();
+                probe baz(string, float, uint8_t);
+            };"#;
+        assert!(DTraceParser::parse(Rule::FILE, defn).is_ok());
+    }
+
+    #[test]
+    fn test_pragma_provider() {
+        let defn = r#"
+            #pragma I am a robot
+            provider foo {
+                probe bar();
+                probe baz(string, float, uint8_t);
+            };
+            "#;
+        println!("{}", defn);
+        assert!(DTraceParser::parse(Rule::FILE, defn).is_ok());
+    }
+
+    #[test]
+    fn test_two_providers() {
+        let defn = r#"
+            provider foo {
+                probe bar();
+                probe baz(string, float, uint8_t);
+            };
+            provider bar {
+                probe bar();
+                probe baz(string, float, uint8_t);
+            };
+            "#;
+        println!("{}", defn);
+        assert!(DTraceParser::parse(Rule::FILE, defn).is_ok());
     }
 }
