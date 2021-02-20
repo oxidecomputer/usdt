@@ -2,6 +2,7 @@
 // Copyright 2021 Oxide Computer Company
 
 use std::fs::read_to_string;
+use std::io;
 
 use pest::Parser;
 use quote::{format_ident, quote};
@@ -71,7 +72,18 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         Lit::Str(f) => f.value(),
         _ => panic!("DTrace provider must be a single literal string filename"),
     };
-    let contents = read_to_string(filename).expect("Could not read provider definition file");
+    let contents = match read_to_string(filename) {
+        Ok(contents) => contents,
+        Err(e) => match e.kind() {
+            io::ErrorKind::NotFound => {
+                panic!(concat!(
+                    "Could not find provider definition file. Please ensure",
+                    "the path is absolute or relative to the project root directory"
+                ));
+            }
+            other => panic!(format!("Failed to read provider definition: {:?}", other)),
+        },
+    };
     let mut contents = DTraceParser::parse(Rule::PROVIDER, &contents)
         .expect("DTrace provider file contents are not valid");
     let mut provider = contents

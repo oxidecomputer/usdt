@@ -1,0 +1,8 @@
+[package]
+name = "usdt"
+version = "0.1.0"
+authors = ["Benjamin Naecker <bnaecker@fastmail.com>"]
+edition = "2018"
+
+[dependencies]
+usdt-macro = { path = "../usdt-macro" }
