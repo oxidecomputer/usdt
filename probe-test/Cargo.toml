@@ -1,0 +1,12 @@
+[package]
+name = "probe-test"
+version = "0.1.0"
+authors = ["Benjamin Naecker <bnaecker@fastmail.com>"]
+edition = "2018"
+
+[dependencies]
+usdt = { path = "../usdt" }
+
+[build-dependencies]
+dtrace-parser = { path = "../dtrace-parser" }
+cc = "1.0"
