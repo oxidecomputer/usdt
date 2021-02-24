@@ -19,12 +19,11 @@ enum Cmd {
         // The naive thing would be to do `cargo run -- build-script provider.d > build.rs`.
         // However, shell redirection operators create the redirection target _before_ running the
         // actual shell command. Thus a file `build.rs` shows up when Cargo runs, and it dutifully
-        // tries to run it. Unfortunately, that file is empty. The `emit` option tells this tool to
+        // tries to run it. Unfortunately, that file is empty. The `file` option tells this tool to
         // write the file to `build.rs` for the user.
-        /// Write data to either standard output or a file called `build.rs` in the current
-        /// directory.
-        #[structopt(short, long, default_value = "file", possible_values = &["file", "stdout"])]
-        emit: String,
+        /// Write data to the file `./build.rs`, rather than the standard output.
+        #[structopt(short, long)]
+        file: bool,
 
         /// The source D file to be parsed.
         #[structopt(parse(from_str))]
@@ -44,7 +43,7 @@ enum Cmd {
     },
 }
 
-fn print_build_script(emit: &str, source: PathBuf) {
+fn print_build_script(file: bool, source: PathBuf) {
     let source = source
         .canonicalize()
         .expect("Could not canonicalize provider file");
@@ -156,7 +155,7 @@ fn print_build_script(emit: &str, source: PathBuf) {
     } else {
         script
     };
-    if emit == "file" {
+    if file {
         fs::write("build.rs", script).expect("Could not write build.rs script");
     } else {
         println!("{}", script);
@@ -179,7 +178,7 @@ fn print_formatted_output(format: &str, source: PathBuf) {
 fn main() {
     let cmd = Cmd::from_args();
     match cmd {
-        Cmd::Buildgen { emit, source } => print_build_script(&emit, source),
+        Cmd::Buildgen { file, source } => print_build_script(file, source),
         Cmd::Fmt { format, source } => print_formatted_output(&format, source),
     }
 }

@@ -22,7 +22,7 @@ pub enum DTraceError {
     #[error("this set of pairs contains no tokens")]
     EmptyPairsIterator,
     #[error("probe names must be unique")]
-    DuplicateProbeName(String),
+    DuplicateProbeName((String, String)),
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error("failed to parse according to the DTrace grammar")]
@@ -193,9 +193,17 @@ impl Probe {
     }
 
     /// Return the C function declaration corresponding to this probe signature.
-    pub fn to_c_declaration(&self) -> String {
+    ///
+    /// This requires the name of the provider in which this probe is defined, to correctly
+    /// generate the body of the function (which calls a defined C function).
+    pub fn to_c_declaration(&self, provider: &str) -> String {
         let conv = |(i, typ)| format!("{} arg{}", DataType::to_c_type(typ), i);
-        format!("void {}({});", self.name(), self.map_arglist(conv))
+        format!(
+            "void {}_{}({});",
+            provider,
+            self.name(),
+            self.map_arglist(conv)
+        )
     }
 
     /// Return the C function definition corresponding to this probe signature.
@@ -217,34 +225,46 @@ impl Probe {
         // Generate the function signature, and insert the above body.
         let arglist_conv = |(i, typ)| format!("{} arg{}", DataType::to_c_type(typ), i);
         format!(
-            "void {}({}) {{ {} }}",
+            "void {}_{}({}) {{ {} }}",
+            provider,
             self.name(),
             self.map_arglist(arglist_conv),
             body,
         )
     }
 
-    /// Return the Rust function implementation corresponding to this probe signature.
-    pub fn to_rust_impl(&self) -> String {
-        // The function body contains the Rust-to-C conversion operators. For example, given a
+    /// Return the Rust macro corresponding to this probe signature.
+    pub fn to_rust_impl(&self, provider: &str) -> String {
+        // The macro body contains the Rust-to-C conversion operators. For example, given a
         // String `x`, this is passed to the C FFI function as `x.as_ptr() as *const _`.
-        let body_conv = |(i, typ)| format!("arg{}{}", i, DataType::rust_to_c(typ));
+        let body_conv = |(i, typ)| format!("$arg{}{}", i, DataType::rust_to_c(typ));
         let body_arglist = self.map_arglist(body_conv);
-        let body = format!("unsafe {{ {}({}); }}", self.name(), body_arglist);
-        let arglist_conv = |(i, typ)| format!("arg{}: {}", i, DataType::to_rust_type(typ));
-        format!(
-            "pub fn {}({}) {{ {} }}",
+        let body = format!(
+            "unsafe {{ {}_{}({}); }}",
+            provider,
             self.name(),
-            self.map_arglist(arglist_conv),
+            body_arglist
+        );
+        let matcher_conv = |(i, _)| format!("$arg{}:expr", i);
+        format!(
+            "macro_rules! {}_{} {{ ({}) => {{ {} }}; }}",
+            provider,
+            self.name(),
+            self.map_arglist(matcher_conv),
             body
         )
     }
 
     /// Return the Rust FFI function definition which should appear in the an `extern "C"` FFI
     /// block.
-    pub fn to_ffi_declaration(&self) -> String {
+    pub fn to_ffi_declaration(&self, provider: &str) -> String {
         let conv = |(i, typ)| format!("arg{}: {}", i, DataType::to_rust_ffi_type(typ));
-        format!("fn {}({});", self.name(), self.map_arglist(conv))
+        format!(
+            "fn {}_{}({});",
+            provider,
+            self.name(),
+            self.map_arglist(conv)
+        )
     }
 }
 
@@ -322,26 +342,24 @@ impl Provider {
     /// filename of the D provider file.
     pub fn to_rust_impl(&self, link_name: &str) -> String {
         // This includes:
+        // - The library's link name.
         // - Extern C FFI declarations.
-        // - The unit struct declaration.
-        // - The probe implementations, which call the FFI functions.
-        // - The libraries link name.
+        // - The probe implementation macros, which call the FFI functions.
         format!(
-            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
             format!("#[link(name = \"{}\")]", link_name),
             "extern \"C\" {",
             self.probes()
                 .iter()
-                .map(|probe| probe.to_ffi_declaration())
+                .map(|probe| probe.to_ffi_declaration(&self.name))
                 .collect::<Vec<_>>()
                 .join("\n"),
             "}",
-            "#[allow(non_camel_case_types)]",
-            format!("pub struct {};", self.name),
-            format!("impl {} {{", self.name),
+            "#[macro_use]",
+            format!("pub(crate) mod {} {{", self.name),
             self.probes
                 .iter()
-                .map(|probe| probe.to_rust_impl())
+                .map(|probe| probe.to_rust_impl(&self.name))
                 .collect::<Vec<_>>()
                 .join("\n"),
             "}",
@@ -352,7 +370,7 @@ impl Provider {
     pub fn to_c_declaration(&self) -> String {
         self.probes
             .iter()
-            .map(|probe| probe.to_c_declaration())
+            .map(|probe| probe.to_c_declaration(&self.name))
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -361,7 +379,7 @@ impl Provider {
     pub fn to_c_definition(&self) -> String {
         self.probes
             .iter()
-            .map(|probe| probe.to_c_definition(self.name()))
+            .map(|probe| probe.to_c_definition(&self.name))
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -424,22 +442,16 @@ impl TryFrom<&Pair<'_, Rule>> for File {
     fn try_from(pair: &Pair<'_, Rule>) -> Result<Self, Self::Error> {
         expect_token(&pair, Rule::FILE)?;
         let mut providers = Vec::new();
-
-        // At this point, the probe names must be globally unique. This is due to the fact that
-        // they are written as bare C functions, with the probes from multiple providers being
-        // included in the same static library. Without this restriction, multiply defined symbols
-        // would abound. It might be a better idea to write the probe function names as
-        // `provider_probe()` in the C FFI declarations, to loosen this restriction to unique
-        // provider/probe pairs.
-        let mut probe_names = HashSet::new();
+        let mut names = HashSet::new();
         for item in pair.clone().into_inner() {
             if item.as_rule() == Rule::PROVIDER {
                 let provider = Provider::try_from(&item)?;
                 for probe in provider.probes() {
-                    if probe_names.contains(probe.name()) {
-                        return Err(DTraceError::DuplicateProbeName(probe.name().clone()));
+                    let name = (provider.name().clone(), probe.name().clone());
+                    if names.contains(&name) {
+                        return Err(DTraceError::DuplicateProbeName(name));
                     }
-                    probe_names.insert(probe.name().clone());
+                    names.insert(name.clone());
                 }
                 providers.push(provider);
             }
@@ -660,6 +672,7 @@ mod tests {
         let defn = "probe baz(string, float, uint8_t);";
         let probe = Probe::try_from(&DTraceParser::parse(Rule::PROBE, defn).unwrap())
             .expect("Could not parse probe tokens");
+        let provider = "foo";
         assert_eq!(probe.name(), "baz");
         assert_eq!(
             probe.types(),
@@ -667,21 +680,22 @@ mod tests {
         );
 
         assert_eq!(
-            probe.to_c_declaration(),
-            "void baz(const char* arg0, float arg1, uint8_t arg2);"
+            probe.to_c_declaration(provider),
+            "void foo_baz(const char* arg0, float arg1, uint8_t arg2);"
         );
         assert_eq!(
-            probe.to_rust_impl(),
+            probe.to_rust_impl(provider),
             concat!(
-                "pub fn baz(arg0: String, arg1: f32, arg2: u8) ",
-                "{ unsafe { baz(arg0.as_ptr() as *const _, arg1 as _, arg2 as _); } }",
+                "macro_rules! foo_baz { ",
+                "($arg0:expr, $arg1:expr, $arg2:expr) => ",
+                "{ unsafe { foo_baz($arg0.as_ptr() as *const _, $arg1 as _, $arg2 as _); } }; }",
             )
         );
 
         assert_eq!(
-            probe.to_ffi_declaration(),
+            probe.to_ffi_declaration(provider),
             concat!(
-                "fn baz(arg0: *const ::std::os::raw::c_char, ",
+                "fn foo_baz(arg0: *const ::std::os::raw::c_char, ",
                 "arg1: ::std::os::raw::c_float, arg2: ::std::os::raw::c_uchar);"
             )
         );
@@ -706,24 +720,23 @@ mod tests {
         assert_eq!(provider.name(), "foo");
         assert_eq!(provider.probes()[0].name(), "bar");
 
-        assert_eq!(
-            provider.to_rust_impl("name"),
-            concat!(
-                "#[link(name = \"name\")]\n",
-                "extern \"C\" {\n",
-                "fn bar();\n",
-                "fn baz(arg0: *const ::std::os::raw::c_char, ",
-                "arg1: ::std::os::raw::c_float, arg2: ::std::os::raw::c_uchar);\n",
-                "}\n",
-                "#[allow(non_camel_case_types)]\n",
-                "pub struct foo;\n",
-                "impl foo {\n",
-                "pub fn bar() { unsafe { bar(); } }\n",
-                "pub fn baz(arg0: String, arg1: f32, arg2: u8) ",
-                "{ unsafe { baz(arg0.as_ptr() as *const _, arg1 as _, arg2 as _); } }\n",
-                "}",
-            )
+        let expected = concat!(
+            "#[link(name = \"name\")]\n",
+            "extern \"C\" {\n",
+            "fn foo_bar();\n",
+            "fn foo_baz(arg0: *const ::std::os::raw::c_char, ",
+            "arg1: ::std::os::raw::c_float, arg2: ::std::os::raw::c_uchar);\n",
+            "}\n",
+            "#[macro_use]\n",
+            "pub(crate) mod foo {\n",
+            "macro_rules! foo_bar { () => { unsafe { foo_bar(); } }; }\n",
+            "macro_rules! foo_baz { ($arg0:expr, $arg1:expr, $arg2:expr) => ",
+            "{ unsafe { foo_baz($arg0.as_ptr() as *const _, $arg1 as _, $arg2 as _); } }; }\n",
+            "}",
         );
+        let actual = provider.to_rust_impl("name");
+        println!("{}\n{}", actual, expected);
+        assert_eq!(actual, expected);
     }
 
     #[test]
