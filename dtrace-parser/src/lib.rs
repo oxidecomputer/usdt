@@ -21,11 +21,11 @@ pub enum DTraceError {
     UnexpectedToken { expected: Rule, found: Rule },
     #[error("this set of pairs contains no tokens")]
     EmptyPairsIterator,
-    #[error("probe names must be unique")]
+    #[error("probe names must be unique: duplicated \"{0:?}\"")]
     DuplicateProbeName((String, String)),
     #[error(transparent)]
     IO(#[from] std::io::Error),
-    #[error("failed to parse according to the DTrace grammar")]
+    #[error("failed to parse according to the DTrace grammar:\n{0}")]
     ParseError(String),
 }
 
@@ -586,7 +586,7 @@ mod tests {
         let defn = r#"
             provider foo {
                 probe bar();
-                probe baz(string, float, uint8_t);
+                probe baz(char*, float, uint8_t);
             };"#;
         println!("{:?}", DTraceParser::parse(Rule::FILE, defn));
         assert!(DTraceParser::parse(Rule::FILE, defn).is_ok());
@@ -605,7 +605,7 @@ mod tests {
             /* Check out this fly provider */
             provider foo {
                 probe bar();
-                probe baz(string, float, uint8_t);
+                probe baz(char*, float, uint8_t);
             };"#;
         assert!(DTraceParser::parse(Rule::FILE, defn).is_ok());
     }
@@ -616,7 +616,7 @@ mod tests {
             #pragma I am a robot
             provider foo {
                 probe bar();
-                probe baz(string, float, uint8_t);
+                probe baz(char*, float, uint8_t);
             };
             "#;
         println!("{}", defn);
@@ -628,11 +628,11 @@ mod tests {
         let defn = r#"
             provider foo {
                 probe bar();
-                probe baz(string, float, uint8_t);
+                probe baz(char*, float, uint8_t);
             };
             provider bar {
                 probe bar();
-                probe baz(string, float, uint8_t);
+                probe baz(char*, float, uint8_t);
             };
             "#;
         println!("{}", defn);
@@ -652,7 +652,7 @@ mod tests {
         case("int64_t", DataType::I64),
         case("float", DataType::Float),
         case("double", DataType::Double),
-        case("string", DataType::String)
+        case("char*", DataType::String)
     )]
     fn test_data_type_enum(defn: &str, data_type: DataType) {
         let dtype =
@@ -669,7 +669,7 @@ mod tests {
 
     #[test]
     fn test_probe_struct() {
-        let defn = "probe baz(string, float, uint8_t);";
+        let defn = "probe baz(char*, float, uint8_t);";
         let probe = Probe::try_from(&DTraceParser::parse(Rule::PROBE, defn).unwrap())
             .expect("Could not parse probe tokens");
         let provider = "foo";
@@ -706,7 +706,7 @@ mod tests {
         let defn = r#"
             provider foo {
                 probe bar();
-                probe baz(string, float, uint8_t);
+                probe baz(char*, float, uint8_t);
             };"#;
         let provider = Provider::try_from(
             &DTraceParser::parse(Rule::FILE, defn)
@@ -746,11 +746,11 @@ mod tests {
             #pragma do stuff
             provider foo {
                 probe quux();
-                probe quack(string, float, uint8_t);
+                probe quack(char*, float, uint8_t);
             };
             provider bar {
                 probe bar();
-                probe baz(string, float, uint8_t);
+                probe baz(char*, float, uint8_t);
             };
             "#;
         let file = File::try_from(&DTraceParser::parse(Rule::FILE, defn).unwrap()).unwrap();

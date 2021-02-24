@@ -43,13 +43,23 @@ enum Cmd {
     },
 }
 
+fn read_provider_file(source: &PathBuf) -> dtrace_parser::File {
+    match dtrace_parser::File::from_file(&source) {
+        Ok(dfile) => dfile,
+        Err(e) => {
+            eprintln!("{}", e);
+            panic!("Failed to parse DTrace provider file");
+        }
+    }
+}
+
 fn print_build_script(file: bool, source: PathBuf) {
     let source = source
         .canonicalize()
         .expect("Could not canonicalize provider file");
 
     // Parse the actual D provider file
-    let dfile = dtrace_parser::File::from_file(&source).unwrap();
+    let dfile = read_provider_file(&source);
 
     // Generate the related filenames for source and built artifacts.
     let source_filename = source.to_str().unwrap();
@@ -163,7 +173,7 @@ fn print_build_script(file: bool, source: PathBuf) {
 }
 
 fn print_formatted_output(format: &str, source: PathBuf) {
-    let file = dtrace_parser::File::from_file(&source).expect("Could not parse DTrace file");
+    let file = read_provider_file(&source);
     println!(
         "{}",
         match format {

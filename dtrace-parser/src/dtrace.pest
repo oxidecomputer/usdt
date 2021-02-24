@@ -19,7 +19,7 @@ SIGNED_INT = ${ "int" ~ BIT_WIDTH ~ "_t" }
 UNSIGNED_INT = ${ "uint" ~ BIT_WIDTH ~ "_t" }
 FLOAT = @{ "float" }
 DOUBLE = @{ "double" }
-STRING = @{ "string" }
+STRING = { "char" ~ "*" }
 DATA_TYPE = { STRING | UNSIGNED_INT | SIGNED_INT | FLOAT | DOUBLE}
 
 // A list of probe arguments, which are just data types
