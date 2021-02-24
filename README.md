@@ -92,9 +92,18 @@ And in another terminal, list the matching probes with:
 ```bash
 $ sudo dtrace -l -n test*:::
    ID   PROVIDER            MODULE                          FUNCTION NAME
- 3011  test52921        probe-test                        test_start start
- 3012  test52921        probe-test                         test_stop stop
+ 3011  test65946        probe-test                       _test_start start
+ 3012  test65946        probe-test                        _test_stop stop
  ```
+
+## A note about strings
+
+This project supports sending strings into probes. Because these cross an FFI
+boundary into C, they must be valid, null-terminated C strings. The generated
+macros will convert passed string types (`String`, `&str`, and others) into
+a `std::ffi::CString`. This will panic if the conversion fails, which means
+it is currently the _caller's_ responsibility to make sure their string types
+do not contain an intervening null byte.
 
 ## Installing `dusty`
 

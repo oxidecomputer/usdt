@@ -153,15 +153,6 @@ impl DataType {
         }
         .into()
     }
-
-    /// Return the code which converts the data type from Rust to C
-    pub fn rust_to_c(&self) -> String {
-        match self {
-            DataType::String => ".as_ptr() as *const _",
-            _ => " as _",
-        }
-        .into()
-    }
 }
 
 /// Type representing a single D probe definition within a provider.
@@ -199,7 +190,7 @@ impl Probe {
     pub fn to_c_declaration(&self, provider: &str) -> String {
         let conv = |(i, typ)| format!("{} arg{}", DataType::to_c_type(typ), i);
         format!(
-            "void {}_{}({});",
+            "void _{}_{}({});",
             provider,
             self.name(),
             self.map_arglist(conv)
@@ -225,7 +216,7 @@ impl Probe {
         // Generate the function signature, and insert the above body.
         let arglist_conv = |(i, typ)| format!("{} arg{}", DataType::to_c_type(typ), i);
         format!(
-            "void {}_{}({}) {{ {} }}",
+            "void _{}_{}({}) {{ {} }}",
             provider,
             self.name(),
             self.map_arglist(arglist_conv),
@@ -236,11 +227,19 @@ impl Probe {
     /// Return the Rust macro corresponding to this probe signature.
     pub fn to_rust_impl(&self, provider: &str) -> String {
         // The macro body contains the Rust-to-C conversion operators. For example, given a
-        // String `x`, this is passed to the C FFI function as `x.as_ptr() as *const _`.
-        let body_conv = |(i, typ)| format!("$arg{}{}", i, DataType::rust_to_c(typ));
+        // String `x`, this is passed to the C FFI function as `CString::new(x).as_ptr() as *const _`.
+        let body_conv = |(i, typ)| {
+            match typ {
+                &DataType::String => format!(
+                    "::std::ffi::CString::new($arg{})\
+                    .expect(\"String passed to DTrace FFI call is not a valid C string\")\
+                    .as_ptr()", i),
+                _ => format!("$arg{} as _", i),
+            }
+        };
         let body_arglist = self.map_arglist(body_conv);
         let body = format!(
-            "unsafe {{ {}_{}({}); }}",
+            "unsafe {{ _{}_{}({}); }}",
             provider,
             self.name(),
             body_arglist
@@ -260,7 +259,7 @@ impl Probe {
     pub fn to_ffi_declaration(&self, provider: &str) -> String {
         let conv = |(i, typ)| format!("arg{}: {}", i, DataType::to_rust_ffi_type(typ));
         format!(
-            "fn {}_{}({});",
+            "fn _{}_{}({});",
             provider,
             self.name(),
             self.map_arglist(conv)
@@ -681,21 +680,24 @@ mod tests {
 
         assert_eq!(
             probe.to_c_declaration(provider),
-            "void foo_baz(const char* arg0, float arg1, uint8_t arg2);"
+            "void _foo_baz(const char* arg0, float arg1, uint8_t arg2);"
         );
         assert_eq!(
             probe.to_rust_impl(provider),
             concat!(
                 "macro_rules! foo_baz { ",
                 "($arg0:expr, $arg1:expr, $arg2:expr) => ",
-                "{ unsafe { foo_baz($arg0.as_ptr() as *const _, $arg1 as _, $arg2 as _); } }; }",
+                "{ unsafe { _foo_baz(",
+                "::std::ffi::CString::new($arg0).expect(\"",
+                "String passed to DTrace FFI call is not a valid C string\")",
+                ".as_ptr(), $arg1 as _, $arg2 as _); } }; }",
             )
         );
 
         assert_eq!(
             probe.to_ffi_declaration(provider),
             concat!(
-                "fn foo_baz(arg0: *const ::std::os::raw::c_char, ",
+                "fn _foo_baz(arg0: *const ::std::os::raw::c_char, ",
                 "arg1: ::std::os::raw::c_float, arg2: ::std::os::raw::c_uchar);"
             )
         );
@@ -723,15 +725,18 @@ mod tests {
         let expected = concat!(
             "#[link(name = \"name\")]\n",
             "extern \"C\" {\n",
-            "fn foo_bar();\n",
-            "fn foo_baz(arg0: *const ::std::os::raw::c_char, ",
+            "fn _foo_bar();\n",
+            "fn _foo_baz(arg0: *const ::std::os::raw::c_char, ",
             "arg1: ::std::os::raw::c_float, arg2: ::std::os::raw::c_uchar);\n",
             "}\n",
             "#[macro_use]\n",
             "pub(crate) mod foo {\n",
-            "macro_rules! foo_bar { () => { unsafe { foo_bar(); } }; }\n",
+            "macro_rules! foo_bar { () => { unsafe { _foo_bar(); } }; }\n",
             "macro_rules! foo_baz { ($arg0:expr, $arg1:expr, $arg2:expr) => ",
-            "{ unsafe { foo_baz($arg0.as_ptr() as *const _, $arg1 as _, $arg2 as _); } }; }\n",
+            "{ unsafe { _foo_baz(",
+            "::std::ffi::CString::new($arg0).expect(\"",
+            "String passed to DTrace FFI call is not a valid C string\")",
+            ".as_ptr(), $arg1 as _, $arg2 as _); } }; }\n",
             "}",
         );
         let actual = provider.to_rust_impl("name");
