@@ -12,6 +12,7 @@ use structopt::StructOpt;
 
 /// Parse D scripts into Rust or C code, and generate FFI glue to DTrace.
 #[derive(StructOpt, Debug)]
+#[structopt(name = "dusty")]
 enum Cmd {
     /// Generate a build.rs script that can be used to build Rust-C-DTrace FFI glue.
     Buildgen {
