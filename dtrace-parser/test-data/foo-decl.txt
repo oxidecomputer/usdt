@@ -1,0 +1,1 @@
+void _foo_baz(const char* arg0, uint16_t arg1, uint8_t arg2);

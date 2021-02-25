@@ -1,0 +1,11 @@
+void _foo_baz(const char* arg0, uint16_t arg1, uint8_t arg2) {
+    if (FOO_BAZ_ENABLED()) {
+        const char* data = *(const char**) arg0;
+        uint64_t size = *(const uint64_t*) (arg0 + sizeof(char*));
+        char* arg0_ = malloc(size + 1);
+        assert(arg0_ != NULL);
+        memcpy(arg0_, data, size);
+        arg0_[size] = '\0';
+        FOO_BAZ(arg0_, arg1, arg2);
+    }
+}

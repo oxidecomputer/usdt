@@ -16,8 +16,8 @@ The starting point is a D script, called `"test.d"`. It looks like:
 
 ```d
 provider test {
-	probe start();
-	probe stop(float);
+	probe start(uint8_t);
+	probe stop(char*, uint8_t);
 };
 ```
 
@@ -69,10 +69,12 @@ dtrace_provider!("probe-test/test.d");
 
 fn main() {
     let duration = Duration::from_secs(1);
+    let mut counter: u8 = 0;
     loop {
-        test_start!();
+        test_start!(counter);
         sleep(duration);
-        test_stop!(1.0);
+        test_stop!("the probe has fired", counter);
+        counter = counter.wrapping_add(1);
     }
 }
 ```
@@ -100,10 +102,13 @@ $ sudo dtrace -l -n test*:::
 
 This project supports sending strings into probes. Because these cross an FFI
 boundary into C, they must be valid, null-terminated C strings. The generated
-macros will convert passed string types (`String`, `&str`, and others) into
-a `std::ffi::CString`. This will panic if the conversion fails, which means
-it is currently the _caller's_ responsibility to make sure their string types
-do not contain an intervening null byte.
+macros do some trickery to make sure that (1) the string data sent to the probe
+is valid, and (2) avoid unnecessary overhead.
+
+The approach is to internally send both the string data and its length to the
+FFI function, and then, if the probe is enabled, copy the required number of
+bytes into a local string. This requires an allocation, but only when the probe
+is enabled.
 
 ## Installing `dusty`
 

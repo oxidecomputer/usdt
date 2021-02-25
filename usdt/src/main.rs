@@ -6,7 +6,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use dtrace_parser;
 use quote::quote;
 use structopt::StructOpt;
 
@@ -29,8 +28,8 @@ enum Cmd {
         #[structopt(parse(from_str))]
         source: PathBuf,
     },
-    /// Print the formatted output of a D file specifying providers, in either C or Rust.
-    Fmt {
+    /// Print the expanded output of a D file specifying providers, in either C or Rust.
+    Expand {
         /// The type of formatted output to emit. Options are "rust" to emit the Rust struct and
         /// method definitions, "decl" for the declarations of C FFI functions to be called from
         /// Rust, and "defn" for the actual implementation of those C FFI functions.
@@ -76,8 +75,12 @@ fn print_build_script(file: bool, source: PathBuf) {
             source.to_str().unwrap()
         ),
         String::from("#include <stdint.h>"),
+        String::from("#include <stdlib.h>"),
+        String::from("#include <string.h>"),
+        String::from("#include <stdio.h>"),
+        String::from("#include <assert.h>"),
         format!("#include \"{}\"\n", header_name),
-        format!("{}", dfile.to_c_definition()),
+        dfile.to_c_definition(),
     ]
     .join("\n");
 
@@ -159,7 +162,7 @@ fn print_build_script(file: bool, source: PathBuf) {
         fmt.stdin
             .take()
             .unwrap()
-            .write(script.as_bytes())
+            .write_all(script.as_bytes())
             .expect("Could not write rustfmt input");
         String::from_utf8(fmt.wait_with_output().unwrap().stdout).unwrap()
     } else {
@@ -189,6 +192,6 @@ fn main() {
     let cmd = Cmd::from_args();
     match cmd {
         Cmd::Buildgen { file, source } => print_build_script(file, source),
-        Cmd::Fmt { format, source } => print_formatted_output(&format, source),
+        Cmd::Expand { format, source } => print_formatted_output(&format, source),
     }
 }

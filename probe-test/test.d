@@ -1,4 +1,4 @@
 provider test {
-	probe start();
-	probe stop(float);
+	probe start(uint8_t);
+	probe stop(char*, uint8_t);
 };

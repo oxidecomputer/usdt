@@ -17,10 +17,8 @@ IDENTIFIER = @{ ASCII_ALPHA+ ~ (ASCII_ALPHANUMERIC | "_")* }
 BIT_WIDTH = @{ "8" | "16" | "32" | "64" }
 SIGNED_INT = ${ "int" ~ BIT_WIDTH ~ "_t" }
 UNSIGNED_INT = ${ "uint" ~ BIT_WIDTH ~ "_t" }
-FLOAT = @{ "float" }
-DOUBLE = @{ "double" }
 STRING = { "char" ~ "*" }
-DATA_TYPE = { STRING | UNSIGNED_INT | SIGNED_INT | FLOAT | DOUBLE}
+DATA_TYPE = { STRING | UNSIGNED_INT | SIGNED_INT}
 
 // A list of probe arguments, which are just data types
 ARGUMENT_LIST = { ( DATA_TYPE ~ ("," ~ DATA_TYPE)* )* }

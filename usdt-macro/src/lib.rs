@@ -12,16 +12,16 @@ use dtrace_parser::File;
 /// Parse a DTrace provider file into a Rust struct.
 ///
 /// This macro parses a DTrace provider.d file, given as a single literal string path. It then
-/// generates a Rust struct definition and implementation, with associated functions in the impl
-/// for each of the DTrace probe definitions. This is a simple way of generating Rust functions
-/// that can be called normally, but which are intended to actually be DTrace probe points.
+/// generates a Rust macro for each of the DTrace probe definitions. This is a simple way of
+/// generating Rust code that can be called normally, but which ultimately hook up to DTrace probe
+/// points.
 ///
 /// For example, assume the file `"foo.d"` has the following contents:
 ///
 /// ```ignore
 /// provider foo {
 ///     probe bar();
-///     probe base(uint8_t, string);
+///     probe base(uint8_t, char*);
 /// };
 /// ```
 ///
@@ -31,38 +31,20 @@ use dtrace_parser::File;
 /// dtrace_provider!("foo.d");
 /// ```
 ///
-/// One can run `cargo expand` to see the generated code, the relevant section of which should
-/// look like this:
-///
-/// ```no_run
-/// #[allow(non_camel_case_types)]
-/// #[allow(dead_code)]
-/// pub struct foo;
-///
-/// impl foo {
-///     #[allow(dead_code)]
-///     pub fn bar() { }
-///     
-///     #[allow(dead_code)]
-///     pub fn baz(arg0: u8, arg1: String) {}
-/// }
-/// ```
-///
 /// One can then instrument the application or library as one might expect:
 ///
 /// ```ignore
 /// fn do_stuff(count: u8, name: String) {
 ///     // doing stuff
-///     foo::baz(count, name.clone());
+///     foo_baz!(count, name);
 /// }
 /// ```
 ///
 /// Note
 /// ----
 /// This macro currently supports only a subset of the full D language, with the focus being on
-/// parsing a provider definition. As such, predicates and actions are not supported. The
-/// only supported probe argument types are integers of specific bit-width, e.g., `uint16_t`,
-/// `string`s, `float`s, and `double`s.
+/// parsing a provider definition. As such, predicates and actions are not supported. Integers of
+/// specific bit-width, e.g., `uin16_t`, and `char *` are supported.
 #[proc_macro]
 pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let tok = parse_macro_input!(item as Lit);

@@ -7,9 +7,11 @@ dtrace_provider!("probe-test/test.d");
 
 fn main() {
     let duration = Duration::from_secs(1);
+    let mut counter: u8 = 0;
     loop {
-        test_start!();
+        test_start!(counter);
         sleep(duration);
-        test_stop!(1.0);
+        test_stop!("the probe has fired", counter);
+        counter = counter.wrapping_add(1);
     }
 }

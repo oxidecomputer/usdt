@@ -1,0 +1,12 @@
+#[link(name = "foo")]
+extern "C" {
+    fn _foo_baz(arg0: *const ::std::os::raw::c_char, arg1: ::std::os::raw::c_ushort, arg2: ::std::os::raw::c_uchar);
+}
+#[macro_use]
+pub(crate) mod foo {
+        macro_rules! foo_baz {
+            ($arg0:expr, $arg1:expr, $arg2:expr) => {
+                unsafe { _foo_baz(::std::mem::transmute::<_, *const _>(&$arg0), $arg1, $arg2); }
+            };
+        }
+}
