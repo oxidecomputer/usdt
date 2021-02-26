@@ -5,8 +5,8 @@ authors = ["Benjamin Naecker <bnaecker@fastmail.com>"]
 edition = "2018"
 
 [dependencies]
-usdt = { path = "../usdt" }
+usdt = { path = "../" }
 
 [build-dependencies]
-dtrace-parser = { path = "../dtrace-parser" }
+usdt = { path = "../" }
 cc = "1.0"

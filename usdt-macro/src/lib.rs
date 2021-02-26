@@ -7,7 +7,7 @@ use std::str::FromStr;
 use proc_macro2::TokenStream;
 use syn::{parse_macro_input, Lit};
 
-use dtrace_parser::File;
+use dtrace_parser::parser::File;
 
 /// Parse a DTrace provider file into a Rust struct.
 ///
