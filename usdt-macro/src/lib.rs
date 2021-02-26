@@ -44,7 +44,7 @@ use dtrace_parser::parser::File;
 /// ----
 /// This macro currently supports only a subset of the full D language, with the focus being on
 /// parsing a provider definition. As such, predicates and actions are not supported. Integers of
-/// specific bit-width, e.g., `uin16_t`, and `char *` are supported.
+/// specific bit-width, e.g., `uint16_t`, and `char *` are supported.
 #[proc_macro]
 pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let tok = parse_macro_input!(item as Lit);
