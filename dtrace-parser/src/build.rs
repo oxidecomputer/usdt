@@ -94,7 +94,7 @@ pub fn build_providers<P: AsRef<Path>>(source: P) -> Result<(), DTraceError> {
         .arg(&c_object_path)
         .arg("-o")
         .arg(&d_object_path)
-        .spawn()
+        .output()
         .map_err(|e| {
             DTraceError::BuildError(format!(
                 "Failed to run DTrace against compiled source file: {}",
