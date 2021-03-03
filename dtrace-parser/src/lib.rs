@@ -6,8 +6,7 @@ use thiserror::Error;
 mod build;
 pub mod parser;
 
-pub use build::build_providers;
-pub use build::expand;
+pub use build::{build_providers, expand};
 
 use crate::parser::Rule;
 

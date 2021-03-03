@@ -1,12 +1,12 @@
 [package]
 name = "usdt"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Benjamin Naecker <bnaecker@fastmail.com>"]
 edition = "2018"
 
 [dependencies]
 usdt-macro = { path = "./usdt-macro", version = "0.1.4" }
-dtrace-parser = { path = "./dtrace-parser", version = "0.1.5" }
+dtrace-parser = { path = "./dtrace-parser", version = "0.1.6" }
 cc = "1.0"
 structopt = "0.3.21"
 

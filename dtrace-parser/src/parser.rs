@@ -139,6 +139,7 @@ pub struct Probe {
     types: Vec<DataType>,
 }
 
+// Cross platform impl block
 impl Probe {
     /// Return the name of this probe.
     pub fn name(&self) -> &String {
@@ -149,16 +150,18 @@ impl Probe {
     pub fn types(&self) -> &Vec<DataType> {
         &self.types
     }
+}
 
+#[cfg(any(
+    target_os = "macos",
+    target_os = "illumos",
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "openbsd",
+    target_os = "netbsd"
+))]
+impl Probe {
     // Map a function to this probe's list of arguments, used in various conversions.
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
     fn map_arglist<'a>(&'a self, converter: impl Fn((usize, &'a DataType)) -> String) -> String {
         self.types()
             .iter()
@@ -172,14 +175,6 @@ impl Probe {
     ///
     /// This requires the name of the provider in which this probe is defined, to correctly
     /// generate the body of the function (which calls a defined C function).
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
     pub fn to_c_declaration(&self, provider: &str) -> String {
         let conv = |(i, typ)| format!("{} arg{}", DataType::to_c_type(typ), i);
         format!(
@@ -190,30 +185,10 @@ impl Probe {
         )
     }
 
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    )))]
-    pub fn to_c_declaration(&self, _provider: &str) -> String {
-        "".into()
-    }
-
     /// Return the C function definition corresponding to this probe signature.
     ///
     /// This requires the name of the provider in which this probe is defined, to correctly
     /// generate the body of the function (which calls a defined C function).
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
     pub fn to_c_definition(&self, provider: &str) -> String {
         // This C code unpacks the tuple (length, pointer) that we construct on the Rust side from
         // a &str passed into the macro. Note that the local copy of a string is named the same as
@@ -284,27 +259,7 @@ impl Probe {
         )
     }
 
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    )))]
-    pub fn to_c_definition(&self, _provider: &str) -> String {
-        "".into()
-    }
-
     /// Return the Rust macro corresponding to this probe signature.
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
     pub fn to_rust_impl(&self, provider: &str) -> String {
         // For most data types, a straight cast to the corresponding type in std::os::raw is
         // appropriate, so we can just do write the argument itself, which will be coerced at the
@@ -351,14 +306,45 @@ impl Probe {
         )
     }
 
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    )))]
+    /// Return the Rust FFI function definition which should appear in the an `extern "C"` FFI
+    /// block.
+    pub fn to_ffi_declaration(&self, provider: &str) -> String {
+        let conv = |(i, typ)| format!("arg{}: {}", i, DataType::to_rust_ffi_type(typ));
+        format!(
+            "fn _{}_{}({});",
+            provider,
+            self.name(),
+            self.map_arglist(conv)
+        )
+    }
+}
+
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "illumos",
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "openbsd",
+    target_os = "netbsd"
+)))]
+impl Probe {
+    /// Return the C function declaration corresponding to this probe signature.
+    ///
+    /// This requires the name of the provider in which this probe is defined, to correctly
+    /// generate the body of the function (which calls a defined C function).
+    pub fn to_c_declaration(&self, _provider: &str) -> String {
+        "".into()
+    }
+
+    /// Return the C function definition corresponding to this probe signature.
+    ///
+    /// This requires the name of the provider in which this probe is defined, to correctly
+    /// generate the body of the function (which calls a defined C function).
+    pub fn to_c_definition(&self, _provider: &str) -> String {
+        "".into()
+    }
+
+    /// Return the Rust macro corresponding to this probe signature.
     pub fn to_rust_impl(&self, provider: &str) -> String {
         format!(
             "macro_rules! {provider}_{probe} {{ ($( $anything:expr ),*) => {{}}; }}",
@@ -369,32 +355,6 @@ impl Probe {
 
     /// Return the Rust FFI function definition which should appear in the an `extern "C"` FFI
     /// block.
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
-    pub fn to_ffi_declaration(&self, provider: &str) -> String {
-        let conv = |(i, typ)| format!("arg{}: {}", i, DataType::to_rust_ffi_type(typ));
-        format!(
-            "fn _{}_{}({});",
-            provider,
-            self.name(),
-            self.map_arglist(conv)
-        )
-    }
-
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    )))]
     pub fn to_ffi_declaration(&self, _provider: &str) -> String {
         "".to_string()
     }
@@ -457,6 +417,7 @@ pub struct Provider {
     probes: Vec<Probe>,
 }
 
+// Cross-platform impl block
 impl Provider {
     /// Return the name of this provider
     pub fn name(&self) -> &String {
@@ -467,19 +428,21 @@ impl Provider {
     pub fn probes(&self) -> &Vec<Probe> {
         &self.probes
     }
+}
 
+#[cfg(any(
+    target_os = "macos",
+    target_os = "illumos",
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "openbsd",
+    target_os = "netbsd"
+))]
+impl Provider {
     /// Return a Rust type representing this provider and its probes.
     ///
     /// This must be given the name of the library against which to link, which should be the
     /// filename of the D provider file.
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
     pub fn to_rust_impl(&self, link_name: &str) -> String {
         let link_attr = format!("#[link(name = \"{link_name}\")]", link_name = link_name);
         let extern_body = self
@@ -515,14 +478,38 @@ impl Provider {
         )
     }
 
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    )))]
+    /// Return the C-style function declarations implied by this provider's probes.
+    pub fn to_c_declaration(&self) -> String {
+        self.probes
+            .iter()
+            .map(|probe| probe.to_c_declaration(&self.name))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// Return the C-style function definitions implied by this provider's probes.
+    pub fn to_c_definition(&self) -> String {
+        self.probes
+            .iter()
+            .map(|probe| probe.to_c_definition(&self.name))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "illumos",
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "openbsd",
+    target_os = "netbsd"
+)))]
+impl Provider {
+    /// Return a Rust type representing this provider and its probes.
+    ///
+    /// This must be given the name of the library against which to link, which should be the
+    /// filename of the D provider file.
     pub fn to_rust_impl(&self, _link_name: &str) -> String {
         let impl_body = self
             .probes()
@@ -539,59 +526,11 @@ impl Provider {
     }
 
     /// Return the C-style function declarations implied by this provider's probes.
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
-    pub fn to_c_declaration(&self) -> String {
-        self.probes
-            .iter()
-            .map(|probe| probe.to_c_declaration(&self.name))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    )))]
     pub fn to_c_declaration(&self) -> String {
         "".into()
     }
 
     /// Return the C-style function definitions implied by this provider's probes.
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
-    pub fn to_c_definition(&self) -> String {
-        self.probes
-            .iter()
-            .map(|probe| probe.to_c_definition(&self.name))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    )))]
     pub fn to_c_definition(&self) -> String {
         "".into()
     }
@@ -684,6 +623,7 @@ impl TryFrom<&Pairs<'_, Rule>> for File {
     }
 }
 
+// Cross-platform impl block
 impl File {
     /// Load and parse a provider from a D file at the given path.
     pub fn from_file(filename: &Path) -> Result<Self, DTraceError> {
@@ -712,59 +652,49 @@ impl File {
         self.providers.iter().map(f).collect::<Vec<_>>().join("\n")
     }
 
+    /// Return the Rust implementation of the providers and probes in this file
+    pub fn to_rust_impl(&self) -> String {
+        self.map_providers(|provider| provider.to_rust_impl(&self.name))
+    }
+}
+
+#[cfg(any(
+    target_os = "macos",
+    target_os = "illumos",
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "openbsd",
+    target_os = "netbsd"
+))]
+impl File {
     /// Return the C declarations of the providers and probes in this file
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
     pub fn to_c_declaration(&self) -> String {
         self.map_providers(Provider::to_c_declaration)
     }
 
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    )))]
+    /// Return the C definitions of the providers and probes in this file
+    pub fn to_c_definition(&self) -> String {
+        self.map_providers(Provider::to_c_definition)
+    }
+}
+
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "illumos",
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "openbsd",
+    target_os = "netbsd"
+)))]
+impl File {
+    /// Return the C declarations of the providers and probes in this file
     pub fn to_c_declaration(&self) -> String {
         "".into()
     }
 
     /// Return the C definitions of the providers and probes in this file
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    ))]
-    pub fn to_c_definition(&self) -> String {
-        self.map_providers(Provider::to_c_definition)
-    }
-
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd"
-    )))]
     pub fn to_c_definition(&self) -> String {
         "".into()
-    }
-
-    /// Return the Rust implementation of the providers and probes in this file
-    pub fn to_rust_impl(&self) -> String {
-        self.map_providers(|provider| provider.to_rust_impl(&self.name))
     }
 }
 
