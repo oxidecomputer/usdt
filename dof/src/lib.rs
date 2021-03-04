@@ -31,6 +31,7 @@
 pub mod des;
 pub mod dof;
 pub mod dof_bindings;
+pub mod fmt;
 pub mod ser;
 
 pub use crate::des::{

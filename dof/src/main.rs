@@ -3,6 +3,8 @@
 
 use std::io::{self, Write};
 
+use dof::fmt::fmt_dof_sec;
+use dof::fmt::fmt_dof_sec_data;
 use structopt::StructOpt;
 
 /// Parse and print data in DTrace Object Format, extracted from an object file.
@@ -16,6 +18,10 @@ enum Cmd {
         /// If passed, dump the raw C-structs rather than the higher-level Rust types.
         #[structopt(short, long)]
         raw: bool,
+
+        /// Combined with --raw, print out the contents of each section
+        #[structopt(short, long)]
+        verbose: bool,
     },
 
     /// Extract the raw bytes of the DOF sections from the given object file
@@ -33,14 +39,19 @@ enum Cmd {
 fn main() {
     let cmd = Cmd::from_args();
     match cmd {
-        Cmd::Dump { file, raw } => {
+        Cmd::Dump { file, raw, verbose } => {
             if raw {
                 let sections = dof::collect_dof_sections(&file).unwrap().into_iter();
                 for section in sections {
                     let (header, sections) = dof::des::deserialize_raw_sections(&section).unwrap();
                     println!("{:#?}", header);
-                    for (section_header, _) in sections.into_iter() {
-                        println!("{:#?}", section_header);
+                    for (section_header, data) in sections.into_iter() {
+                        // TODO this is a little janky, but I wrestled a bit with bindgen before just doing it
+                        println!("{}", fmt_dof_sec(&section_header));
+                        if verbose {
+                            println!("{}", fmt_dof_sec_data(&section_header, &data));
+                            println!();
+                        }
                     }
                 }
             } else {
