@@ -1,46 +1,58 @@
 use std::path::Path;
 
-use crate::DTraceError;
 use crate::parser::File;
+use crate::DTraceError;
+
+#[cfg(all(
+    any(
+        target_os = "macos",
+        target_os = "illumos",
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "openbsd",
+        target_os = "netbsd"
+    ),
+    not(feature = "asm"),
+))]
+mod staticlib;
+
+#[cfg(all(
+    any(
+        target_os = "macos",
+        target_os = "illumos",
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "openbsd",
+        target_os = "netbsd"
+    ),
+    not(feature = "asm"),
+))]
+pub use staticlib::build_providers;
 
 #[cfg(any(
-    target_os = "macos",
-    target_os = "illumos",
-    target_os = "freebsd",
-    target_os = "dragonfly",
-    target_os = "openbsd",
-    target_os = "netbsd"
+    not(any(
+        target_os = "macos",
+        target_os = "illumos",
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "openbsd",
+        target_os = "netbsd"
+    )),
+    feature = "asm"
 ))]
-mod build;
-
-#[cfg(any(
-    target_os = "macos",
-    target_os = "illumos",
-    target_os = "freebsd",
-    target_os = "dragonfly",
-    target_os = "openbsd",
-    target_os = "netbsd"
-))]
-pub use build::build_providers;
-
-#[cfg(not(any(
-    target_os = "macos",
-    target_os = "illumos",
-    target_os = "freebsd",
-    target_os = "dragonfly",
-    target_os = "openbsd",
-    target_os = "netbsd"
-)))]
 mod empty;
 
-#[cfg(not(any(
-    target_os = "macos",
-    target_os = "illumos",
-    target_os = "freebsd",
-    target_os = "dragonfly",
-    target_os = "openbsd",
-    target_os = "netbsd"
-)))]
+#[cfg(any(
+    not(any(
+        target_os = "macos",
+        target_os = "illumos",
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "openbsd",
+        target_os = "netbsd"
+    )),
+    feature = "asm"
+))]
 pub use empty::build_providers;
 
 #[derive(Debug, Clone, Copy)]

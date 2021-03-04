@@ -2,8 +2,8 @@
 // Copyright 2021 Oxide Computer Company
 
 use std::path::{Path, PathBuf};
-use std::{env, fs};
 use std::process::Command;
+use std::{env, fs};
 
 use crate::parser::File;
 use crate::DTraceError;
@@ -135,6 +135,8 @@ fn generate_provider_header(source_filename: &str, header_path: &str) -> Result<
         .arg("-o")
         .arg(header_path)
         .output()
-        .map_err(|_| DTraceError::BuildError("Failed to generate header from provider file".into()))?;
+        .map_err(|_| {
+            DTraceError::BuildError("Failed to generate header from provider file".into())
+        })?;
     Ok(())
 }

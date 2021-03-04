@@ -5,8 +5,32 @@ Dust your Rust with USDT probes.
 ## Overview
 
 `usdt` exposes statically-defined DTrace probes to Rust code. Users write a provider definition
-as usual, in a D language script. This is used to generate a static library and Rust code, which
-together provide the glue to call DTrace probe functions from Rust.
+as usual, in a D language script. The crate exports a procedural macro, `usdt::dtrace_provider`,
+which generates Rust code to call into these probe functions.
+
+## Important note
+
+This crate crate is a bit schizophrenic. It currently operates in two mutually-
+exclusive variants. In the "static library" variant, a build.rs script is used to compile an
+FFI interface between Rust and C, and uses the normal DTrace mechanisms for defining the probes
+in C. The benefits of this approach are simplicity and less maintainence costs on the crate
+developers. The drawbacks are an increased onus on the _user_ of the crate, who much maintain
+a build.rs script, and an additional function call overhead in the FFI, which is not guaranteed
+to be inlined.
+
+The alternative variant is "asm". In this variant, there is no build-time setup, and no FFI.
+Instead, inline assembly is generated in the procedural macro. The details of this assembly
+are beyond the scope of this README, but can be found in `dtrace-parser/src/parser/asm.rs`.
+The benefits of this approach are less work by the crate consumer, who no longer needs to
+maintain a build script or link a static library. There is additionally no function call
+overhead. However, this approach requires a nightly compiler due to its use of inline ASM.
+This variant is opted into with the `"asm"` feature, e.g., `cargo +nightly build --features asm`.
+
+> Important: The "asm" variant is in development, and is not currently plumbed all the way
+through to DTrace.
+
+The `probe-test` crate in this project implements a complete example which shows both of
+these variants.
 
 ## Example
 
@@ -22,9 +46,11 @@ provider test {
 ```
 
 This script defines a single provider, `test`, with two probes, `start` and `stop`,
-with a different set of arguments. (Numeric primitive types and `Strings` are currently
-supported.) Connecting these probes with Rust code requires a build script, which at a
-minimum looks like:
+with a different set of arguments. (Numeric primitive types and `&str`s are currently
+supported.)
+
+In the "static library" variant of the project, connecting these probes with Rust code
+requires a build script, which at a minimum looks like:
 
 ```rust
 use usdt::build_providers;
@@ -34,35 +60,50 @@ fn main() {
 }
 ```
 
-The will compile and link a C library which provides a foreign function interface (FFI)
-from which our Rust code may fire the probes. These Rust side of the FFI is generated
-by placing the `usdt::dtrace_provider!` macro in the crate from which the probes are
-called. The `probe-test` example looks like this:
+This generates the C-side of the FFI, and compiles and links it into your crate as a
+static library. This step is unnecessary in the "asm" variant of the project.
+
+Using the probes in Rust code looks like the following, which is in `probe-test/src/main.rs`.
 
 ```rust
+/// An example using the `usdt` crate, in both static library and asm variants.
+
+// If we're using the assembly variant of the package, the actual ASM feature must be opted into.
+// This statement is behind `cfg_attr` to easily support both variants, but if only the ASM variant
+// is desired, this may be simplified to `#![feature(asm)]`.
+#![cfg_attr(feature = "asm", feature(asm))]
+
 use std::thread::sleep;
 use std::time::Duration;
 
+// Import the `dtrace_provider` procedural macro, which generates Rust code to call the probes
+// defined in the given provider file.
 use usdt::dtrace_provider;
 
+// Call the macro, which generates a Rust macro for each probe in the provider.
 dtrace_provider!("probe-test/test.d");
 
 fn main() {
     let duration = Duration::from_secs(1);
     let mut counter: u8 = 0;
     loop {
+        // Call the "start" probe which accepts a u8. In both the static library and ASM variants
+        // of this crate, these arguments are type-checked at compile time.
         test_start!(counter);
+
+        // Do some work.
         sleep(duration);
+
+        // Call the "stop" probe, which accepts a &str and a u8.
         test_stop!("the probe has fired", counter);
+
         counter = counter.wrapping_add(1);
     }
 }
 ```
 
-The macros `test_{start,stop}` (or generally `<provider>_<probe>`), call out via FFI
-to the DTrace probes themselves. This `probe-test` example does an infinite loop,
-calling the two probes. One can verify that this actually hooks up to DTrace correctly
-by running the example. From the `probe-test` directory:
+We can see that this is hooked up with DTrace by running the example and listing the expected
+probes by name.
 
 ```bash
 $ cargo run
@@ -76,37 +117,6 @@ $ sudo dtrace -l -n test*:::
  3011  test65946        probe-test                       _test_start start
  3012  test65946        probe-test                        _test_stop stop
  ```
-
-## Implementation details
-
-Calling the probes is done via C foreign-function interface (FFI) in Rust. This requires
-building a static library from C code, which defines C functions that fire the DTrace
-probes. We can then link this static library with the Rust code, and call the C functions
-through standard FFI mechanisms. Most of this process is entirely rote, and can be
-done automatically. The library will be created at build time, and will re-run if your
-provider file changes. This is the purpose of the `build_providers` function.
-
-The binary in the main `usdt` crate, called `dusty`, can be used to inspect the emitted
-code. It can be run with
-
-```bash
-$ cargo run -p usdt -- probe-test/test.d
-```
-
-This displays the Rust half of the FFI that calls the DTrace probes. One can also display
-the C declaration or definition with `-f decl` or `-f defn` respectively.
-
-## A note about strings
-
-This project supports sending strings into probes. Because these cross an FFI
-boundary into C, they must be valid, null-terminated C strings. The generated
-macros do some trickery to make sure that (1) the string data sent to the probe
-is valid, and (2) avoid unnecessary overhead.
-
-The approach is to internally send both the string data and its length to the
-FFI function, and then, if the probe is enabled, copy the required number of
-bytes into a local string. This requires an allocation, but only when the probe
-is enabled.
 
 ## Installing `dusty`
 

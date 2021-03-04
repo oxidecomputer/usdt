@@ -10,3 +10,6 @@ usdt = { path = "../" }
 [build-dependencies]
 usdt = { path = "../" }
 cc = "1.0"
+
+[features]
+asm = ["usdt/asm"]

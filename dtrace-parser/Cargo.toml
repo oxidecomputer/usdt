@@ -1,6 +1,6 @@
 [package]
 name = "dtrace-parser"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Benjamin Naecker <bnaecker@fastmail.com>"]
 edition = "2018"
 
@@ -11,6 +11,12 @@ thiserror = "1.0.24"
 textwrap = "0.13.4"
 cc = "1.0"
 
+quote = { version = "1.0.9", optional = true }
+syn = { version = "1.0.60", optional = true }
+
 [dev-dependencies]
 rstest = "0.6.4"
 expectorate = "1.0.2"
+
+[features]
+asm = ["quote", "syn"]
