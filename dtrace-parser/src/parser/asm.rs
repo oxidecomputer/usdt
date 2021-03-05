@@ -40,7 +40,7 @@ impl Probe {
                 ( #( $ #macro_arglist : expr ),* ) => {
                     // NOTE: This block defines an internal NOP function and then a lambda which
                     // calls it. This is all strictly for type-checking, and is optimized out.
-                    // It is defined in a scope to avoid multiple-definition errors in the scope fo
+                    // It is defined in a scope to avoid multiple-definition errors in the scope of
                     // the macro expansion site.
                     {
                         fn _type_check(#(#type_check_args),*) { }
@@ -49,22 +49,16 @@ impl Probe {
                     unsafe {
                         asm!(
                             "990:   nop",
-                            "       nop",
-                            "       nop",
-                            "       nop",
-                            "       nop",
-                            ".section __TEXT,__dtrace,regular,no_dead_strip",
+                            "       .section __DATA,__dtrace_probes,regular,no_dead_strip",
+                            "       .balign 8",
                             "991:",
                             "       .long 992f-991b",
                             "       .quad 990b",
                             #provider_line,
                             "       .asciz \"replace_me\"",
                             #probe_line,
-                            "992:   .balign 4",
-                            ".ifndef _.dtrace.base",
-                            "       .set _.dtrace.base, 991b",
-                            ".endif",
-                            "       .set _.dtrace.end, 992b",
+                            "       .balign 8",
+                            "992:",
                             ".text",
                             options(nomem, nostack, preserves_flags)
                         );
@@ -84,9 +78,6 @@ impl Probe {
 
 impl Provider {
     /// Return a Rust type representing this provider and its probes.
-    ///
-    /// This must be given the name of the library against which to link, which should be the
-    /// filename of the D provider file.
     pub fn to_rust_impl(&self, _link_name: &str) -> String {
         let link_section = format!(
             concat!(

@@ -1,4 +1,5 @@
-use std::path::Path;
+use pretty_hex::PrettyHex;
+use std::{convert::TryInto, path::Path};
 
 use crate::parser::File;
 use crate::DTraceError;
@@ -81,4 +82,50 @@ pub fn expand<P: AsRef<Path>>(source: P, format: ExpandFormat) -> Result<String,
             ExpandFormat::Definition => file.to_c_definition(),
         }
     ))
+}
+
+/// Register the probes that the asm mechanism dumps into a linker section.
+///
+/// This probably needs to live somewhere else, but I wasn't quite sure where...
+pub fn register_probes() {
+    println!("registering probes...");
+
+    extern "C" {
+        #[cfg_attr(
+            target_os = "macos",
+            link_name = "\x01section$start$__DATA$__dtrace_probes"
+        )]
+        #[cfg_attr(target_os = "illumos", link_name = "__start_set_dtrace_probes")]
+        static dtrace_probes_start: usize;
+        #[cfg_attr(
+            target_os = "macos",
+            link_name = "\x01section$end$__DATA$__dtrace_probes"
+        )]
+        #[cfg_attr(target_os = "illumos", link_name = "__stop_set_dtrace_probes")]
+        static dtrace_probes_stop: usize;
+    }
+
+    let mut data = unsafe {
+        let start = (&dtrace_probes_start as *const usize) as usize;
+        let stop = (&dtrace_probes_stop as *const usize) as usize;
+
+        std::slice::from_raw_parts(start as *const u8, stop - start)
+    };
+
+    while !data.is_empty() {
+        if data.len() < 4 {
+            panic!("not enough bytes for length header");
+        }
+
+        let x = &data[0..4];
+        let len = u32::from_ne_bytes(x.try_into().unwrap());
+
+        let (rec, rest) = data.split_at(len as usize);
+        data = rest;
+
+        println!("len {:#x}", len);
+        println!("{:?}", rec.hex_dump());
+
+        // TODO this is where we'll pull out the probe data and pass it along to dof
+    }
 }

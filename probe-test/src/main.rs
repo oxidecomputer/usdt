@@ -9,7 +9,7 @@ use std::time::Duration;
 
 // Import the `dtrace_provider` procedural macro, which generates Rust code to call the probes
 // defined in the given provider file.
-use usdt::dtrace_provider;
+use usdt::{dtrace_provider, register_probes};
 
 // Call the macro, which generates a Rust macro for each probe in the provider.
 dtrace_provider!("probe-test/test.d");
@@ -17,6 +17,9 @@ dtrace_provider!("probe-test/test.d");
 fn main() {
     let duration = Duration::from_secs(1);
     let mut counter: u8 = 0;
+
+    register_probes();
+
     loop {
         // Call the "start" probe which accepts a u8. In both the static library and ASM variants
         // of this crate, these arguments are type-checked at compile time.
