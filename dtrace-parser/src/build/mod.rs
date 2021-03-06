@@ -1,5 +1,10 @@
+use byteorder::{NativeEndian, ReadBytesExt};
+use dof::{
+    fmt::{fmt_dof_sec, fmt_dof_sec_data},
+    serialize_section, Probe, Provider, Section,
+};
 use pretty_hex::PrettyHex;
-use std::{convert::TryInto, path::Path};
+use std::{collections::BTreeMap, convert::TryInto, path::Path};
 
 use crate::parser::File;
 use crate::DTraceError;
@@ -112,20 +117,88 @@ pub fn register_probes() {
         std::slice::from_raw_parts(start as *const u8, stop - start)
     };
 
+    let mut providers = BTreeMap::<String, Provider>::new();
+
     while !data.is_empty() {
         if data.len() < 4 {
             panic!("not enough bytes for length header");
         }
 
-        let x = &data[0..4];
+        let x = &data[..4];
         let len = u32::from_ne_bytes(x.try_into().unwrap());
 
         let (rec, rest) = data.split_at(len as usize);
         data = rest;
 
         println!("len {:#x}", len);
-        println!("{:?}", rec.hex_dump());
 
         // TODO this is where we'll pull out the probe data and pass it along to dof
+        process_rec(&mut providers, rec);
+    }
+    let section = Section {
+        providers: providers.into_iter().map(|(_, v)| v).collect(),
+        ..Default::default()
+    };
+
+    let v = serialize_section(&section);
+
+    let (header, sections) = dof::des::deserialize_raw_sections(&v).unwrap();
+    println!("{:#?}", header);
+    for (index, (section_header, data)) in sections.into_iter().enumerate() {
+        // TODO this is a little janky, but I wrestled a bit with bindgen before just doing it
+        println!("{}", fmt_dof_sec(&section_header, index));
+        if true {
+            println!("{}", fmt_dof_sec_data(&section_header, &data));
+            println!();
+        }
+    }
+
+    let ss = Section::from_bytes(&v);
+    println!("{:?}", ss);
+}
+
+fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
+    println!("{:?}", rec.hex_dump());
+    let mut data = &rec[4..];
+
+    println!("{:?}", data.hex_dump());
+
+    let address = data.read_u64::<NativeEndian>().unwrap();
+    let provname = data.cstr();
+    let funcname = data.cstr();
+    let probename = data.cstr();
+
+    println!("{:?}", data.hex_dump());
+
+    println!("{:#x} {}::{}:{}", address, provname, funcname, probename);
+
+    let provider = providers.entry(provname.to_string()).or_insert(Provider {
+        name: provname.to_string(),
+        probes: Vec::new(),
+    });
+
+    provider.probes.push(Probe {
+        name: probename.to_string(),
+        function: funcname.to_string(),
+        address: address,
+        offsets: vec![0],
+        enabled_offsets: vec![],
+    });
+}
+
+trait ReadCstrExt<'a> {
+    fn cstr(&mut self) -> &'a str;
+}
+
+impl<'a> ReadCstrExt<'a> for &'a [u8] {
+    fn cstr(&mut self) -> &'a str {
+        let index = self
+            .iter()
+            .position(|ch| *ch == 0)
+            .expect("ran out of bytes before we found a zero");
+
+        let ret = std::str::from_utf8(&self[..index]).unwrap();
+        *self = &self[index + 1..];
+        ret
     }
 }
