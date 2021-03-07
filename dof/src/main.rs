@@ -45,9 +45,9 @@ fn main() {
                 for section in sections {
                     let (header, sections) = dof::des::deserialize_raw_sections(&section).unwrap();
                     println!("{:#?}", header);
-                    for (section_header, data) in sections.into_iter() {
+                    for (index, (section_header, data)) in sections.into_iter().enumerate() {
                         // TODO this is a little janky, but I wrestled a bit with bindgen before just doing it
-                        println!("{}", fmt_dof_sec(&section_header));
+                        println!("{}", fmt_dof_sec(&section_header, index));
                         if verbose {
                             println!("{}", fmt_dof_sec_data(&section_header, &data));
                             println!();

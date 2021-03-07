@@ -16,10 +16,8 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
     let mut provider_sections = Vec::new();
     let mut strings = BTreeMap::new();
     let mut string_index: usize = 1; // starts with a NULL byte
-    let mut offsets = BTreeMap::new();
-    let mut offset_index: usize = 0;
-    let mut enabled_offsets = BTreeMap::new();
-    let mut enabled_offset_index: usize = 0;
+    let mut offsets = Vec::new();
+    let mut enabled_offsets = Vec::new();
 
     for (i, provider) in section.providers.iter().enumerate() {
         let mut provider_section = dof_provider::default();
@@ -56,25 +54,18 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
             });
             probe_t.dofpr_name = *strings.get(&probe.name).unwrap() as _;
 
-            probe_t.dofpr_offidx = offset_index as _;
-            for off in probe.offsets.iter() {
-                offsets.entry(off).or_insert_with(|| {
-                    let index = offset_index;
-                    offset_index += 1;
-                    index
-                });
-            }
+            probe_t.dofpr_offidx = offsets.len() as _;
             probe_t.dofpr_noffs = probe.offsets.len() as _;
-
-            probe_t.dofpr_enoffidx = enabled_offset_index as _;
-            for off in probe.enabled_offsets.iter() {
-                enabled_offsets.entry(off).or_insert_with(|| {
-                    let index = enabled_offset_index;
-                    enabled_offset_index += 1;
-                    index
-                });
+            for off in &probe.offsets {
+                offsets.push(off);
             }
+
+            probe_t.dofpr_enoffidx = enabled_offsets.len() as _;
             probe_t.dofpr_nenoffs = probe.enabled_offsets.len() as _;
+            for off in &probe.enabled_offsets {
+                enabled_offsets.push(off);
+            }
+
             probe_section.extend_from_slice(probe_t.as_bytes());
         }
         probe_sections.push(probe_section);
@@ -94,7 +85,7 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
 
     // Construct the offset table
     let mut offset_section: Vec<u8> = Vec::with_capacity(offsets.len() * size_of::<u32>());
-    for offset in offsets.keys() {
+    for offset in offsets {
         offset_section.extend(&offset.to_ne_bytes());
     }
     section_data.push((DOF_SECT_PROFFS, offset_section));
@@ -102,7 +93,7 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
     // Construct enabled offset table
     let mut enabled_offset_section: Vec<u8> =
         Vec::with_capacity(enabled_offsets.len() * size_of::<u32>());
-    for offset in enabled_offsets.keys() {
+    for offset in enabled_offsets {
         enabled_offset_section.extend(&offset.to_ne_bytes());
     }
 
@@ -119,57 +110,54 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
     section_data
 }
 
-// Build a section header and possibly align the section data.
-fn build_section_header(
-    data: Vec<u8>,
-    sec_type: u32,
+fn build_section_headers(
+    sections: Vec<(u32, Vec<u8>)>,
     mut offset: usize,
-) -> (dof_sec, Vec<u8>, usize) {
-    let (alignment, entry_size) = match sec_type {
-        DOF_SECT_STRTAB => (1, 1),
-        DOF_SECT_PROFFS | DOF_SECT_PRENOFFS => (size_of::<u32>(), size_of::<u32>()),
-        DOF_SECT_PROVIDER => (size_of::<u32>(), size_of::<dof_provider>()),
-        DOF_SECT_PROBES => (size_of::<u64>(), size_of::<dof_probe>()),
-        _ => unimplemented!(),
-    };
+) -> (Vec<dof_sec>, Vec<Vec<u8>>, usize) {
+    let mut section_headers = Vec::with_capacity(sections.len());
+    let mut section_data = Vec::<Vec<u8>>::with_capacity(sections.len());
 
-    let (data, offset) = {
-        if alignment > 1 && offset % alignment > 0 {
+    for (sec_type, data) in sections.into_iter() {
+        // Different sections expect different alignment and entry sizes.
+        let (alignment, entry_size) = match sec_type {
+            DOF_SECT_STRTAB => (1, 1),
+            DOF_SECT_PROFFS | DOF_SECT_PRENOFFS => (size_of::<u32>(), size_of::<u32>()),
+            DOF_SECT_PROVIDER => (size_of::<u32>(), size_of::<dof_provider>()),
+            DOF_SECT_PROBES => (size_of::<u64>(), size_of::<dof_probe>()),
+            _ => unimplemented!(),
+        };
+
+        // Pad the data of the *previous* section as needed. Note that this space
+        // is not accounted for by the dofs_size field of any section, but it
+        // is--of course--part of the total dofh_filesz.
+        if offset % alignment > 0 {
             let padding = alignment - offset % alignment;
-            offset += padding;
-            let mut data_ = vec![0; padding + data.len()];
-            data_[padding..].copy_from_slice(&data);
-            (data_, offset)
-        } else {
-            (data.to_vec(), offset)
+            section_data.last_mut().unwrap().extend(vec![0; padding]);
+            offset = offset + padding;
         }
-    };
 
-    let new_offset = offset + data.len();
-    let header = dof_sec {
-        dofs_type: sec_type,
-        dofs_align: alignment as u32,
-        dofs_flags: DOF_SECF_LOAD,
-        dofs_entsize: entry_size as u32,
-        dofs_offset: offset as u64,
-        dofs_size: data.len() as u64,
-    };
-    (header, data, new_offset)
+        let header = dof_sec {
+            dofs_type: sec_type,
+            dofs_align: alignment as u32,
+            dofs_flags: DOF_SECF_LOAD,
+            dofs_entsize: entry_size as u32,
+            dofs_offset: offset as u64,
+            dofs_size: data.len() as u64,
+        };
+
+        offset = offset + data.len();
+        section_headers.push(header);
+        section_data.push(data);
+    }
+
+    (section_headers, section_data, offset)
 }
 
 /// Serialize a Section into a vector of DOF bytes
 pub fn serialize_section(section: &Section) -> Vec<u8> {
     let sections = build_section_data(&section);
-
-    let mut section_headers = Vec::with_capacity(sections.len());
-    let mut section_data = Vec::with_capacity(sections.len());
-    let mut offset = size_of::<dof_hdr>() + sections.len() * size_of::<dof_sec>();
-    for (section_type, data) in sections.into_iter() {
-        let (header, data, new_offset) = build_section_header(data, section_type, offset);
-        section_headers.push(header);
-        section_data.push(data);
-        offset = new_offset;
-    }
+    let hdr_size = size_of::<dof_hdr>() + sections.len() * size_of::<dof_sec>();
+    let (section_headers, section_data, size) = build_section_headers(sections, hdr_size);
 
     let header = dof_hdr {
         dofh_ident: section.ident.as_bytes(),
@@ -178,8 +166,8 @@ pub fn serialize_section(section: &Section) -> Vec<u8> {
         dofh_secsize: size_of::<dof_sec>() as _,
         dofh_secnum: section_headers.len() as _,
         dofh_secoff: size_of::<dof_hdr>() as _,
-        dofh_loadsz: offset as _,
-        dofh_filesz: offset as _,
+        dofh_loadsz: size as _,
+        dofh_filesz: size as _,
         dofh_pad: 0,
     };
 
@@ -192,4 +180,24 @@ pub fn serialize_section(section: &Section) -> Vec<u8> {
         file_data.extend(data);
     }
     file_data
+}
+
+#[cfg(test)]
+mod test {
+    use super::build_section_headers;
+    use crate::dof_bindings::*;
+    #[test]
+    fn test_padding() {
+        let sections = vec![
+            (DOF_SECT_STRTAB, vec![96_u8]),
+            (DOF_SECT_PROFFS, vec![0x11_u8, 0x22_u8, 0x33_u8, 0x44_u8]),
+        ];
+
+        assert_eq!(sections[0].1.len(), 1);
+
+        let (_, section_data, size) = build_section_headers(sections, 0);
+
+        assert_eq!(section_data[0].len(), 4);
+        assert_eq!(size, 8);
+    }
 }

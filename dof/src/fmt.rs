@@ -8,10 +8,10 @@ use zerocopy::{FromBytes, LayoutVerified};
 
 use crate::dof_bindings::*;
 
-pub fn fmt_dof_sec(sec: &dof_sec) -> String {
+pub fn fmt_dof_sec(sec: &dof_sec, index: usize) -> String {
     let mut ret = String::new();
 
-    ret.push_str("DOF section\n");
+    ret.push_str(format!("DOF section {} ({:#x})\n", index, index).as_str());
     ret.push_str(
         format!(
             "  dofs_type:    {} {}\n",

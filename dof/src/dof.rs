@@ -165,6 +165,20 @@ impl Section {
     }
 }
 
+impl Default for Section {
+    fn default() -> Self {
+        Self {
+            ident: Ident {
+                magic: DOF_MAGIC,
+                model: DataModel::LP64,
+                encoding: DataEncoding::LittleEndian,
+                version: crate::dof_bindings::DOF_VERSION as u8,
+            },
+            providers: Vec::new(),
+        }
+    }
+}
+
 /// Information about a single DTrace probe
 #[derive(Debug, Clone)]
 pub struct Probe {
