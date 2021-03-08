@@ -4,7 +4,7 @@ use dof::{
     serialize_section, Probe, Provider, Section,
 };
 use pretty_hex::PrettyHex;
-use std::{collections::BTreeMap, convert::TryInto, path::Path};
+use std::{collections::BTreeMap, convert::TryInto, ffi::CString, path::Path};
 
 use crate::parser::File;
 use crate::DTraceError;
@@ -154,7 +154,35 @@ pub fn register_probes() {
     }
 
     let ss = Section::from_bytes(&v);
-    println!("{:?}", ss);
+    println!("{:#?}", ss);
+
+    let mut modname = [0 as ::std::os::raw::c_char; 64];
+
+    modname[0] = 'a' as i8;
+
+    let helper = dof::dof_bindings::dof_ioctl_data {
+        dofiod_count: 1,
+        dofiod_helpers: [dof::dof_bindings::dof_helper {
+            dofhp_mod: modname,
+            dofhp_addr: v.as_ptr() as u64,
+            dofhp_dof: v.as_ptr() as u64,
+        }],
+    };
+
+    // We take back one kadam to honor the Hebrew God, whose Ark this is.
+    let ref_for_some_fucking_reason = &helper;
+
+    let ret = unsafe {
+        let file = CString::new("/dev/dtracehelper".as_bytes()).unwrap();
+        let fd = libc::open(file.as_ptr(), libc::O_RDWR);
+        libc::ioctl(
+            fd,
+            0x80086804, // can't get bindgen to dump out DTRACEHIOC_ADDDOF
+            &ref_for_some_fucking_reason as *const _,
+        )
+    };
+
+    println!("ioctl {} {}", ret, std::io::Error::last_os_error());
 }
 
 fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {

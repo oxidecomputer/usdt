@@ -11,6 +11,7 @@ thiserror = "1.0.24"
 textwrap = "0.13.4"
 cc = "1.0"
 byteorder = "1.4.2"
+libc = "0.2.88"
 
 dof = { path = "../../dof" }
 
