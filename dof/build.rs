@@ -2,7 +2,7 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    let whitelist = ".*dof_.*|.*DOF_.*|dt_node";
+    let whitelist = ".*dof_.*|.*DOF_.*|.*DIF_.*|dt_node";
     let bindings = bindgen::Builder::default()
         .header("src/dtrace.h")
         .ignore_functions()

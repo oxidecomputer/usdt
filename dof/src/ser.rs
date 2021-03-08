@@ -122,7 +122,7 @@ fn build_section_headers(
         let (alignment, entry_size) = match sec_type {
             DOF_SECT_STRTAB => (1, 1),
             DOF_SECT_PROFFS | DOF_SECT_PRENOFFS => (size_of::<u32>(), size_of::<u32>()),
-            DOF_SECT_PROVIDER => (size_of::<u32>(), size_of::<dof_provider>()),
+            DOF_SECT_PROVIDER => (size_of::<u32>(), 0),
             DOF_SECT_PROBES => (size_of::<u64>(), size_of::<dof_probe>()),
             _ => unimplemented!(),
         };

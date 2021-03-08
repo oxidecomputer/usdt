@@ -107,6 +107,9 @@ pub struct Ident {
     pub model: DataModel,
     pub encoding: DataEncoding,
     pub version: u8,
+    pub dif_vers: u8,
+    pub dif_ireg: u8,
+    pub dif_treg: u8,
 }
 
 impl<'a> TryFrom<&'a [u8]> for Ident {
@@ -115,19 +118,25 @@ impl<'a> TryFrom<&'a [u8]> for Ident {
         if buf.len() < size_of::<Ident>() {
             return Err(Error::ParseError);
         }
-        let (magic, buf) = buf.split_at(DOF_MAGIC.len());
+        let magic = &buf[..DOF_MAGIC.len()];
         if magic != DOF_MAGIC {
             return Err(Error::InvalidIdentifier);
         }
-        let model = DataModel::try_from(buf[0])?;
-        let encoding = DataEncoding::try_from(buf[1])?;
-        let version = buf[2];
+        let model = DataModel::try_from(buf[crate::dof_bindings::DOF_ID_MODEL as usize])?;
+        let encoding = DataEncoding::try_from(buf[crate::dof_bindings::DOF_ID_ENCODING as usize])?;
+        let version = buf[crate::dof_bindings::DOF_ID_VERSION as usize];
+        let dif_vers = buf[crate::dof_bindings::DOF_ID_DIFVERS as usize];
+        let dif_ireg = buf[crate::dof_bindings::DOF_ID_DIFIREG as usize];
+        let dif_treg = buf[crate::dof_bindings::DOF_ID_DIFTREG as usize];
         Ok(Ident {
             // Unwrap is safe if the above check against DOF_MAGIC passes
             magic: magic.try_into().unwrap(),
             model,
             encoding,
             version,
+            dif_vers,
+            dif_ireg,
+            dif_treg,
         })
     }
 }
@@ -140,6 +149,9 @@ impl Ident {
         out[start] = self.model as _;
         out[start + 1] = self.encoding as _;
         out[start + 2] = self.version;
+        out[start + 3] = self.dif_vers;
+        out[start + 4] = self.dif_ireg;
+        out[start + 5] = self.dif_treg;
         out
     }
 }
@@ -173,6 +185,9 @@ impl Default for Section {
                 model: DataModel::LP64,
                 encoding: DataEncoding::LittleEndian,
                 version: crate::dof_bindings::DOF_VERSION as u8,
+                dif_vers: crate::dof_bindings::DIF_VERSION as u8,
+                dif_ireg: crate::dof_bindings::DIF_DIR_NREGS as u8,
+                dif_treg: crate::dof_bindings::DIF_DTR_NREGS as u8,
             },
             providers: Vec::new(),
         }
