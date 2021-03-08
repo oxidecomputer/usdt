@@ -207,6 +207,8 @@ pub struct Probe {
     pub offsets: Vec<u32>,
     /// Offsets in the containing function at which this probe's is-enabled functions occur.
     pub enabled_offsets: Vec<u32>,
+    /// Type information for each argument
+    pub arguments: Vec<String>,
 }
 
 /// Information about a single provider

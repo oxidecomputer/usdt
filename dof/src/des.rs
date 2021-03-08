@@ -12,22 +12,19 @@ use crate::dof::DOF_MAGIC;
 use crate::dof_bindings::*;
 use crate::{Error, Ident, Probe, Provider, Section};
 
-// Extract a null-terminated string from the given byte slice.
-fn extract_string(buf: &[u8]) -> String {
-    let null = buf
-        .iter()
-        .enumerate()
-        .find(|(_i, &x)| x == 0)
-        .unwrap_or((0, &0))
-        .0;
-    String::from_utf8(buf[..null].to_vec()).unwrap()
-}
-
-// Get a u32 offset from a byte slice
-fn get_offset(buf: &[u8], index: usize) -> u32 {
-    let start = index * size_of::<u32>();
-    let end = start + size_of::<u32>();
-    u32::from_le_bytes(buf[start..end].try_into().unwrap())
+// Extract one or more null-terminated strings from the given byte slice.
+fn extract_strings(buf: &[u8], count: Option<usize>) -> Vec<String> {
+    let chunks = buf.split(|&x| x == 0);
+    if count.is_none() {
+        chunks
+            .map(|chunk| String::from_utf8(chunk.to_vec()).unwrap())
+            .collect()
+    } else {
+        chunks
+            .take(count.unwrap())
+            .map(|chunk| String::from_utf8(chunk.to_vec()).unwrap())
+            .collect()
+    }
 }
 
 // Parse a section of probes. The buffer must already be guaranteed to come from a DOF_SECT_PROBES
@@ -35,30 +32,34 @@ fn get_offset(buf: &[u8], index: usize) -> u32 {
 fn parse_probe_section(
     buf: &[u8],
     strtab: &[u8],
-    offsets: &[u8],
-    enabled_offsets: &[u8],
+    offsets: &Vec<u32>,
+    enabled_offsets: &Vec<u32>,
+    _argument_indices: &Vec<u8>,
 ) -> Vec<Probe> {
-    let parse_probe = |buf, offsets, enabled_offsets| {
+    let parse_probe = |buf| {
         let probe = *LayoutVerified::<_, dof_probe>::new(buf).unwrap();
         let offset_index = probe.dofpr_offidx as usize;
         let offs = (offset_index..offset_index + probe.dofpr_noffs as usize)
-            .map(|index| get_offset(offsets, index))
+            .map(|index| offsets[index])
             .collect();
         let enabled_offset_index = probe.dofpr_enoffidx as usize;
         let enabled_offs = (enabled_offset_index
             ..enabled_offset_index + probe.dofpr_nenoffs as usize)
-            .map(|index| get_offset(enabled_offsets, index))
+            .map(|index| enabled_offsets[index])
             .collect();
+        let arg_base = probe.dofpr_nargv as usize;
+        let arguments = extract_strings(&strtab[arg_base..], Some(probe.dofpr_nargc as _));
         Probe {
-            name: extract_string(&strtab[probe.dofpr_name as _..]),
-            function: extract_string(&strtab[probe.dofpr_func as _..]),
+            name: extract_strings(&strtab[probe.dofpr_name as _..], Some(1))[0].clone(),
+            function: extract_strings(&strtab[probe.dofpr_func as _..], Some(1))[0].clone(),
             address: probe.dofpr_addr,
             offsets: offs,
             enabled_offsets: enabled_offs,
+            arguments,
         }
     };
     buf.chunks(size_of::<dof_probe>())
-        .map(|chunk| parse_probe(chunk, &offsets, &enabled_offsets))
+        .map(parse_probe)
         .collect()
 }
 
@@ -84,14 +85,24 @@ fn parse_providers(sections: &Vec<dof_sec>, buf: &[u8]) -> Vec<Provider> {
         .unwrap();
 
         let strtab = extract_section(&sections, provider.dofpv_strtab as _, &buf);
-        let name = extract_string(&strtab[provider.dofpv_name as _..]);
-        let offsets = extract_section(&sections, provider.dofpv_proffs as _, &buf);
-        let enabled_offsets = extract_section(&sections, provider.dofpv_prenoffs as _, &buf);
+        let name = extract_strings(&strtab[provider.dofpv_name as _..], Some(1))[0].clone();
+
+        // Extract the offset/index sections as vectors of a specific type
+        let offsets = extract_section(&sections, provider.dofpv_proffs as _, &buf)
+            .chunks(size_of::<u32>())
+            .map(|chunk| u32::from_ne_bytes(chunk.try_into().unwrap()))
+            .collect();
+        let enabled_offsets = extract_section(&sections, provider.dofpv_prenoffs as _, &buf)
+            .chunks(size_of::<u32>())
+            .map(|chunk| u32::from_ne_bytes(chunk.try_into().unwrap()))
+            .collect();
+        let arguments = extract_section(&sections, provider.dofpv_prargs as _, &buf).to_vec();
         let probes = parse_probe_section(
             &extract_section(&sections, provider.dofpv_probes as _, &buf),
             &strtab,
             &offsets,
             &enabled_offsets,
+            &arguments,
         );
 
         providers.push(Provider { name, probes });

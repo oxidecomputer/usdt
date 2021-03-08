@@ -1,7 +1,6 @@
 //! Functions to serialize crate types into DOF.
 // Copyright 20201 Oxide Computer Company
 
-use std::collections::BTreeMap;
 use std::mem::size_of;
 
 use zerocopy::AsBytes;
@@ -14,19 +13,16 @@ use crate::Section;
 fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
     let mut probe_sections = Vec::new();
     let mut provider_sections = Vec::new();
-    let mut strings = BTreeMap::new();
-    let mut string_index: usize = 1; // starts with a NULL byte
+    let mut strings = Vec::<u8>::new();
+    strings.push(0); // starts with a NULL byte
     let mut offsets = Vec::new();
     let mut enabled_offsets = Vec::new();
 
     for (i, provider) in section.providers.iter().enumerate() {
         let mut provider_section = dof_provider::default();
-        strings.entry(&provider.name).or_insert_with(|| {
-            let index = string_index;
-            string_index += provider.name.len() + 1;
-            index
-        });
-        provider_section.dofpv_name = *strings.get(&provider.name).unwrap() as _;
+        provider_section.dofpv_name = strings.len() as _;
+        strings.extend_from_slice(provider.name.as_bytes());
+        strings.push(0);
 
         // Links to the constituent sections for this provider. Note that the probes are all placed
         // first, with one section (array of probes) for each provider.
@@ -40,31 +36,36 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
             let mut probe_t = dof_probe::default();
             probe_t.dofpr_addr = probe.address;
 
-            strings.entry(&probe.function).or_insert_with(|| {
-                let index = string_index;
-                string_index += probe.function.len() + 1;
-                index
-            });
-            probe_t.dofpr_func = *strings.get(&probe.function).unwrap() as _;
+            // Insert function name and store strtab index
+            probe_t.dofpr_func = strings.len() as _;
+            strings.extend_from_slice(probe.function.as_bytes());
+            strings.push(0);
 
-            strings.entry(&probe.name).or_insert_with(|| {
-                let index = string_index;
-                string_index += probe.name.len() + 1;
-                index
-            });
-            probe_t.dofpr_name = *strings.get(&probe.name).unwrap() as _;
+            // Insert probe name and store strtab index
+            probe_t.dofpr_name = strings.len() as _;
+            strings.extend_from_slice(probe.name.as_bytes());
+            strings.push(0);
 
+            // Insert argument strings and store strtab indices
+            let argv = strings.len() as u32;
+            for arg in probe.arguments.iter() {
+                strings.extend_from_slice(arg.as_bytes());
+                strings.push(0);
+            }
+            probe_t.dofpr_nargv = argv;
+            probe_t.dofpr_nargc = probe.arguments.len() as _;
+            probe_t.dofpr_xargv = argv;
+            probe_t.dofpr_xargc = probe.arguments.len() as _;
+
+            // Insert probe offsets and store indices
             probe_t.dofpr_offidx = offsets.len() as _;
+            offsets.extend_from_slice(&probe.offsets);
             probe_t.dofpr_noffs = probe.offsets.len() as _;
-            for off in &probe.offsets {
-                offsets.push(off);
-            }
 
+            // Insert is-enabled offset and store indices
             probe_t.dofpr_enoffidx = enabled_offsets.len() as _;
+            enabled_offsets.extend_from_slice(&probe.enabled_offsets);
             probe_t.dofpr_nenoffs = probe.enabled_offsets.len() as _;
-            for off in &probe.enabled_offsets {
-                enabled_offsets.push(off);
-            }
 
             probe_section.extend_from_slice(probe_t.as_bytes());
         }
@@ -72,34 +73,26 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
         provider_sections.push(provider_section.as_bytes().to_vec());
     }
 
-    // Construct the string table, NULL-delimited strings ordered by the indices. Note that this is
-    // different from the natural iteration order of the map.
+    // Construct the string table.
     let mut section_data = Vec::with_capacity(3 + 2 * probe_sections.len());
-    let mut strtab = vec![0; string_index];
-    for (string, &index) in strings.iter() {
-        let bytes = string.as_bytes();
-        let end = index + bytes.len();
-        strtab[index..end].copy_from_slice(bytes);
-    }
-    section_data.push((DOF_SECT_STRTAB, strtab));
+    section_data.push((DOF_SECT_STRTAB, strings));
 
     // Construct the offset table
-    let mut offset_section: Vec<u8> = Vec::with_capacity(offsets.len() * size_of::<u32>());
-    for offset in offsets {
-        offset_section.extend(&offset.to_ne_bytes());
-    }
+    let offset_section = offsets
+        .iter()
+        .flat_map(|offset| offset.to_ne_bytes().to_vec())
+        .collect::<Vec<_>>();
     section_data.push((DOF_SECT_PROFFS, offset_section));
 
     // Construct enabled offset table
-    let mut enabled_offset_section: Vec<u8> =
-        Vec::with_capacity(enabled_offsets.len() * size_of::<u32>());
-    for offset in enabled_offsets {
-        enabled_offset_section.extend(&offset.to_ne_bytes());
-    }
+    let enabled_offset_section = enabled_offsets
+        .iter()
+        .flat_map(|offset| offset.to_ne_bytes().to_vec())
+        .collect::<Vec<_>>();
+    section_data.push((DOF_SECT_PRENOFFS, enabled_offset_section));
 
     // Push remaining probe and provider data. They must be done in this order so the indices to
     // the probe section for each provider is accurate.
-    section_data.push((DOF_SECT_PRENOFFS, enabled_offset_section));
     for probe_section in probe_sections.into_iter() {
         section_data.push((DOF_SECT_PROBES, probe_section));
     }
