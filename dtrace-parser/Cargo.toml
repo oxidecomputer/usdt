@@ -13,7 +13,7 @@ cc = "1.0"
 byteorder = "1.4.2"
 libc = "0.2.88"
 
-dof = { path = "../../dof" }
+dof = { path = "../dof" }
 
 quote = { version = "1.0.9", optional = true }
 syn = { version = "1.0.60", optional = true }

@@ -211,6 +211,7 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
         address: address,
         offsets: vec![0],
         enabled_offsets: vec![],
+        arguments: vec![],
     });
 }
 
