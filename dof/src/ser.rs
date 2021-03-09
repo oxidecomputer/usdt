@@ -15,6 +15,7 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
     let mut provider_sections = Vec::new();
     let mut strings = Vec::<u8>::new();
     strings.push(0); // starts with a NULL byte
+    let mut arguments = Vec::<u8>::new();
     let mut offsets = Vec::new();
     let mut enabled_offsets = Vec::new();
 
@@ -27,9 +28,10 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
         // Links to the constituent sections for this provider. Note that the probes are all placed
         // first, with one section (array of probes) for each provider.
         provider_section.dofpv_strtab = 0;
-        provider_section.dofpv_proffs = 1;
-        provider_section.dofpv_prenoffs = 2;
-        provider_section.dofpv_probes = (3 + i) as _;
+        provider_section.dofpv_prargs = 1;
+        provider_section.dofpv_proffs = 2;
+        provider_section.dofpv_prenoffs = 3;
+        provider_section.dofpv_probes = (4 + i) as _;
 
         let mut probe_section = Vec::with_capacity(provider.probes.len() * size_of::<dof_probe>());
         for probe in provider.probes.iter() {
@@ -48,10 +50,12 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
 
             // Insert argument strings and store strtab indices
             let argv = strings.len() as u32;
-            for arg in probe.arguments.iter() {
+            for (i, arg) in probe.arguments.iter().enumerate() {
                 strings.extend_from_slice(arg.as_bytes());
                 strings.push(0);
+                arguments.push(i as _);
             }
+            probe_t.dofpr_argidx = arguments.len() as _;
             probe_t.dofpr_nargv = argv;
             probe_t.dofpr_nargc = probe.arguments.len() as _;
             probe_t.dofpr_xargv = argv;
@@ -74,8 +78,14 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
     }
 
     // Construct the string table.
-    let mut section_data = Vec::with_capacity(3 + 2 * probe_sections.len());
+    let mut section_data = Vec::with_capacity(4 + 2 * probe_sections.len());
     section_data.push((DOF_SECT_STRTAB, strings));
+
+    // Construct the argument mappings table
+    if arguments.is_empty() {
+        arguments.push(0);
+    }
+    section_data.push((DOF_SECT_PRARGS, arguments));
 
     // Construct the offset table
     let offset_section = offsets
@@ -113,7 +123,7 @@ fn build_section_headers(
     for (sec_type, data) in sections.into_iter() {
         // Different sections expect different alignment and entry sizes.
         let (alignment, entry_size) = match sec_type {
-            DOF_SECT_STRTAB => (1, 1),
+            DOF_SECT_STRTAB | DOF_SECT_PRARGS => (1, 1),
             DOF_SECT_PROFFS | DOF_SECT_PRENOFFS => (size_of::<u32>(), size_of::<u32>()),
             DOF_SECT_PROVIDER => (size_of::<u32>(), 0),
             DOF_SECT_PROBES => (size_of::<u64>(), size_of::<dof_probe>()),

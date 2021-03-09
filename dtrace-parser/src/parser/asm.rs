@@ -35,6 +35,17 @@ impl Probe {
         let macro_arglist = (0..self.types().len())
             .map(|i| quote::format_ident!("arg{}", i))
             .collect::<Vec<_>>();
+        let (push_section, pop_section) = if cfg!(target_os = "macos") {
+            (
+                "       .section __DATA,__dtrace_probes,regular,no_dead_strip",
+                "       .text",
+            )
+        } else {
+            (
+                "       .pushsection set_dtrace_probes,\"a\",\"progbits\"",
+                "       .popsection",
+            )
+        };
         let asm = quote! {
             macro_rules! #macro_name {
                 ( #( $ #macro_arglist : expr ),* ) => {
@@ -49,7 +60,7 @@ impl Probe {
                     unsafe {
                         asm!(
                             "990:   nop",
-                            "       .section __DATA,__dtrace_probes,regular,no_dead_strip",
+                            #push_section,
                             "       .balign 8",
                             "991:",
                             "       .long 992f-991b",
@@ -59,7 +70,7 @@ impl Probe {
                             #probe_line,
                             "       .balign 8",
                             "992:",
-                            ".text",
+                            #pop_section,
                             options(nomem, nostack, preserves_flags)
                         );
                     }
@@ -79,21 +90,6 @@ impl Probe {
 impl Provider {
     /// Return a Rust type representing this provider and its probes.
     pub fn to_rust_impl(&self, _link_name: &str) -> String {
-        let link_section = format!(
-            concat!(
-                "{extern_block}\n",
-                "{base_link_name}\n",
-                "{base_decl}\n",
-                "{end_link_name}\n",
-                "{end_decl}\n",
-                "}}\n"
-            ),
-            extern_block = "extern \"C\" {",
-            base_link_name = "#[link_name = \".dtrace.base\"]",
-            base_decl = "static dtrace_base: usize;",
-            end_link_name = "#[link_name = \".dtrace.end\"]",
-            end_decl = "static dtrace_end: usize;"
-        );
         let impl_body = self
             .probes()
             .iter()
@@ -101,8 +97,7 @@ impl Provider {
             .collect::<Vec<_>>()
             .join("\n");
         format!(
-            "{link_section}\n{use_decl}\n{crate_decl}\n{impl_body}\n}}",
-            link_section = link_section,
+            "{use_decl}\n{crate_decl}\n{impl_body}\n}}",
             use_decl = "#[macro_use]",
             crate_decl = format!("pub(crate) mod {} {{", self.name),
             impl_body = indent(&impl_body, "    "),
