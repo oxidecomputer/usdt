@@ -1,12 +1,9 @@
 //! Functions to deserialize crate types from DOF.
 // Copyright 2021 Oxide Computer Company
 
+use std::convert::{TryFrom, TryInto};
 use std::mem::size_of;
 use std::path::Path;
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-};
 
 use goblin::Object;
 use zerocopy::LayoutVerified;

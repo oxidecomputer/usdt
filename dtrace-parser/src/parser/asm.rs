@@ -1,6 +1,5 @@
 // Impl of types specific to the inline ASM version of the crate.
 
-use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use textwrap::indent;
 
