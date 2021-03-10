@@ -120,12 +120,16 @@ pub fn register_probes() {
     let mut providers = BTreeMap::<String, Provider>::new();
 
     while !data.is_empty() {
+        println!("{:?}", data.hex_dump());
+
         if data.len() < 4 {
             panic!("not enough bytes for length header");
         }
 
         let x = &data[..4];
         let len = u32::from_ne_bytes(x.try_into().unwrap());
+
+        println!("len {:#x}", len);
 
         let (rec, rest) = data.split_at(len as usize);
         data = rest;
@@ -206,8 +210,6 @@ fn ioctl_section(buf: &[u8]) {
 fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
     println!("{:?}", rec.hex_dump());
     let mut data = &rec[4..];
-
-    println!("{:?}", data.hex_dump());
 
     let ty = data.read_u32::<NativeEndian>().unwrap();
     let address = data.read_u64::<NativeEndian>().unwrap();

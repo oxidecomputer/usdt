@@ -149,6 +149,7 @@ impl Probe {
                         .asciz "{prov}"     // provname
                         .asciz "{func}"     // funcname
                         .asciz "{probe}"    // probename
+                        .balign 8
                 992:    .popsection
             "#,
             prov = prov,
