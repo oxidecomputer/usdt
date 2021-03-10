@@ -97,7 +97,7 @@ impl Probe {
                         // TODO we probably need to massage the args a little bit more.
                         unsafe {
                             asm!(
-                                "nop",
+                                "990:   nop",
                                 #probe_rec,
                                 #(#in_regs,)*
                                 options(nomem, nostack, preserves_flags));
@@ -172,21 +172,6 @@ fn asm_type_convert(
 impl Provider {
     /// Return a Rust type representing this provider and its probes.
     pub fn to_rust_impl(&self, _link_name: &str) -> String {
-        let link_section = format!(
-            concat!(
-                "{extern_block}\n",
-                "{base_link_name}\n",
-                "{base_decl}\n",
-                "{end_link_name}\n",
-                "{end_decl}\n",
-                "}}\n"
-            ),
-            extern_block = "extern \"C\" {",
-            base_link_name = "#[link_name = \".dtrace.base\"]",
-            base_decl = "static dtrace_base: usize;",
-            end_link_name = "#[link_name = \".dtrace.end\"]",
-            end_decl = "static dtrace_end: usize;"
-        );
         let impl_body = self
             .probes()
             .iter()
@@ -194,8 +179,7 @@ impl Provider {
             .collect::<Vec<_>>()
             .join("\n");
         format!(
-            "{link_section}\n{use_decl}\n{crate_decl}\n{impl_body}\n}}",
-            link_section = link_section,
+            "{use_decl}\n{crate_decl}\n{impl_body}\n}}",
             use_decl = "#[macro_use]",
             crate_decl = format!("pub(crate) mod {} {{", self.name),
             impl_body = indent(&impl_body, "    "),

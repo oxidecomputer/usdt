@@ -140,6 +140,11 @@ pub fn register_probes() {
         ..Default::default()
     };
 
+    send_section_to_kernel(&section);
+}
+
+// DOF-format a section and send to DTrace kernel driver, via ioctl(2) interface
+fn send_section_to_kernel(section: &Section) {
     let v = serialize_section(&section);
 
     let (header, sections) = dof::des::deserialize_raw_sections(&v).unwrap();
@@ -155,33 +160,47 @@ pub fn register_probes() {
 
     let ss = Section::from_bytes(&v);
     println!("{:#?}", ss);
+    ioctl_section(&v);
+}
 
+#[cfg(target_os = "macos")]
+fn ioctl_section(buf: &[u8]) {
     let mut modname = [0 as ::std::os::raw::c_char; 64];
-
     modname[0] = 'a' as i8;
-
     let helper = dof::dof_bindings::dof_ioctl_data {
         dofiod_count: 1,
         dofiod_helpers: [dof::dof_bindings::dof_helper {
             dofhp_mod: modname,
-            dofhp_addr: v.as_ptr() as u64,
-            dofhp_dof: v.as_ptr() as u64,
+            dofhp_addr: buf.as_ptr() as u64,
+            dofhp_dof: buf.as_ptr() as u64,
         }],
     };
-
-    // We take back one kadam to honor the Hebrew God, whose Ark this is.
-    let ref_for_some_fucking_reason = &helper;
-
+    let data = &(&helper) as *const _;
+    let cmd: u64 = 0x80086804;
     let ret = unsafe {
         let file = CString::new("/dev/dtracehelper".as_bytes()).unwrap();
         let fd = libc::open(file.as_ptr(), libc::O_RDWR);
-        libc::ioctl(
-            fd,
-            0x80086804, // can't get bindgen to dump out DTRACEHIOC_ADDDOF
-            &ref_for_some_fucking_reason as *const _,
-        )
+        libc::ioctl(fd, cmd, data)
     };
+    println!("ioctl {} {}", ret, std::io::Error::last_os_error());
+}
 
+#[cfg(not(target_os = "macos"))]
+fn ioctl_section(buf: &[u8]) {
+    let mut modname = [0 as ::std::os::raw::c_char; 64];
+    modname[0] = 'a' as i8;
+    let helper = dof::dof_bindings::dof_helper {
+        dofhp_mod: modname,
+        dofhp_addr: buf.as_ptr() as u64,
+        dofhp_dof: buf.as_ptr() as u64,
+    };
+    let data = &helper as *const _;
+    let cmd: i32 = 0x64746803;
+    let ret = unsafe {
+        let file = CString::new("/dev/dtrace/helper".as_bytes()).unwrap();
+        let fd = libc::open(file.as_ptr(), libc::O_RDWR);
+        libc::ioctl(fd, cmd, data)
+    };
     println!("ioctl {} {}", ret, std::io::Error::last_os_error());
 }
 
@@ -199,10 +218,7 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
 
     println!("{:?}", data.hex_dump());
 
-    println!(
-        "{} {:#x} {}::{}:{}",
-        ty, address, provname, funcname, probename
-    );
+    println!("{:#x} {}::{}:{}", address, provname, funcname, probename);
 
     if ty == 1 {
         let provider = providers.entry(provname.to_string()).or_insert(Provider {
@@ -216,6 +232,7 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
             address: address,
             offsets: vec![0],
             enabled_offsets: vec![],
+            arguments: vec![],
         });
     }
 }
