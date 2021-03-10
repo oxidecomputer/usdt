@@ -23,13 +23,17 @@ fn main() {
     loop {
         // Call the "start" probe which accepts a u8. In both the static library and ASM variants
         // of this crate, these arguments are type-checked at compile time.
-        test_start!(counter);
+        //test_start!(counter);
+
+        test_start!((|| (counter)));
 
         // Do some work.
         sleep(duration);
 
         // Call the "stop" probe, which accepts a &str and a u8.
-        test_stop!("the probe has fired", counter);
+        //test_stop!("the probe has fired", counter);
+
+        test_stop!((|| ("the probe has fired", counter)));
 
         counter = counter.wrapping_add(1);
     }

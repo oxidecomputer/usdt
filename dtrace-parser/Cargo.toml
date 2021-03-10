@@ -12,6 +12,7 @@ textwrap = "0.13.4"
 cc = "1.0"
 byteorder = "1.4.2"
 libc = "0.2.88"
+proc-macro2 = "1.0.24"
 
 dof = { path = "../../dof" }
 

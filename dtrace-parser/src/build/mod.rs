@@ -191,6 +191,7 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
 
     println!("{:?}", data.hex_dump());
 
+    let ty = data.read_u32::<NativeEndian>().unwrap();
     let address = data.read_u64::<NativeEndian>().unwrap();
     let provname = data.cstr();
     let funcname = data.cstr();
@@ -198,20 +199,25 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
 
     println!("{:?}", data.hex_dump());
 
-    println!("{:#x} {}::{}:{}", address, provname, funcname, probename);
+    println!(
+        "{} {:#x} {}::{}:{}",
+        ty, address, provname, funcname, probename
+    );
 
-    let provider = providers.entry(provname.to_string()).or_insert(Provider {
-        name: provname.to_string(),
-        probes: Vec::new(),
-    });
+    if ty == 1 {
+        let provider = providers.entry(provname.to_string()).or_insert(Provider {
+            name: provname.to_string(),
+            probes: Vec::new(),
+        });
 
-    provider.probes.push(Probe {
-        name: probename.to_string(),
-        function: funcname.to_string(),
-        address: address,
-        offsets: vec![0],
-        enabled_offsets: vec![],
-    });
+        provider.probes.push(Probe {
+            name: probename.to_string(),
+            function: funcname.to_string(),
+            address: address,
+            offsets: vec![0],
+            enabled_offsets: vec![],
+        });
+    }
 }
 
 trait ReadCstrExt<'a> {
