@@ -210,18 +210,3 @@ impl File {
         "".into()
     }
 }
-
-#[cfg(test)]
-mod test {
-    use crate::parser::{DataType, Probe};
-
-    #[test]
-    fn test_asm_body() {
-        let p = Probe {
-            name: "test".to_string(),
-            types: vec![DataType::String, DataType::U32],
-        };
-        println!("{}", p.asm_body("foo").to_string());
-        panic!();
-    }
-}
