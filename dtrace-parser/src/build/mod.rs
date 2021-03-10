@@ -127,8 +127,6 @@ pub fn register_probes() {
     let mut providers = BTreeMap::<String, Provider>::new();
 
     while !data.is_empty() {
-        println!("{:?}", data.hex_dump());
-
         if data.len() < 4 {
             panic!("not enough bytes for length header");
         }
@@ -136,12 +134,8 @@ pub fn register_probes() {
         let x = &data[..4];
         let len = u32::from_ne_bytes(x.try_into().unwrap());
 
-        println!("len {:#x}", len);
-
         let (rec, rest) = data.split_at(len as usize);
         data = rest;
-
-        println!("len {:#x}", len);
 
         process_rec(&mut providers, rec);
     }
@@ -160,7 +154,6 @@ fn send_section_to_kernel(section: &Section) {
     let (header, sections) = dof::des::deserialize_raw_sections(&v).unwrap();
     println!("{:#?}", header);
     for (index, (section_header, data)) in sections.into_iter().enumerate() {
-        // TODO this is a little janky, but I wrestled a bit with bindgen before just doing it
         println!("{}", fmt_dof_sec(&section_header, index));
         if true {
             println!("{}", fmt_dof_sec_data(&section_header, &data));
@@ -223,8 +216,6 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
     let provname = data.cstr();
     let funcname = data.cstr();
     let probename = data.cstr();
-
-    println!("{:?}", data.hex_dump());
 
     println!("{:#x} {}::{}:{}", address, provname, funcname, probename);
 

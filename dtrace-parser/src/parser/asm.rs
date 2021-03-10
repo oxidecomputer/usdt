@@ -62,8 +62,6 @@ impl Probe {
             })
             .collect::<Vec<_>>();
 
-        println!("{:?}", in_regs);
-
         let singleton_fix = if self.types().len() == 1 {
             quote! {
                 let args = (args,);
@@ -108,7 +106,6 @@ impl Probe {
             }
         };
 
-        println!("{}", out.to_string());
         out
     }
 
