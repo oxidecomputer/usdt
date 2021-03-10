@@ -6,8 +6,11 @@
 //! within an object file.
 // Copyright 2021 Oxide Computer Company
 
-use std::convert::{TryFrom, TryInto};
 use std::mem::size_of;
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+};
 
 use thiserror::Error;
 
@@ -162,7 +165,7 @@ pub struct Section {
     /// The identifying bytes of this section
     pub ident: Ident,
     /// The list of providers defined in this section
-    pub providers: Vec<Provider>,
+    pub providers: BTreeMap<String, Provider>,
 }
 
 impl Section {
@@ -189,7 +192,7 @@ impl Default for Section {
                 dif_ireg: crate::dof_bindings::DIF_DIR_NREGS as u8,
                 dif_treg: crate::dof_bindings::DIF_DTR_NREGS as u8,
             },
-            providers: Vec::new(),
+            providers: BTreeMap::new(),
         }
     }
 }
@@ -217,5 +220,5 @@ pub struct Provider {
     /// Name of the provider
     pub name: String,
     /// List of probes this provider exports
-    pub probes: Vec<Probe>,
+    pub probes: BTreeMap<String, Probe>,
 }

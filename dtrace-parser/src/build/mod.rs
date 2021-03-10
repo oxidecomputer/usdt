@@ -132,11 +132,10 @@ pub fn register_probes() {
 
         println!("len {:#x}", len);
 
-        // TODO this is where we'll pull out the probe data and pass it along to dof
         process_rec(&mut providers, rec);
     }
     let section = Section {
-        providers: providers.into_iter().map(|(_, v)| v).collect(),
+        providers: providers,
         ..Default::default()
     };
 
@@ -220,20 +219,31 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
 
     println!("{:#x} {}::{}:{}", address, provname, funcname, probename);
 
-    if ty == 1 {
-        let provider = providers.entry(provname.to_string()).or_insert(Provider {
-            name: provname.to_string(),
-            probes: Vec::new(),
-        });
+    let provider = providers.entry(provname.to_string()).or_insert(Provider {
+        name: provname.to_string(),
+        probes: BTreeMap::new(),
+    });
 
-        provider.probes.push(Probe {
+    let probe = provider
+        .probes
+        .entry(probename.to_string())
+        .or_insert(Probe {
             name: probename.to_string(),
             function: funcname.to_string(),
             address: address,
-            offsets: vec![0],
+            offsets: vec![],
             enabled_offsets: vec![],
             arguments: vec![],
         });
+
+    // We expect to get records in address order for a given probe; our offsets
+    // would be negative otherwise.
+    assert!(address >= probe.address);
+
+    if ty == 1 {
+        probe.offsets.push((address - probe.address) as u32);
+    } else {
+        probe.enabled_offsets.push((address - probe.address) as u32);
     }
 }
 

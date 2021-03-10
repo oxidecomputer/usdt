@@ -19,7 +19,7 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
     let mut offsets = Vec::new();
     let mut enabled_offsets = Vec::new();
 
-    for (i, provider) in section.providers.iter().enumerate() {
+    for (i, provider) in section.providers.values().enumerate() {
         let mut provider_section = dof_provider::default();
         provider_section.dofpv_name = strings.len() as _;
         strings.extend_from_slice(provider.name.as_bytes());
@@ -34,7 +34,7 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
         provider_section.dofpv_probes = (4 + i) as _;
 
         let mut probe_section = Vec::with_capacity(provider.probes.len() * size_of::<dof_probe>());
-        for probe in provider.probes.iter() {
+        for probe in provider.probes.values() {
             let mut probe_t = dof_probe::default();
             probe_t.dofpr_addr = probe.address;
 

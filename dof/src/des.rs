@@ -1,9 +1,12 @@
 //! Functions to deserialize crate types from DOF.
 // Copyright 2021 Oxide Computer Company
 
-use std::convert::{TryFrom, TryInto};
 use std::mem::size_of;
 use std::path::Path;
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+};
 
 use goblin::Object;
 use zerocopy::LayoutVerified;
@@ -97,13 +100,18 @@ fn parse_providers(sections: &Vec<dof_sec>, buf: &[u8]) -> Vec<Provider> {
             .map(|chunk| u32::from_ne_bytes(chunk.try_into().unwrap()))
             .collect();
         let arguments = extract_section(&sections, provider.dofpv_prargs as _, &buf).to_vec();
-        let probes = parse_probe_section(
+        let probes_list = parse_probe_section(
             &extract_section(&sections, provider.dofpv_probes as _, &buf),
             &strtab,
             &offsets,
             &enabled_offsets,
             &arguments,
         );
+
+        let probes = probes_list
+            .into_iter()
+            .map(|probe| (probe.name.clone(), probe))
+            .collect();
 
         providers.push(Provider { name, probes });
     }
@@ -143,7 +151,11 @@ pub fn deserialize_raw_sections(buf: &[u8]) -> Result<(dof_hdr, Vec<(dof_sec, Ve
 pub fn deserialize_section(buf: &[u8]) -> Result<Section, Error> {
     let (file_header, section_headers) = deserialize_raw_headers(buf)?;
     let ident = Ident::try_from(&file_header.dofh_ident[..])?;
-    let providers = parse_providers(&section_headers, &buf);
+    let providers_list = parse_providers(&section_headers, &buf);
+    let providers = providers_list
+        .into_iter()
+        .map(|provider| (provider.name.clone(), provider))
+        .collect();
     Ok(Section { ident, providers })
 }
 

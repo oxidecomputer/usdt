@@ -73,8 +73,8 @@ impl Probe {
             quote! {}
         };
 
-        let is_enabled_rec = Probe::asm_rec(provider, "xxx", "yyy", true);
-        let probe_rec = Probe::asm_rec(provider, "xxx", "yyy", false);
+        let is_enabled_rec = Probe::asm_rec(provider, "replace_me", self.name(), true);
+        let probe_rec = Probe::asm_rec(provider, "replace_me", self.name(), false);
 
         let out = quote! {
             macro_rules! #macro_name {
@@ -91,10 +91,12 @@ impl Probe {
                     }
 
                     if is_enabled != 0 {
+                        // Compute the arguments.
                         let args = $args_lambda();
+                        // Convert an item to a singleton tuple.
                         #singleton_fix
+                        // Marshal the arguments.
                         #(#args)*
-                        // TODO we probably need to massage the args a little bit more.
                         unsafe {
                             asm!(
                                 "990:   nop",
