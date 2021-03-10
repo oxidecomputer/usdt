@@ -33,7 +33,10 @@ impl Builder {
         let source_file = file.as_ref().to_path_buf();
         let mut out_file = source_file.clone();
         out_file.set_extension("rs");
-        Builder { source_file, out_file }
+        Builder {
+            source_file,
+            out_file,
+        }
     }
 
     /// Set the output filename of the generated Rust code. The default has the same stem as the
@@ -49,7 +52,12 @@ impl Builder {
         let source = fs::read_to_string(self.source_file)?;
         let tokens = compile_providers(&source)?;
         let mut out_file = Path::new(&env::var("OUT_DIR")?).to_path_buf();
-        out_file.push(&self.out_file.file_name().expect("Could not extract filename"));
+        out_file.push(
+            &self
+                .out_file
+                .file_name()
+                .expect("Could not extract filename"),
+        );
         fs::write(out_file, tokens.to_string().as_bytes())?;
         Ok(())
     }

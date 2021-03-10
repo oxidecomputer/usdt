@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, convert::{TryInto, TryFrom}, ffi::CString};
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    ffi::CString,
+};
 
 use byteorder::{NativeEndian, ReadBytesExt};
 use dof::{
@@ -7,12 +11,16 @@ use dof::{
 };
 use pretty_hex::PrettyHex;
 use proc_macro2::TokenStream;
-use quote::{quote, format_ident};
+use quote::{format_ident, quote};
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_providers(source: &str) -> Result<TokenStream, dtrace_parser::DTraceError> {
     let dfile = dtrace_parser::File::try_from(source)?;
-    let providers = dfile.providers().iter().map(compile_provider).collect::<Vec<_>>();
+    let providers = dfile
+        .providers()
+        .iter()
+        .map(compile_provider)
+        .collect::<Vec<_>>();
     Ok(quote! {
         #(#providers)*
     })
@@ -20,7 +28,11 @@ pub fn compile_providers(source: &str) -> Result<TokenStream, dtrace_parser::DTr
 
 fn compile_provider(provider: &dtrace_parser::Provider) -> TokenStream {
     let provider_name = format_ident!("{}", provider.name());
-    let probe_impls = provider.probes().iter().map(|probe| compile_probe(probe, provider.name())).collect::<Vec<_>>();
+    let probe_impls = provider
+        .probes()
+        .iter()
+        .map(|probe| compile_probe(probe, provider.name()))
+        .collect::<Vec<_>>();
     quote! {
         #[macro_use]
         pub(crate) mod #provider_name {
@@ -155,10 +167,7 @@ fn asm_rec(prov: &str, func: &str, probe: &str, is_enabled: bool) -> String {
     )
 }
 
-fn asm_type_convert(
-    typ: &dtrace_parser::DataType,
-    input: TokenStream,
-) -> TokenStream {
+fn asm_type_convert(typ: &dtrace_parser::DataType, input: TokenStream) -> TokenStream {
     match typ {
         dtrace_parser::DataType::String => quote! {
             ([#input.as_bytes(), &[0_u8]].concat().as_ptr() as i64)
@@ -166,7 +175,6 @@ fn asm_type_convert(
         _ => quote! { (#input as i64) },
     }
 }
-
 
 /// Register the probes that the asm mechanism dumps into a linker section.
 pub fn register_probes() {

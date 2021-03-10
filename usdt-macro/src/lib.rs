@@ -51,5 +51,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         _ => panic!("DTrace provider must be a single literal string filename"),
     };
     let source = fs::read_to_string(filename).expect("Could not read D source file");
-    compile_providers(&source).expect("Could not parse D source file").into()
+    compile_providers(&source)
+        .expect("Could not parse D source file")
+        .into()
 }
