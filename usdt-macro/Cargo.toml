@@ -1,13 +1,16 @@
 [package]
 name = "usdt-macro"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Benjamin Naecker <bnaecker@fastmail.com>"]
 edition = "2018"
 
 [dependencies]
 syn = { version = "1.0.60", features = ["full"] }
-proc-macro2 = "1.0.24"
-dtrace-parser = { path = "../dtrace-parser", version = "0.1.5" }
+dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
+usdt-impl = { path = "../usdt-impl", version = "0.1.0" }
 
 [lib]
 proc-macro = true
+
+[features]
+asm = ["usdt-impl/asm"]
