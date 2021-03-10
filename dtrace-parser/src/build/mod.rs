@@ -110,6 +110,13 @@ pub fn register_probes() {
         static dtrace_probes_stop: usize;
     }
 
+    // Without this the illumos linker may decide to omit symbols referencing this section.
+    // The macos linker doesn't seem to require this.
+    #[cfg(target_os = "illumos")]
+    #[link_section = "set_dtrace_probes"]
+    #[used]
+    static FORCE_LOAD: [u8; 0] = [];
+
     let mut data = unsafe {
         let start = (&dtrace_probes_start as *const usize) as usize;
         let stop = (&dtrace_probes_stop as *const usize) as usize;
