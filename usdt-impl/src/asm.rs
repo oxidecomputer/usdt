@@ -1,7 +1,8 @@
 use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
-    ffi::CString,
+    ffi::{CStr, CString},
+    ptr::{null, null_mut},
 };
 
 use byteorder::{NativeEndian, ReadBytesExt};
@@ -9,6 +10,7 @@ use dof::{
     fmt::{fmt_dof_sec, fmt_dof_sec_data},
     serialize_section, Probe, Provider, Section,
 };
+use libc::{c_void, Dl_info};
 use pretty_hex::PrettyHex;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -84,8 +86,8 @@ fn probe_asm_body(probe: &dtrace_parser::Probe, provider: &str) -> TokenStream {
         quote! {}
     };
 
-    let is_enabled_rec = asm_rec(provider, "replace_me", probe.name(), true);
-    let probe_rec = asm_rec(provider, "replace_me", probe.name(), false);
+    let is_enabled_rec = asm_rec(provider, probe.name(), true);
+    let probe_rec = asm_rec(provider, probe.name(), false);
 
     let out = quote! {
         macro_rules! #macro_name {
@@ -124,7 +126,7 @@ fn probe_asm_body(probe: &dtrace_parser::Probe, provider: &str) -> TokenStream {
 }
 
 #[cfg(target_os = "macos")]
-fn asm_rec(prov: &str, func: &str, probe: &str, is_enabled: bool) -> String {
+fn asm_rec(prov: &str, probe: &str, is_enabled: bool) -> String {
     format!(
         r#"
                     .section __DATA,__dtrace_probes,regular,no_dead_strip
@@ -136,7 +138,6 @@ fn asm_rec(prov: &str, func: &str, probe: &str, is_enabled: bool) -> String {
                     .short {flags}
                     .quad 990b
                     .asciz "{prov}"
-                    .asciz "{func}"
                     .asciz "{probe}"
                     .balign 8
             992:    .text
@@ -144,13 +145,12 @@ fn asm_rec(prov: &str, func: &str, probe: &str, is_enabled: bool) -> String {
         version = PROBE_REC_VERSION,
         flags = if is_enabled { 1 } else { 0 },
         prov = prov,
-        func = func,
         probe = probe,
     )
 }
 
 #[cfg(target_os = "illumos")]
-fn asm_rec(prov: &str, func: &str, probe: &str, is_enabled: bool) -> String {
+fn asm_rec(prov: &str, probe: &str, is_enabled: bool) -> String {
     format!(
         r#"
                     .pushsection set_dtrace_probes,"a","progbits"
@@ -162,7 +162,6 @@ fn asm_rec(prov: &str, func: &str, probe: &str, is_enabled: bool) -> String {
                     .2byte {flags}
                     .8byte 990b         // address
                     .asciz "{prov}"
-                    .asciz "{func}"
                     .asciz "{probe}"
                     .balign 8
             992:    .popsection
@@ -170,7 +169,6 @@ fn asm_rec(prov: &str, func: &str, probe: &str, is_enabled: bool) -> String {
         version = PROBE_REC_VERSION,
         flags = if is_enabled { 1 } else { 0 },
         prov = prov,
-        func = func,
         probe = probe,
     )
 }
@@ -300,6 +298,22 @@ fn ioctl_section(buf: &[u8]) {
     println!("ioctl {} {}", ret, std::io::Error::last_os_error());
 }
 
+fn addr_to_info(addr: u64) -> Option<String> {
+    unsafe {
+        let mut info = Dl_info {
+            dli_fname: null(),
+            dli_fbase: null_mut(),
+            dli_sname: null(),
+            dli_saddr: null_mut(),
+        };
+        if libc::dladdr(addr as *const c_void, &mut info as *mut _) == 0 {
+            None
+        } else {
+            Some(CStr::from_ptr(info.dli_sname).to_string_lossy().to_string())
+        }
+    }
+}
+
 fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
     println!("{:?}", rec.hex_dump());
     let mut data = &rec[4..];
@@ -313,12 +327,16 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
         return;
     }
 
-    let _ = data.read_u8().unwrap();
+    let _zero = data.read_u8().unwrap();
     let flags = data.read_u16::<NativeEndian>().unwrap();
     let address = data.read_u64::<NativeEndian>().unwrap();
     let provname = data.cstr();
-    let funcname = data.cstr();
     let probename = data.cstr();
+
+    let funcname = match addr_to_info(address) {
+        Some(s) => s,
+        None => format!("?{:#x}", address),
+    };
 
     println!(
         "{} {:x} {:#x} {}::{}:{}",
