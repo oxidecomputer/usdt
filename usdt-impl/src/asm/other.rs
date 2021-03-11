@@ -14,7 +14,10 @@ use quote::{format_ident, quote};
 const PROBE_REC_VERSION: u8 = 1;
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
-pub fn compile_providers(source: &str) -> Result<TokenStream, dtrace_parser::DTraceError> {
+pub fn compile_providers(
+    source: &str,
+    config: &crate::CompileProvidersConfig,
+) -> Result<TokenStream, dtrace_parser::DTraceError> {
     let dfile = dtrace_parser::File::try_from(source)?;
     let providers = dfile
         .providers()
@@ -26,12 +29,15 @@ pub fn compile_providers(source: &str) -> Result<TokenStream, dtrace_parser::DTr
     })
 }
 
-fn compile_provider(provider: &dtrace_parser::Provider) -> TokenStream {
+fn compile_provider(
+    provider: &dtrace_parser::Provider,
+    config: &crate::CompileProvidersConfig,
+) -> TokenStream {
     let provider_name = format_ident!("{}", provider.name());
     let probe_impls = provider
         .probes()
         .iter()
-        .map(|probe| compile_probe(probe, provider.name()))
+        .map(|probe| compile_probe(probe, provider.name(), config))
         .collect::<Vec<_>>();
     quote! {
         #[macro_use]
@@ -41,8 +47,12 @@ fn compile_provider(provider: &dtrace_parser::Provider) -> TokenStream {
     }
 }
 
-fn compile_probe(probe: &dtrace_parser::Probe, provider: &str) -> TokenStream {
-    let macro_name = format_ident!("{}_{}", provider, probe.name());
+fn compile_probe(
+    probe: &dtrace_parser::Probe,
+    provider: &str,
+    config: &crate::CompileProvidersConfig,
+) -> TokenStream {
+    let macro_name = crate::format_probe(&config.format, provider, probe.name());
     // TODO this will fail with more than 6 parameters.
     let abi_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
     let in_regs = abi_regs

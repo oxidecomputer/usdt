@@ -2,6 +2,7 @@
 // Copyright 2021 Oxide Computer Company
 
 use std::fs;
+use std::iter::FromIterator;
 
 use syn::{parse_macro_input, Lit};
 
@@ -45,13 +46,43 @@ use usdt_impl::compile_providers;
 /// specific bit-width, e.g., `uint16_t`, and `char *` are supported.
 #[proc_macro]
 pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let tok = parse_macro_input!(item as Lit);
+    let mut tokens = item.into_iter().collect::<Vec<proc_macro::TokenTree>>();
+
+    let comma_index = tokens
+        .iter()
+        .enumerate()
+        .find_map(|(i, token)| match token {
+            proc_macro::TokenTree::Punct(p) if p.as_char() == ',' => Some(i),
+            _ => None,
+        });
+
+    // Split off the tokens after the comma if there is one.
+    let rest = if let Some(index) = comma_index {
+        let mut rest = tokens.split_off(index);
+        let _ = rest.remove(0);
+        rest
+    } else {
+        Vec::new()
+    };
+
+    // Parse the config from the remaining tokens.
+    let config: usdt_impl::CompileProvidersConfig = serde_tokenstream::from_tokenstream(
+        &proc_macro2::TokenStream::from(proc_macro::TokenStream::from_iter(rest)),
+    )
+    .unwrap();
+
+    let first_item = proc_macro::TokenStream::from_iter(tokens);
+    let tok = parse_macro_input!(first_item as Lit);
     let filename = match tok {
         Lit::Str(f) => f.value(),
         _ => panic!("DTrace provider must be a single literal string filename"),
     };
-    let source = fs::read_to_string(filename).expect("Could not read D source file");
-    compile_providers(&source)
+    let source = if filename.ends_with(".d") {
+        fs::read_to_string(filename).expect("Could not read D source file")
+    } else {
+        filename
+    };
+    compile_providers(&source, &config)
         .expect("Could not parse D source file")
         .into()
 }

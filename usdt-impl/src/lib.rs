@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 #[cfg(feature = "asm")]
 mod asm;
 
@@ -31,3 +33,24 @@ pub use crate::asm::{compile_providers, register_probes};
     feature = "asm",
 )))]
 pub use crate::empty::{compile_providers, register_probes};
+
+#[derive(Default, Debug, Deserialize)]
+pub struct CompileProvidersConfig {
+    pub format: Option<String>,
+}
+
+fn format_probe(
+    format: &Option<String>,
+    provider_name: &str,
+    probe_name: &str,
+) -> proc_macro2::Ident {
+    if let Some(fmt) = format {
+        quote::format_ident!(
+            "{}",
+            fmt.replace("{provider}", provider_name)
+                .replace("{probe}", probe_name)
+        )
+    } else {
+        quote::format_ident!("{}_{}", provider_name, probe_name)
+    }
+}

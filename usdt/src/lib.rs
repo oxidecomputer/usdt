@@ -25,6 +25,7 @@ pub enum Error {
 pub struct Builder {
     source_file: PathBuf,
     out_file: PathBuf,
+    config: usdt_impl::CompileProvidersConfig,
 }
 
 impl Builder {
@@ -36,6 +37,7 @@ impl Builder {
         Builder {
             source_file,
             out_file,
+            config: usdt_impl::CompileProvidersConfig::default(),
         }
     }
 
@@ -47,10 +49,18 @@ impl Builder {
         self
     }
 
+    /// Set the format for generated probe macros. The provided format may include
+    /// the tokens {provider} and {probe} which will be substituted with the names
+    /// of the provider and probe. The default format is "{provider}_{probe}"
+    pub fn format(mut self, format: &str) -> Self {
+        self.config.format = Some(format.to_string());
+        self
+    }
+
     /// Generate the Rust code from the D provider file, writing the result to the output file.
     pub fn build(self) -> Result<(), Error> {
         let source = fs::read_to_string(self.source_file)?;
-        let tokens = compile_providers(&source)?;
+        let tokens = compile_providers(&source, &self.config)?;
         let mut out_file = Path::new(&env::var("OUT_DIR")?).to_path_buf();
         out_file.push(
             &self

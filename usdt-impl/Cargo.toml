@@ -8,6 +8,7 @@ edition = "2018"
 proc-macro2 = "1.0.24"
 quote = "1.0.9"
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
+serde = { version = "1.0.124", features = ["derive"] }
 
 dof = { path = "../dof", version = "0.1.2", optional = true }
 libc = { version = "0.2.88", optional = true }

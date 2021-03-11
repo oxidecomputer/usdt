@@ -56,14 +56,17 @@ use quote::{format_ident, quote};
 ///    a symbol name we can reference for the asm! macro that won't get garbled.
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
-pub fn compile_providers(source: &str) -> Result<TokenStream, dtrace_parser::DTraceError> {
+pub fn compile_providers(
+    source: &str,
+    config: &crate::CompileProvidersConfig,
+) -> Result<TokenStream, dtrace_parser::DTraceError> {
     let dfile = dtrace_parser::File::try_from(source)?;
     let header = build_header_from_provider(&source)?;
     let provider_info = extract_providers(&header);
     let providers = dfile
         .providers()
         .iter()
-        .map(|provider| compile_provider(provider, &provider_info[provider.name()]))
+        .map(|provider| compile_provider(provider, &provider_info[provider.name()], config))
         .collect::<Vec<_>>();
     Ok(quote! {
         #(#providers)*
@@ -73,12 +76,14 @@ pub fn compile_providers(source: &str) -> Result<TokenStream, dtrace_parser::DTr
 fn compile_provider(
     provider: &dtrace_parser::Provider,
     provider_info: &ProviderInfo,
+    config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     let mut probe_impls = Vec::new();
     for probe in provider.probes().iter() {
         probe_impls.push(compile_probe(
             provider.name(),
             probe.name(),
+            config,
             &provider_info.is_enabled[probe.name()],
             &provider_info.probes[probe.name()],
             &probe.types(),
@@ -108,11 +113,12 @@ fn compile_provider(
 fn compile_probe(
     provider_name: &str,
     probe_name: &str,
+    config: &crate::CompileProvidersConfig,
     is_enabled: &str,
     probe: &str,
     types: &[dtrace_parser::DataType],
 ) -> TokenStream {
-    let macro_name = format_ident!("{}_{}", provider_name, probe_name);
+    let macro_name = crate::format_probe(&config.format, provider_name, probe_name);
     let provider_ident = format_ident!("{}", provider_name);
     let is_enabled_fn = format_ident!("{}_{}_enabled", provider_name, probe_name);
     let probe_fn = format_ident!("{}_{}", provider_name, probe_name);
@@ -363,7 +369,14 @@ mod tests {
         let is_enabled = "__dtrace_isenabled$foo$bar$xxx";
         let probe = "__dtrace_probe$foo$bar$xxx";
         let types = vec![];
-        let tokens = compile_probe(provider_name, probe_name, is_enabled, probe, &types);
+        let tokens = compile_probe(
+            provider_name,
+            probe_name,
+            &crate::CompileProvidersConfig::default(),
+            is_enabled,
+            probe,
+            &types,
+        );
 
         let output = tokens.to_string();
 
