@@ -208,14 +208,24 @@ pub fn register_probes() {
     #[used]
     static FORCE_LOAD: [u8; 0] = [];
 
-    let mut data = unsafe {
+    let data = unsafe {
         let start = (&dtrace_probes_start as *const usize) as usize;
         let stop = (&dtrace_probes_stop as *const usize) as usize;
 
         std::slice::from_raw_parts(start as *const u8, stop - start)
     };
 
-    let mut providers = BTreeMap::<String, Provider>::new();
+    let providers = process_section(data);
+    let section = Section {
+        providers: providers,
+        ..Default::default()
+    };
+
+    send_section_to_kernel(&section);
+}
+
+fn process_section(mut data: &[u8]) -> BTreeMap<String, Provider> {
+    let mut providers = BTreeMap::new();
 
     while !data.is_empty() {
         if data.len() < 4 {
@@ -230,12 +240,8 @@ pub fn register_probes() {
 
         process_rec(&mut providers, rec);
     }
-    let section = Section {
-        providers: providers,
-        ..Default::default()
-    };
 
-    send_section_to_kernel(&section);
+    providers
 }
 
 // DOF-format a section and send to DTrace kernel driver, via ioctl(2) interface
@@ -316,6 +322,8 @@ fn addr_to_info(addr: u64) -> Option<String> {
 
 fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
     println!("{:?}", rec.hex_dump());
+
+    // Skip over the length which was already read.
     let mut data = &rec[4..];
 
     let version = data.read_u8().unwrap();
@@ -330,8 +338,8 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
     let _zero = data.read_u8().unwrap();
     let flags = data.read_u16::<NativeEndian>().unwrap();
     let address = data.read_u64::<NativeEndian>().unwrap();
-    let provname = data.cstr();
-    let probename = data.cstr();
+    let provname = data.read_cstr();
+    let probename = data.read_cstr();
 
     let funcname = match addr_to_info(address) {
         Some(s) => s,
@@ -372,11 +380,11 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
 }
 
 trait ReadCstrExt<'a> {
-    fn cstr(&mut self) -> &'a str;
+    fn read_cstr(&mut self) -> &'a str;
 }
 
 impl<'a> ReadCstrExt<'a> for &'a [u8] {
-    fn cstr(&mut self) -> &'a str {
+    fn read_cstr(&mut self) -> &'a str {
         let index = self
             .iter()
             .position(|ch| *ch == 0)
@@ -385,5 +393,54 @@ impl<'a> ReadCstrExt<'a> for &'a [u8] {
         let ret = std::str::from_utf8(&self[..index]).unwrap();
         *self = &self[index + 1..];
         ret
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::BTreeMap;
+
+    use byteorder::{NativeEndian, WriteBytesExt};
+
+    use super::process_rec;
+    use super::PROBE_REC_VERSION;
+
+    #[test]
+    fn test_process_rec() {
+        let mut rec = Vec::<u8>::new();
+
+        rec.write_u32::<NativeEndian>(0).unwrap();
+        rec.write_u8(PROBE_REC_VERSION).unwrap();
+        rec.write_u8(0).unwrap();
+        rec.write_u16::<NativeEndian>(0).unwrap();
+        rec.write_u64::<NativeEndian>(0x1234).unwrap();
+        rec.write_cstr("provider");
+        rec.write_cstr("probe");
+
+        let mut providers = BTreeMap::new();
+        process_rec(&mut providers, rec.as_slice());
+
+        println!("{:?}", providers);
+
+        let probe = providers
+            .get("provider")
+            .unwrap()
+            .probes
+            .get("probe")
+            .unwrap();
+
+        assert_eq!(probe.name, "probe");
+        assert_eq!(probe.address, 0x1234);
+    }
+
+    trait WriteCstrExt {
+        fn write_cstr(&mut self, s: &str);
+    }
+
+    impl WriteCstrExt for Vec<u8> {
+        fn write_cstr(&mut self, s: &str) {
+            self.extend_from_slice(s.as_bytes());
+            self.push(0);
+        }
     }
 }
