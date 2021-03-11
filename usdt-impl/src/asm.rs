@@ -13,6 +13,8 @@ use pretty_hex::PrettyHex;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
+const PROBE_REC_VERSION: u8 = 1;
+
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_providers(source: &str) -> Result<TokenStream, dtrace_parser::DTraceError> {
     let dfile = dtrace_parser::File::try_from(source)?;
@@ -128,19 +130,22 @@ fn asm_rec(prov: &str, func: &str, probe: &str, is_enabled: bool) -> String {
                     .section __DATA,__dtrace_probes,regular,no_dead_strip
                     .balign 8
             991 :
-                    .long 992f-991b  // length
-                    .long {type}     // type
-                    .quad 990b       // address
-                    .asciz "{prov}"  // provname
-                    .asciz "{func}"  // funcname
-                    .asciz "{probe}" // probename
+                    .long 992f-991b     // length
+                    .byte {version}
+                    .byte 0             // unused
+                    .short {flags}
+                    .quad 990b
+                    .asciz "{prov}"
+                    .asciz "{func}"
+                    .asciz "{probe}"
                     .balign 8
             992:    .text
         "#,
+        version = PROBE_REC_VERSION,
+        flags = if is_enabled { 1 } else { 0 },
         prov = prov,
         func = func,
         probe = probe,
-        type = if is_enabled { 2 } else { 1 },
     )
 }
 
@@ -152,18 +157,21 @@ fn asm_rec(prov: &str, func: &str, probe: &str, is_enabled: bool) -> String {
                     .balign 8
             991:
                     .4byte 992f-991b    // length
-                    .4byte {type}       // type
+                    .byte {version}
+                    .byte 0             // unused
+                    .2byte {flags}
                     .8byte 990b         // address
-                    .asciz "{prov}"     // provname
-                    .asciz "{func}"     // funcname
-                    .asciz "{probe}"    // probename
+                    .asciz "{prov}"
+                    .asciz "{func}"
+                    .asciz "{probe}"
                     .balign 8
             992:    .popsection
         "#,
+        version = PROBE_REC_VERSION,
+        flags = if is_enabled { 1 } else { 0 },
         prov = prov,
         func = func,
         probe = probe,
-        type = if is_enabled { 2 } else { 1 },
     )
 }
 
@@ -216,8 +224,8 @@ pub fn register_probes() {
             panic!("not enough bytes for length header");
         }
 
-        let x = &data[..4];
-        let len = u32::from_ne_bytes(x.try_into().unwrap());
+        let len_bytes = &data[..4];
+        let len = u32::from_ne_bytes(len_bytes.try_into().unwrap());
 
         let (rec, rest) = data.split_at(len as usize);
         data = rest;
@@ -296,13 +304,26 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
     println!("{:?}", rec.hex_dump());
     let mut data = &rec[4..];
 
-    let ty = data.read_u32::<NativeEndian>().unwrap();
+    let version = data.read_u8().unwrap();
+
+    // If this record comes from a future version of the data format, we skip it
+    // and hope that the author of main will *also* include a call to a more
+    // recent version. Note that future versions should handle previous formats.
+    if version > PROBE_REC_VERSION {
+        return;
+    }
+
+    let _ = data.read_u8().unwrap();
+    let flags = data.read_u16::<NativeEndian>().unwrap();
     let address = data.read_u64::<NativeEndian>().unwrap();
     let provname = data.cstr();
     let funcname = data.cstr();
     let probename = data.cstr();
 
-    println!("{:#x} {}::{}:{}", address, provname, funcname, probename);
+    println!(
+        "{} {:x} {:#x} {}::{}:{}",
+        version, flags, address, provname, funcname, probename
+    );
 
     let provider = providers.entry(provname.to_string()).or_insert(Provider {
         name: provname.to_string(),
@@ -325,7 +346,7 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
     // would be negative otherwise.
     assert!(address >= probe.address);
 
-    if ty == 1 {
+    if flags == 0 {
         probe.offsets.push((address - probe.address) as u32);
     } else {
         probe.enabled_offsets.push((address - probe.address) as u32);
