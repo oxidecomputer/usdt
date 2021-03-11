@@ -65,6 +65,23 @@ fn compile_probe(
         })
         .collect::<Vec<_>>();
 
+    // Construct arguments to a unused closure declared to check the arguments to the generated
+    // probe macro itself.
+    let type_check_args = probe
+        .types()
+        .iter()
+        .map(|typ| {
+            let arg = syn::parse_str::<syn::FnArg>(&format!("_: {}", typ.to_rust_type())).unwrap();
+            quote! { #arg }
+        })
+        .collect::<Vec<_>>();
+    let expanded_lambda_args = (0..probe.types().len())
+        .map(|i| {
+            let index = syn::Index::from(i);
+            quote! { args.#index }
+        })
+        .collect::<Vec<_>>();
+
     let args = probe
         .types()
         .iter()
@@ -94,6 +111,19 @@ fn compile_probe(
     let out = quote! {
         macro_rules! #macro_name {
             ($args_lambda:expr) => {
+                // NOTE: This block defines an internal empty function and then a lambda which
+                // calls it. This is all strictly for type-checking, and is optimized out. It is
+                // defined in a scope to avoid multiple-definition errors in the scope of the macro
+                // expansion site.
+                {
+                    fn _type_check(#(#type_check_args),*) { }
+                    let _ = || {
+                        let args = $args_lambda();
+                        #singleton_fix
+                        _type_check(#(#expanded_lambda_args),*);
+                    };
+                }
+
                 let mut is_enabled: u64;
                 // TODO can this block be option(pure)?
                 unsafe {

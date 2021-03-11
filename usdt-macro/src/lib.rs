@@ -8,26 +8,26 @@ use syn::{parse_macro_input, Lit};
 
 use usdt_impl::compile_providers;
 
-/// Parse a DTrace provider file into a Rust struct.
+/// Parse a DTrace provider file into Rust code.
 ///
 /// This macro parses a DTrace provider.d file, given as a single literal string path. It then
 /// generates a Rust macro for each of the DTrace probe definitions. This is a simple way of
-/// generating Rust code that can be called normally, but which ultimately hook up to DTrace probe
+/// generating Rust code that can be called normally, but which ultimately hooks up to DTrace probe
 /// points.
 ///
-/// For example, assume the file `"foo.d"` has the following contents:
+/// For example, assume the file `"test.d"` has the following contents:
 ///
 /// ```ignore
-/// provider foo {
-///     probe bar();
-///     probe base(uint8_t, char*);
+/// provider test {
+///     probe start(uint8_t);
+///     probe stop(char*, uint8_t);
 /// };
 /// ```
 ///
 /// In a Rust library or application, write:
 ///
 /// ```ignore
-/// dtrace_provider!("foo.d");
+/// dtrace_provider!("test.d");
 /// ```
 ///
 /// One can then instrument the application or library as one might expect:
@@ -35,7 +35,7 @@ use usdt_impl::compile_providers;
 /// ```ignore
 /// fn do_stuff(count: u8, name: String) {
 ///     // doing stuff
-///     foo_baz!(count, name);
+///     test_stop!(|| (name, count));
 /// }
 /// ```
 ///

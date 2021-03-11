@@ -49,4 +49,6 @@ fn compile_probe(
     }
 }
 
-pub fn register_probes() {}
+pub fn register_probes() -> Result<(), std::io::Error> {
+    Ok(())
+}
