@@ -3,6 +3,58 @@ use std::{collections::BTreeMap, convert::TryFrom, env, fs, process::Command};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
+/// On systems with linker support for the compile-time construction of DTrace
+/// USDT probes we can lean heavily on those mechanisms. Rather than interpretting
+/// the provider file ourselves, we invoke the system's `dtrace -h` to generate a C
+/// header file. That header file contains the linker directives that convey
+/// information from the provider definition such as types and stability. We parse
+/// that header file and generate code that effectively reproduces in Rust the
+/// equivalent of what we would see in C.
+///
+/// For example, the header file might contain code like this:
+/// ```ignore
+/// #define FOO_STABILITY "___dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"
+/// #define FOO_TYPEDEFS "___dtrace_typedefs$foo$v2"
+///
+/// #if !defined(DTRACE_PROBES_DISABLED) || !DTRACE_PROBES_DISABLED
+///
+/// #define	FOO_BAR() \
+/// do { \
+/// 	__asm__ volatile(".reference " FOO_TYPEDEFS); \
+/// 	__dtrace_probe$foo$bar$v1(); \
+/// 	__asm__ volatile(".reference " FOO_STABILITY); \
+/// } while (0)
+/// ```
+///
+/// In rust, we'll want the probe site to look something like this:
+/// ```
+/// #![feature(asm)]
+/// extern "C" {
+///     #[link_name = "__dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"]
+///     fn stability();
+///     #[link_name = "__dtrace_probe$foo$bar$v1"]
+///     fn probe();
+///     #[link_name = "__dtrace_typedefs$foo$v2"]
+///     fn typedefs();
+///
+/// }
+/// unsafe {
+///     asm!(".reference {}", sym typedefs);
+///     probe();
+///     asm!(".reference {}", sym stability);
+/// }
+/// ```
+/// There are a few things to note above:
+/// 1. We cannot simply generate code with the symbol name embedded in the asm!
+///    block e.g. `asm!(".reference __dtrace_typedefs$foo$v2")`. The asm! macro
+///    removes '$' characters yielding the incorrect symbol.(
+/// 2. The header file stability and typedefs contain three '_'s whereas the
+///    rust code has just two. The `sym <symbol_name>` apparently prepends an
+///    extra underscore in this case.
+/// 3. The probe needs to be a function type (because we call it), but the types
+///    of the `stability` and `typedefs` symbols could be anything--we just need
+///    a symbol name we can reference for the asm! macro that won't get garbled.
+
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_providers(source: &str) -> Result<TokenStream, dtrace_parser::DTraceError> {
     let dfile = dtrace_parser::File::try_from(source)?;
