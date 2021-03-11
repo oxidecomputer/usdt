@@ -1,7 +1,7 @@
 [package]
 name = "usdt-macro"
 version = "0.1.5"
-authors = ["Benjamin Naecker <bnaecker@fastmail.com>"]
+authors = ["Benjamin Naecker <ben@oxidecomputer.com>"]
 edition = "2018"
 
 [dependencies]
