@@ -69,15 +69,9 @@ fn main() {
     let duration = Duration::from_secs(1);
     let mut counter: u8 = 0;
 
-    register_probes();
-
-    let rip = unsafe {
-        let x: u64;
-        asm!("lea {0}, [rip+0]", out(reg) x);
-        x
-    };
-
-    println!("{:x}", rip);
+    // NOTE: One _must_ call this function in order to actually register the probes with DTrace.
+    // Without this, it won't be possible to list, enable, or see the probes via `dtrace(1)`.
+    register_probes().unwrap();
 
     loop {
         // Call the "start" probe which accepts a u8.
@@ -99,6 +93,11 @@ is included directly using the `include!` macro. The probe definitions are conve
 macros, named by the provider and probe. In our case, the first probe is converted into a macro
 `test_start!`.
 
+> IMPORTANT: It's important to note that the application _must_ call `usdt::register_probes()`
+in order to actually register the probe points with DTrace. Failing to do this will not impact
+the application's functionality, but it will be impossible to list, enable, or otherwise see the
+probes with the `dtrace(1)` tool without this.
+
 We can see that this is hooked up with DTrace by running the example and listing the expected
 probes by name.
 
@@ -111,8 +110,8 @@ And in another terminal, list the matching probes with:
 ```bash
 $ sudo dtrace -l -n test*:::
    ID   PROVIDER            MODULE                          FUNCTION NAME
- 4432  test65515                 a                        replace_me start
- 4433  test65515                 a                        replace_me stop
+ 2865  test14314  probe-test-build _ZN16probe_test_build4main17h906db832bb52ab01E [probe_test_build::main::h906db832bb52ab01] start
+ 2866  test14314  probe-test-build _ZN16probe_test_build4main17h906db832bb52ab01E [probe_test_build::main::h906db832bb52ab01] stop
  ```
 
 ## Probe arguments

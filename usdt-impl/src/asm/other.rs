@@ -6,12 +6,8 @@ use std::{
 };
 
 use byteorder::{NativeEndian, ReadBytesExt};
-use dof::{
-    fmt::{fmt_dof_sec, fmt_dof_sec_data},
-    serialize_section, Probe, Provider, Section,
-};
+use dof::{serialize_section, Probe, Provider, Section};
 use libc::{c_void, Dl_info};
-use pretty_hex::PrettyHex;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
@@ -45,11 +41,7 @@ fn compile_provider(provider: &dtrace_parser::Provider) -> TokenStream {
     }
 }
 
-fn compile_probe(probe: &dtrace_parser::Probe, provider_name: &str) -> TokenStream {
-    probe_asm_body(probe, provider_name)
-}
-
-fn probe_asm_body(probe: &dtrace_parser::Probe, provider: &str) -> TokenStream {
+fn compile_probe(probe: &dtrace_parser::Probe, provider: &str) -> TokenStream {
     let macro_name = format_ident!("{}_{}", provider, probe.name());
     // TODO this will fail with more than 6 parameters.
     let abi_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
@@ -125,31 +117,6 @@ fn probe_asm_body(probe: &dtrace_parser::Probe, provider: &str) -> TokenStream {
     out
 }
 
-#[cfg(target_os = "macos")]
-fn asm_rec(prov: &str, probe: &str, is_enabled: bool) -> String {
-    format!(
-        r#"
-                    .section __DATA,__dtrace_probes,regular,no_dead_strip
-                    .balign 8
-            991 :
-                    .long 992f-991b     // length
-                    .byte {version}
-                    .byte 0             // unused
-                    .short {flags}
-                    .quad 990b
-                    .asciz "{prov}"
-                    .asciz "{probe}"
-                    .balign 8
-            992:    .text
-        "#,
-        version = PROBE_REC_VERSION,
-        flags = if is_enabled { 1 } else { 0 },
-        prov = prov,
-        probe = probe,
-    )
-}
-
-#[cfg(target_os = "illumos")]
 fn asm_rec(prov: &str, probe: &str, is_enabled: bool) -> String {
     format!(
         r#"
@@ -182,22 +149,12 @@ fn asm_type_convert(typ: &dtrace_parser::DataType, input: TokenStream) -> TokenS
     }
 }
 
-/// Register the probes that the asm mechanism dumps into a linker section.
-pub fn register_probes() {
-    println!("registering probes...");
-
+/// Register this application's probes with DTrace.
+pub fn register_probes() -> Result<(), std::io::Error> {
     extern "C" {
-        #[cfg_attr(
-            target_os = "macos",
-            link_name = "\x01section$start$__DATA$__dtrace_probes"
-        )]
-        #[cfg_attr(target_os = "illumos", link_name = "__start_set_dtrace_probes")]
+        #[link_name = "__start_set_dtrace_probes"]
         static dtrace_probes_start: usize;
-        #[cfg_attr(
-            target_os = "macos",
-            link_name = "\x01section$end$__DATA$__dtrace_probes"
-        )]
-        #[cfg_attr(target_os = "illumos", link_name = "__stop_set_dtrace_probes")]
+        #[link_name = "__stop_set_dtrace_probes"]
         static dtrace_probes_stop: usize;
     }
 
@@ -211,7 +168,6 @@ pub fn register_probes() {
     let data = unsafe {
         let start = (&dtrace_probes_start as *const usize) as usize;
         let stop = (&dtrace_probes_stop as *const usize) as usize;
-
         std::slice::from_raw_parts(start as *const u8, stop - start)
     };
 
@@ -221,19 +177,24 @@ pub fn register_probes() {
         ..Default::default()
     };
 
-    send_section_to_kernel(&section);
+    ioctl_section(&serialize_section(&section))
 }
 
 fn process_section(mut data: &[u8]) -> BTreeMap<String, Provider> {
     let mut providers = BTreeMap::new();
 
     while !data.is_empty() {
-        if data.len() < 4 {
-            panic!("not enough bytes for length header");
-        }
+        assert!(
+            data.len() >= std::mem::size_of::<u32>(),
+            "Not enough bytes for length header"
+        );
 
         let len_bytes = &data[..4];
-        let len = u32::from_ne_bytes(len_bytes.try_into().unwrap());
+        let len = u32::from_ne_bytes(
+            len_bytes
+                .try_into()
+                .expect("Invalid length header in DTrace probe record"),
+        );
 
         let (rec, rest) = data.split_at(len as usize);
         data = rest;
@@ -244,49 +205,7 @@ fn process_section(mut data: &[u8]) -> BTreeMap<String, Provider> {
     providers
 }
 
-// DOF-format a section and send to DTrace kernel driver, via ioctl(2) interface
-fn send_section_to_kernel(section: &Section) {
-    let v = serialize_section(&section);
-
-    let (header, sections) = dof::des::deserialize_raw_sections(&v).unwrap();
-    println!("{:#?}", header);
-    for (index, (section_header, data)) in sections.into_iter().enumerate() {
-        println!("{}", fmt_dof_sec(&section_header, index));
-        if true {
-            println!("{}", fmt_dof_sec_data(&section_header, &data));
-            println!();
-        }
-    }
-
-    let ss = Section::from_bytes(&v);
-    println!("{:#?}", ss);
-    ioctl_section(&v);
-}
-
-#[cfg(target_os = "macos")]
-fn ioctl_section(buf: &[u8]) {
-    let mut modname = [0 as ::std::os::raw::c_char; 64];
-    modname[0] = 'a' as i8;
-    let helper = dof::dof_bindings::dof_ioctl_data {
-        dofiod_count: 1,
-        dofiod_helpers: [dof::dof_bindings::dof_helper {
-            dofhp_mod: modname,
-            dofhp_addr: buf.as_ptr() as u64,
-            dofhp_dof: buf.as_ptr() as u64,
-        }],
-    };
-    let data = &(&helper) as *const _;
-    let cmd: u64 = 0x80086804;
-    let ret = unsafe {
-        let file = CString::new("/dev/dtracehelper".as_bytes()).unwrap();
-        let fd = libc::open(file.as_ptr(), libc::O_RDWR);
-        libc::ioctl(fd, cmd, data)
-    };
-    println!("ioctl {} {}", ret, std::io::Error::last_os_error());
-}
-
-#[cfg(not(target_os = "macos"))]
-fn ioctl_section(buf: &[u8]) {
+fn ioctl_section(buf: &[u8]) -> Result<(), std::io::Error> {
     let mut modname = [0 as ::std::os::raw::c_char; 64];
     modname[0] = 'a' as i8;
     let helper = dof::dof_bindings::dof_helper {
@@ -301,7 +220,11 @@ fn ioctl_section(buf: &[u8]) {
         let fd = libc::open(file.as_ptr(), libc::O_RDWR);
         libc::ioctl(fd, cmd, data)
     };
-    println!("ioctl {} {}", ret, std::io::Error::last_os_error());
+    if ret == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
 }
 
 fn addr_to_info(addr: u64) -> Option<String> {
@@ -321,8 +244,6 @@ fn addr_to_info(addr: u64) -> Option<String> {
 }
 
 fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
-    println!("{:?}", rec.hex_dump());
-
     // Skip over the length which was already read.
     let mut data = &rec[4..];
 
@@ -345,11 +266,6 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
         Some(s) => s,
         None => format!("?{:#x}", address),
     };
-
-    println!(
-        "{} {:x} {:#x} {}::{}:{}",
-        version, flags, address, provname, funcname, probename
-    );
 
     let provider = providers.entry(provname.to_string()).or_insert(Provider {
         name: provname.to_string(),

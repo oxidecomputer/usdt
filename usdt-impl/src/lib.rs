@@ -1,16 +1,8 @@
-#[cfg(all(
-    any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd",
-        target_os = "dragonfly",
-        target_os = "windows",
-    ),
-    feature = "asm",
-))]
+#[cfg(feature = "asm")]
 mod asm;
+
+#[cfg(not(feature = "asm"))]
+mod empty;
 
 #[cfg(all(
     any(
@@ -25,20 +17,6 @@ mod asm;
     feature = "asm",
 ))]
 pub use crate::asm::{compile_providers, register_probes};
-
-#[cfg(not(all(
-    any(
-        target_os = "macos",
-        target_os = "illumos",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd",
-        target_os = "dragonfly",
-        target_os = "windows",
-    ),
-    feature = "asm",
-)))]
-mod empty;
 
 #[cfg(not(all(
     any(

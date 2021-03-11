@@ -1,3 +1,17 @@
 [workspace]
-members = ["dof", "dtrace-parser", "usdt", "usdt-impl", "usdt-macro", "probe-test-macro", "probe-test-build"]
-default-members = ["dof", "dtrace-parser", "usdt", "usdt-impl", "usdt-macro"]
+members = [
+	"dof",
+	"dtrace-parser",
+	"probe-test-build",
+	"probe-test-macro",
+	"usdt",
+	"usdt-impl",
+	"usdt-macro"
+]
+default-members = [
+	"dof",
+	"dtrace-parser",
+	"usdt",
+	"usdt-impl",
+	"usdt-macro"
+]

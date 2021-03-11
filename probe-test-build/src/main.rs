@@ -13,15 +13,9 @@ fn main() {
     let duration = Duration::from_secs(1);
     let mut counter: u8 = 0;
 
-    register_probes();
-
-    let rip = unsafe {
-        let x: u64;
-        asm!("lea {0}, [rip+0]", out(reg) x);
-        x
-    };
-
-    println!("{:x}", rip);
+    // NOTE: One _must_ call this function in order to actually register the probes with DTrace.
+    // Without this, it won't be possible to list, enable, or see the probes via `dtrace(1)`.
+    register_probes().unwrap();
 
     loop {
         // Call the "start" probe which accepts a u8.
