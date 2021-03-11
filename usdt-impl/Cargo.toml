@@ -11,10 +11,12 @@ quote = "1.0.9"
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
 serde = { version = "1.0.124", features = ["derive"] }
 
-dof = { path = "../dof", version = "0.1.2", optional = true }
 libc = { version = "0.2.88", optional = true }
 syn = { version = "1.0.60", optional = true}
 byteorder = { version = "1.4.2", optional = true }
 
 [features]
-asm = ["dof", "libc", "syn", "byteorder"]
+asm = ["libc", "syn", "byteorder"]
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+dof = { path = "../dof", version = "0.1.2" }

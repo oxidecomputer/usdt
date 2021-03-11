@@ -3,12 +3,17 @@ use serde::Deserialize;
 #[cfg(feature = "asm")]
 #[cfg_attr(target_os = "linux", path = "empty.rs")]
 #[cfg_attr(target_os = "macos", path = "linker.rs")]
-#[cfg_attr(not(target_os = "macos"), path = "no-linker.rs")]
+#[cfg_attr(
+    all(not(target_os = "macos"), not(target_os = "linux")),
+    path = "no-linker.rs"
+)]
 mod internal;
 
 #[cfg(not(feature = "asm"))]
 #[cfg(path = "empty.rs")]
 mod internal;
+
+pub use crate::internal::register_probes;
 
 #[derive(Default, Debug, Deserialize)]
 pub struct CompileProvidersConfig {
@@ -30,4 +35,17 @@ fn format_probe(
         quote::format_ident!("{}_{}", provider_name, probe_name)
     }
 }
-pub use crate::internal::{compile_providers, register_probes};
+
+// Compile DTrace provider source code into Rust.
+//
+// This function parses a provider definition, and, for each probe, a corresponding Rust macro is
+// returned. This macro may be called throughout Rust code to fire the corresponding DTrace probe
+// (if it's enabled). See [probe_test_macro] for a detailed example.
+//
+// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
+pub fn compile_providers(
+    source: &str,
+    config: &CompileProvidersConfig,
+) -> Result<proc_macro2::TokenStream, dtrace_parser::DTraceError> {
+    crate::internal::compile_providers(source, config)
+}

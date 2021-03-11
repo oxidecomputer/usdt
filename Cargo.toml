@@ -9,7 +9,6 @@ members = [
 	"usdt-macro"
 ]
 default-members = [
-	"dof",
 	"dtrace-parser",
 	"usdt",
 	"usdt-impl",

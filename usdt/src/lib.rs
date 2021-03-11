@@ -55,7 +55,6 @@
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
-use proc_macro2::TokenStream;
 use thiserror::Error;
 
 pub use usdt_macro::dtrace_provider;
@@ -114,7 +113,7 @@ impl Builder {
     /// Generate the Rust code from the D provider file, writing the result to the output file.
     pub fn build(self) -> Result<(), Error> {
         let source = fs::read_to_string(self.source_file)?;
-        let tokens = compile_providers(&source, &self.config)?;
+        let tokens = usdt_impl::compile_providers(&source, &self.config)?;
         let mut out_file = Path::new(&env::var("OUT_DIR")?).to_path_buf();
         out_file.push(
             &self
@@ -125,20 +124,6 @@ impl Builder {
         fs::write(out_file, tokens.to_string().as_bytes())?;
         Ok(())
     }
-}
-
-/// Compile DTrace provider source code into Rust.
-///
-/// This function parses a provider definition, and, for each probe, a corresponding Rust macro is
-/// returned. This macro may be called throughout Rust code to fire the corresponding DTrace probe
-/// (if it's enabled). See [probe_test_macro] for a detailed example.
-///
-/// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
-pub fn compile_providers(
-    source: &str,
-    config: &usdt_impl::CompileProvidersConfig,
-) -> Result<TokenStream, Error> {
-    usdt_impl::compile_providers(source, config).map_err(Error::from)
 }
 
 /// Register an application's probes with DTrace.

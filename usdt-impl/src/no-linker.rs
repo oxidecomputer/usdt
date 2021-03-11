@@ -22,7 +22,7 @@ pub fn compile_providers(
     let providers = dfile
         .providers()
         .iter()
-        .map(compile_provider)
+        .map(|provider| compile_provider(provider, &config))
         .collect::<Vec<_>>();
     Ok(quote! {
         #(#providers)*
