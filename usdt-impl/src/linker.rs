@@ -123,6 +123,22 @@ fn compile_probe(
     });
     let ffi_arg_list = (0..types.len()).map(|i| format_ident!("arg_{}", i));
 
+    // Construct arguments to a unused closure declared to check the arguments to the generated
+    // probe macro itself.
+    let type_check_args = types
+        .iter()
+        .map(|typ| {
+            let arg = syn::parse_str::<syn::FnArg>(&format!("_: {}", typ.to_rust_type())).unwrap();
+            quote! { #arg }
+        })
+        .collect::<Vec<_>>();
+    let expanded_lambda_args = (0..types.len())
+        .map(|i| {
+            let index = syn::Index::from(i);
+            quote! { args.#index }
+        })
+        .collect::<Vec<_>>();
+
     // Unpack the tuple resulting from the argument closure evaluation.
     let args = types
         .iter()
@@ -163,6 +179,18 @@ fn compile_probe(
 
         macro_rules! #macro_name {
             ($args_lambda:expr) => {
+                // NOTE: This block defines an internal empty function and then a lambda which
+                // calls it. This is all strictly for type-checking, and is optimized out. It is
+                // defined in a scope to avoid multiple-definition errors in the scope of the macro
+                // expansion site.
+                {
+                    fn _type_check(#(#type_check_args),*) { }
+                    let _ = || {
+                        let args = $args_lambda();
+                        #singleton_fix
+                        _type_check(#(#expanded_lambda_args),*);
+                    };
+                }
                 unsafe {
                     if $crate::#provider_ident::#is_enabled_fn() != 0 {
                         let args = $args_lambda();

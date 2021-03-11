@@ -39,4 +39,6 @@ fn compile_probe(probe: &dtrace_parser::Probe, provider_name: &str) -> TokenStre
     }
 }
 
-pub fn register_probes() {}
+pub fn register_probes() -> Result<(), std::io::Error> {
+    Ok(())
+}

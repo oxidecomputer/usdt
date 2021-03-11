@@ -1,21 +1,75 @@
 //! Expose USDT probe points from Rust programs.
+//!
+//! This crate provides methods for compiling definitions of DTrace probes into Rust code, allowing
+//! rich, low-overhead instrumentation of Rust programs.
+//!
+//! Users define a provider, with one or more probe functions, in the D language. For example:
+//!
+//! ```d
+//! provider test {
+//!     probe start(uint8_t);
+//!     probe stop(char*, uint8_t);
+//! };
+//! ```
+//!
+//! Assuming the above is in a file called `"test.d"`, this may be compiled into Rust code with:
+//!
+//! ```no_run
+//! usdt::dtrace_provider!("test.d");
+//! ```
+//!
+//! This procedural macro will return a Rust macro for each probe defined in the provider. For
+//! example, one may then call the `start` probe via:
+//!
+//! ```no_run
+//! let x: u8 = 0;
+//! test_start!(|| x);
+//! ```
+//!
+//! Note that the probe macro is called with a closure which returns the actual arguments. There
+//! are two reasons for this. First, it makes clear that the probe may not be evaluated if it is
+//! not enabled; the arguments should not include function calls which are relied upon for their
+//! side-effects, for example. Secondly, it is more efficient. As the lambda is only called if the
+//! probe is actually enabled, this allows passing arguments to the probe that are potentially
+//! expensive to construct. However, this cost will only be incurred if the probe is actually
+//! enabled.
+//!
+//! These probes must be registered with the DTrace kernel module, which is done with the
+//! `usdt::register_probes()` function. At this point, the probes should be visible from the
+//! `dtrace(1)` command-line tool, and can be enabled or acted upon like any other probe.
+//!
+//! See the [probe_test_macro] and [probe_test_build] crates for detailed working examples showing
+//! how the probes may be defined, included, and used.
+//!
+//! Notes
+//! -----
+//! Because the probes are defined as macros, they should be included at the crate root, before any
+//! modules with use them are declared. Additionally, the `register_probes()` function, which
+//! _must_ be called for the probes to work, should be placed as soon as possible in a program's
+//! lifetime, ideally at the top of `main()`.
+//!
+//! [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
+//! [probe_test_build]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-build
 // Copyright 2021 Oxide Computer Company
 
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 use thiserror::Error;
+use proc_macro2::TokenStream;
 
-pub use usdt_impl::{compile_providers, register_probes};
 pub use usdt_macro::dtrace_provider;
 
 /// Errors related to building DTrace probes into Rust code in a build.rs script.
 #[derive(Error, Debug)]
 pub enum Error {
+    /// Error during parsing of DTrace provider source
     #[error(transparent)]
     ParseError(#[from] dtrace_parser::DTraceError),
+    /// Error reading or writing files, or registering DTrace probes
     #[error(transparent)]
     IO(#[from] std::io::Error),
+    /// Error related to environment variables, e.g., while running a build script
     #[error(transparent)]
     Env(#[from] env::VarError),
 }
@@ -61,4 +115,26 @@ impl Builder {
         fs::write(out_file, tokens.to_string().as_bytes())?;
         Ok(())
     }
+}
+
+/// Compile DTrace provider source code into Rust.
+///
+/// This function parses a provider definition, and, for each probe, a corresponding Rust macro is
+/// returned. This macro may be called throughout Rust code to fire the corresponding DTrace probe
+/// (if it's enabled). See [probe_test_macro] for a detailed example.
+///
+/// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
+pub fn compile_providers(source: &str) -> Result<TokenStream, Error> {
+    usdt_impl::compile_providers(source).map_err(Error::from)
+}
+
+/// Register an application's probes with DTrace.
+///
+/// This function collects the probes defined in an application, and forwards them to the DTrace
+/// kernel module. This _must_ be done for the probes to be visible via the `dtrace(1)` tool. See
+/// [probe_test_macro] for a detailed example.
+///
+/// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
+pub fn register_probes() -> Result<(), Error> {
+    usdt_impl::register_probes().map_err(Error::from)
 }

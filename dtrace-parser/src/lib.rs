@@ -113,6 +113,22 @@ impl DataType {
         }
         .into()
     }
+
+    /// Return the native Rust type representation of this data type
+    pub fn to_rust_type(&self) -> String {
+        match self {
+            DataType::U8 => "u8",
+            DataType::U16 => "u16",
+            DataType::U32 => "u32",
+            DataType::U64 => "u64",
+            DataType::I8 => "i8",
+            DataType::I16 => "i16",
+            DataType::I32 => "i32",
+            DataType::I64 => "i64",
+            DataType::String => "&str",
+        }
+        .into()
+    }
 }
 
 /// Type representing a single D probe definition within a provider.
