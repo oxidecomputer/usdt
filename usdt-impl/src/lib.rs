@@ -1,4 +1,7 @@
 use serde::Deserialize;
+use thiserror::Error;
+
+pub mod record;
 
 #[cfg(feature = "asm")]
 #[cfg_attr(target_os = "linux", path = "empty.rs")]
@@ -14,6 +17,23 @@ mod internal;
 mod internal;
 
 pub use crate::internal::register_probes;
+
+/// Errors related to building DTrace probes into Rust code
+#[derive(Error, Debug)]
+pub enum Error {
+    /// Error during parsing of DTrace provider source
+    #[error(transparent)]
+    ParseError(#[from] dtrace_parser::DTraceError),
+    /// Error reading or writing files, or registering DTrace probes
+    #[error(transparent)]
+    IO(#[from] std::io::Error),
+    /// Error related to environment variables, e.g., while running a build script
+    #[error(transparent)]
+    Env(#[from] std::env::VarError),
+    /// An error occurred extracting probe information from the encoded object file sections
+    #[error("The file is not a valid object file")]
+    InvalidFile,
+}
 
 #[derive(Default, Debug, Deserialize)]
 pub struct CompileProvidersConfig {
@@ -46,6 +66,6 @@ fn format_probe(
 pub fn compile_providers(
     source: &str,
     config: &CompileProvidersConfig,
-) -> Result<proc_macro2::TokenStream, dtrace_parser::DTraceError> {
+) -> Result<proc_macro2::TokenStream, Error> {
     crate::internal::compile_providers(source, config)
 }

@@ -1,23 +1,16 @@
-use std::{
-    collections::BTreeMap,
-    convert::{TryFrom, TryInto},
-    ffi::{CStr, CString},
-    ptr::{null, null_mut},
-};
+use std::{convert::TryFrom, ffi::CString};
 
-use byteorder::{NativeEndian, ReadBytesExt};
-use dof::{serialize_section, Probe, Provider, Section};
-use libc::{c_void, Dl_info};
+use dof::{serialize_section, Section};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-const PROBE_REC_VERSION: u8 = 1;
+use crate::record::{parse_probe_records, PROBE_REC_VERSION};
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_providers(
     source: &str,
     config: &crate::CompileProvidersConfig,
-) -> Result<TokenStream, dtrace_parser::DTraceError> {
+) -> Result<TokenStream, crate::Error> {
     let dfile = dtrace_parser::File::try_from(source)?;
     let providers = dfile
         .providers()
@@ -157,6 +150,29 @@ fn compile_probe(
     out
 }
 
+fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error> {
+    extern "C" {
+        #[link_name = "__start_set_dtrace_probes"]
+        static dtrace_probes_start: usize;
+        #[link_name = "__stop_set_dtrace_probes"]
+        static dtrace_probes_stop: usize;
+    }
+
+    // Without this the illumos linker may decide to omit symbols referencing this section.
+    // The macos linker doesn't seem to require this.
+    #[cfg(target_os = "illumos")]
+    #[link_section = "set_dtrace_probes"]
+    #[used]
+    static FORCE_LOAD: [u8; 0] = [];
+
+    let data = unsafe {
+        let start = (&dtrace_probes_start as *const usize) as usize;
+        let stop = (&dtrace_probes_stop as *const usize) as usize;
+        std::slice::from_raw_parts(start as *const u8, stop - start)
+    };
+    parse_probe_records(data)
+}
+
 fn asm_rec(prov: &str, probe: &str, is_enabled: bool) -> String {
     format!(
         r#"
@@ -190,59 +206,12 @@ fn asm_type_convert(typ: &dtrace_parser::DataType, input: TokenStream) -> TokenS
 }
 
 /// Register this application's probes with DTrace.
-pub fn register_probes() -> Result<(), std::io::Error> {
-    extern "C" {
-        #[link_name = "__start_set_dtrace_probes"]
-        static dtrace_probes_start: usize;
-        #[link_name = "__stop_set_dtrace_probes"]
-        static dtrace_probes_stop: usize;
+pub fn register_probes() -> Result<(), crate::Error> {
+    if let Some(ref section) = extract_probe_records_from_section().map_err(crate::Error::from)? {
+        ioctl_section(&serialize_section(&section)).map_err(crate::Error::from)
+    } else {
+        Ok(())
     }
-
-    // Without this the illumos linker may decide to omit symbols referencing this section.
-    // The macos linker doesn't seem to require this.
-    #[cfg(target_os = "illumos")]
-    #[link_section = "set_dtrace_probes"]
-    #[used]
-    static FORCE_LOAD: [u8; 0] = [];
-
-    let data = unsafe {
-        let start = (&dtrace_probes_start as *const usize) as usize;
-        let stop = (&dtrace_probes_stop as *const usize) as usize;
-        std::slice::from_raw_parts(start as *const u8, stop - start)
-    };
-
-    let providers = process_section(data);
-    let section = Section {
-        providers: providers,
-        ..Default::default()
-    };
-
-    ioctl_section(&serialize_section(&section))
-}
-
-fn process_section(mut data: &[u8]) -> BTreeMap<String, Provider> {
-    let mut providers = BTreeMap::new();
-
-    while !data.is_empty() {
-        assert!(
-            data.len() >= std::mem::size_of::<u32>(),
-            "Not enough bytes for length header"
-        );
-
-        let len_bytes = &data[..4];
-        let len = u32::from_ne_bytes(
-            len_bytes
-                .try_into()
-                .expect("Invalid length header in DTrace probe record"),
-        );
-
-        let (rec, rest) = data.split_at(len as usize);
-        data = rest;
-
-        process_rec(&mut providers, rec);
-    }
-
-    providers
 }
 
 fn ioctl_section(buf: &[u8]) -> Result<(), std::io::Error> {
@@ -264,139 +233,5 @@ fn ioctl_section(buf: &[u8]) -> Result<(), std::io::Error> {
         Ok(())
     } else {
         Err(std::io::Error::last_os_error())
-    }
-}
-
-fn addr_to_info(addr: u64) -> Option<String> {
-    unsafe {
-        let mut info = Dl_info {
-            dli_fname: null(),
-            dli_fbase: null_mut(),
-            dli_sname: null(),
-            dli_saddr: null_mut(),
-        };
-        if libc::dladdr(addr as *const c_void, &mut info as *mut _) == 0 {
-            None
-        } else {
-            Some(CStr::from_ptr(info.dli_sname).to_string_lossy().to_string())
-        }
-    }
-}
-
-fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) {
-    // Skip over the length which was already read.
-    let mut data = &rec[4..];
-
-    let version = data.read_u8().unwrap();
-
-    // If this record comes from a future version of the data format, we skip it
-    // and hope that the author of main will *also* include a call to a more
-    // recent version. Note that future versions should handle previous formats.
-    if version > PROBE_REC_VERSION {
-        return;
-    }
-
-    let _zero = data.read_u8().unwrap();
-    let flags = data.read_u16::<NativeEndian>().unwrap();
-    let address = data.read_u64::<NativeEndian>().unwrap();
-    let provname = data.read_cstr();
-    let probename = data.read_cstr();
-
-    let funcname = match addr_to_info(address) {
-        Some(s) => s,
-        None => format!("?{:#x}", address),
-    };
-
-    let provider = providers.entry(provname.to_string()).or_insert(Provider {
-        name: provname.to_string(),
-        probes: BTreeMap::new(),
-    });
-
-    let probe = provider
-        .probes
-        .entry(probename.to_string())
-        .or_insert(Probe {
-            name: probename.to_string(),
-            function: funcname.to_string(),
-            address: address,
-            offsets: vec![],
-            enabled_offsets: vec![],
-            arguments: vec![],
-        });
-
-    // We expect to get records in address order for a given probe; our offsets
-    // would be negative otherwise.
-    assert!(address >= probe.address);
-
-    if flags == 0 {
-        probe.offsets.push((address - probe.address) as u32);
-    } else {
-        probe.enabled_offsets.push((address - probe.address) as u32);
-    }
-}
-
-trait ReadCstrExt<'a> {
-    fn read_cstr(&mut self) -> &'a str;
-}
-
-impl<'a> ReadCstrExt<'a> for &'a [u8] {
-    fn read_cstr(&mut self) -> &'a str {
-        let index = self
-            .iter()
-            .position(|ch| *ch == 0)
-            .expect("ran out of bytes before we found a zero");
-
-        let ret = std::str::from_utf8(&self[..index]).unwrap();
-        *self = &self[index + 1..];
-        ret
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use std::collections::BTreeMap;
-
-    use byteorder::{NativeEndian, WriteBytesExt};
-
-    use super::process_rec;
-    use super::PROBE_REC_VERSION;
-
-    #[test]
-    fn test_process_rec() {
-        let mut rec = Vec::<u8>::new();
-
-        rec.write_u32::<NativeEndian>(0).unwrap();
-        rec.write_u8(PROBE_REC_VERSION).unwrap();
-        rec.write_u8(0).unwrap();
-        rec.write_u16::<NativeEndian>(0).unwrap();
-        rec.write_u64::<NativeEndian>(0x1234).unwrap();
-        rec.write_cstr("provider");
-        rec.write_cstr("probe");
-
-        let mut providers = BTreeMap::new();
-        process_rec(&mut providers, rec.as_slice());
-
-        println!("{:?}", providers);
-
-        let probe = providers
-            .get("provider")
-            .unwrap()
-            .probes
-            .get("probe")
-            .unwrap();
-
-        assert_eq!(probe.name, "probe");
-        assert_eq!(probe.address, 0x1234);
-    }
-
-    trait WriteCstrExt {
-        fn write_cstr(&mut self, s: &str);
-    }
-
-    impl WriteCstrExt for Vec<u8> {
-        fn write_cstr(&mut self, s: &str) {
-            self.extend_from_slice(s.as_bytes());
-            self.push(0);
-        }
     }
 }

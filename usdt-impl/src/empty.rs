@@ -6,7 +6,7 @@ use quote::{format_ident, quote};
 pub fn compile_providers(
     source: &str,
     config: &crate::CompileProvidersConfig,
-) -> Result<TokenStream, dtrace_parser::DTraceError> {
+) -> Result<TokenStream, crate::DTraceError> {
     let dfile = dtrace_parser::File::try_from(source)?;
     let providers = dfile
         .providers()
@@ -49,6 +49,6 @@ fn compile_probe(
     }
 }
 
-pub fn register_probes() -> Result<(), std::io::Error> {
+pub fn register_probes() -> Result<(), crate::Error> {
     Ok(())
 }

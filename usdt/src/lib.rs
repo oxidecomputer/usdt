@@ -55,23 +55,8 @@
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
-use thiserror::Error;
-
+pub use usdt_impl::Error;
 pub use usdt_macro::dtrace_provider;
-
-/// Errors related to building DTrace probes into Rust code in a build.rs script.
-#[derive(Error, Debug)]
-pub enum Error {
-    /// Error during parsing of DTrace provider source
-    #[error(transparent)]
-    ParseError(#[from] dtrace_parser::DTraceError),
-    /// Error reading or writing files, or registering DTrace probes
-    #[error(transparent)]
-    IO(#[from] std::io::Error),
-    /// Error related to environment variables, e.g., while running a build script
-    #[error(transparent)]
-    Env(#[from] env::VarError),
-}
 
 /// A simple struct used to build DTrace probes into Rust code in a build.rs script.
 #[derive(Debug)]

@@ -59,7 +59,7 @@ use quote::{format_ident, quote};
 pub fn compile_providers(
     source: &str,
     config: &crate::CompileProvidersConfig,
-) -> Result<TokenStream, dtrace_parser::DTraceError> {
+) -> Result<TokenStream, crate::Error> {
     let dfile = dtrace_parser::File::try_from(source)?;
     let header = build_header_from_provider(&source)?;
     let provider_info = extract_providers(&header);
@@ -338,7 +338,7 @@ fn build_header_from_provider(source: &str) -> Result<String, std::io::Error> {
 }
 
 /// Register this application's probes with DTrace.
-pub fn register_probes() -> Result<(), std::io::Error> {
+pub fn register_probes() -> Result<(), crate::Error> {
     // This function is a NOP, since we're using Apple's linker to create the DOF and call ioctl(2)
     // to send it to the driver.
     Ok(())

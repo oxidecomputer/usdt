@@ -1,22 +1,23 @@
 [package]
 name = "usdt-impl"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
 
 [dependencies]
+thiserror = "1.0.24"
 proc-macro2 = "1.0.24"
 quote = "1.0.9"
+goblin = { version = "0.3.4", features = [ "elf32", "elf64" ] }
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
+dof = { path = "../dof", version = "0.1.3" }
 serde = { version = "1.0.124", features = ["derive"] }
+libc = "0.2.88"
+byteorder = "1.4.2"
 
-libc = { version = "0.2.88", optional = true }
 syn = { version = "1.0.60", optional = true}
-byteorder = { version = "1.4.2", optional = true }
 
 [features]
-asm = ["libc", "syn", "byteorder"]
+asm = ["syn"]
 
-[target.'cfg(not(target_os = "linux"))'.dependencies]
-dof = { path = "../dof", version = "0.1.2" }
