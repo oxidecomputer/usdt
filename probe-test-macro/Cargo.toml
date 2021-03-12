@@ -8,8 +8,5 @@ edition = "2018"
 [dependencies]
 usdt = { path = "../usdt" }
 
-[build-dependencies]
-usdt = { path = "../usdt" }
-
 [features]
 asm = ["usdt/asm"]

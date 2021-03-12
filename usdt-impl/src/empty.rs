@@ -6,7 +6,7 @@ use quote::{format_ident, quote};
 pub fn compile_providers(
     source: &str,
     config: &crate::CompileProvidersConfig,
-) -> Result<TokenStream, crate::DTraceError> {
+) -> Result<TokenStream, crate::Error> {
     let dfile = dtrace_parser::File::try_from(source)?;
     let providers = dfile
         .providers()

@@ -146,3 +146,16 @@ internals, especially when things fail. Additionally, the macro is run on every 
 even if the provider definition is unchanged. This may be negligible for small provider
 definitions, but users may see a noticeable increase in compile times when many probes
 are defined.
+
+## A note about registration
+
+Note that the `usdt::register_probes()` function is called at the top of main in the above
+example. This method is required to actually register the probes with the DTrace kernel
+module. This presents a quandary for library developers who wish to instrument their
+code, as consumers of their library may forget to (or choose not to) call this function.
+There are potential workarounds to this problem (init-sections, other magic), but each
+comes with significant tradeoffs. As such the current recommendation is:
+
+> Library developers are encouraged to re-export the `usdt::register_probes` (or a
+function calling it), and document to their users that this function should be called to
+guarantee that probes are registered.

@@ -4,6 +4,9 @@ version = "0.1.8"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
+license = "Apache-2.0"
+description = "Parse DTrace provider definitions into Rust"
+repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
 pest = "2.1.3"

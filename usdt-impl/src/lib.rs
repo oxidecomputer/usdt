@@ -16,7 +16,21 @@ mod internal;
 #[cfg(path = "empty.rs")]
 mod internal;
 
-pub use crate::internal::register_probes;
+/// Register an application's probe points with DTrace.
+///
+/// This function collects information about the probe points defined in an application and ensures
+/// that they are registered with the DTrace kernel module. It is critical to note that if this
+/// method is not called (at some point in an application), _no probes will be visible_ via the
+/// `dtrace(1)` command line tool.
+///
+/// NOTE: This method presents a quandary for library developers, as consumers of their library may
+/// forget to (or choose not to) call this function. There are potential workarounds for this
+/// problem, but each comes with significant tradeoffs. Library developers are encouraged to
+/// re-export this function and document to their users that this function should be called to
+/// guarantee that the library's probes are registered.
+pub fn register_probes() -> Result<(), Error> {
+    crate::internal::register_probes()
+}
 
 /// Errors related to building DTrace probes into Rust code
 #[derive(Error, Debug)]

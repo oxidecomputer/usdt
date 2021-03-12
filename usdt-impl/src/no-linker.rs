@@ -218,7 +218,6 @@ fn asm_type_convert(typ: &dtrace_parser::DataType, input: TokenStream) -> TokenS
     }
 }
 
-/// Register this application's probes with DTrace.
 pub fn register_probes() -> Result<(), crate::Error> {
     if let Some(ref section) = extract_probe_records_from_section().map_err(crate::Error::from)? {
         ioctl_section(&serialize_section(&section)).map_err(crate::Error::from)

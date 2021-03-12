@@ -4,14 +4,17 @@ version = "0.1.9"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
+license = "Apache-2.0"
+description = "Dust your Rust with USDT probes"
+repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
+dof = { path = "../dof", version = "0.1.4" }
+dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
 proc-macro2 = "1.0.24"
 structopt = "0.3.21"
-usdt-impl = { path = "../usdt-impl", version = "0.1.2" }
+usdt-impl = { path = "../usdt-impl", version = "0.1.5" }
 usdt-macro = { path = "../usdt-macro", version = "0.1.5" }
-dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
-dof = { path = "../dof", version = "0.1.3" }
 
 [features]
 default = ["asm"]

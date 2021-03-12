@@ -337,7 +337,6 @@ fn build_header_from_provider(source: &str) -> Result<String, std::io::Error> {
     fs::read_to_string(&header_file)
 }
 
-/// Register this application's probes with DTrace.
 pub fn register_probes() -> Result<(), crate::Error> {
     // This function is a NOP, since we're using Apple's linker to create the DOF and call ioctl(2)
     // to send it to the driver.

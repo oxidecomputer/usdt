@@ -4,13 +4,16 @@ version = "0.1.5"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
+license = "Apache-2.0"
+description = "Procedural macro for generating Rust macros for USDT probes"
+repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
-syn = { version = "1.0.60", features = ["full"] }
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
-usdt-impl = { path = "../usdt-impl", version = "0.1.0" }
-serde_tokenstream = "0.1.2"
 proc-macro2 = "1.0.24"
+serde_tokenstream = "0.1.2"
+syn = { version = "1.0.60", features = ["full"] }
+usdt-impl = { path = "../usdt-impl", version = "0.1.5" }
 
 [lib]
 proc-macro = true
