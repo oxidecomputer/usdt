@@ -98,6 +98,22 @@ impl TryFrom<&Pairs<'_, Rule>> for DataType {
 }
 
 impl DataType {
+    /// Convert a type into its C type represenation as a string
+    pub fn to_c_type(&self) -> String {
+        match self {
+            DataType::U8 => "uint8_t",
+            DataType::U16 => "uint16_t",
+            DataType::U32 => "uint32_t",
+            DataType::U64 => "uint64_t",
+            DataType::I8 => "int8_t",
+            DataType::I16 => "int16_t",
+            DataType::I32 => "int32_t",
+            DataType::I64 => "int64_t",
+            DataType::String => "char*",
+        }
+        .into()
+    }
+
     /// Return the Rust FFI type representation of this data type
     pub fn to_rust_ffi_type(&self) -> String {
         match self {

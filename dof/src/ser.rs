@@ -49,13 +49,13 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
             strings.push(0);
 
             // Insert argument strings and store strtab indices
+            probe_t.dofpr_argidx = arguments.len() as _;
             let argv = strings.len() as u32;
             for (i, arg) in probe.arguments.iter().enumerate() {
                 strings.extend_from_slice(arg.as_bytes());
                 strings.push(0);
                 arguments.push(i as _);
             }
-            probe_t.dofpr_argidx = arguments.len() as _;
             probe_t.dofpr_nargv = argv;
             probe_t.dofpr_nargc = probe.arguments.len() as _;
             probe_t.dofpr_xargv = argv;

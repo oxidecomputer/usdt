@@ -123,7 +123,7 @@ fn addr_to_info(addr: u64) -> Option<String> {
 }
 
 fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) -> Result<(), crate::Error> {
-    let mut data = &rec[..];
+    let mut data = rec;
 
     let version = data.read_u8()?;
 
@@ -134,11 +134,18 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) -> Result
         return Ok(());
     }
 
-    let _zero = data.read_u8()?;
+    let n_args = data.read_u8()? as usize;
     let flags = data.read_u16::<NativeEndian>()?;
     let address = data.read_u64::<NativeEndian>()?;
     let provname = data.read_cstr();
     let probename = data.read_cstr();
+    let args = {
+        let mut args = Vec::with_capacity(n_args);
+        for _ in 0..n_args {
+            args.push(String::from(data.read_cstr()));
+        }
+        args
+    };
 
     let funcname = match addr_to_info(address) {
         Some(s) => s,
@@ -155,12 +162,13 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) -> Result
         .entry(probename.to_string())
         .or_insert(Probe {
             name: probename.to_string(),
-            function: funcname.to_string(),
+            function: funcname,
             address: address,
             offsets: vec![],
             enabled_offsets: vec![],
             arguments: vec![],
         });
+    probe.arguments = args;
 
     // We expect to get records in address order for a given probe; our offsets
     // would be negative otherwise.

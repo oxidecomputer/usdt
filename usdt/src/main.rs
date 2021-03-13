@@ -37,6 +37,7 @@ fn main() {
     if let Some(data) = usdt_impl::record::extract_probe_records(&cmd.file)
         .expect("Failed to parse probe information")
     {
+        // TODO This could use the raw/verbose arguments, by first converting into the C structs.
         println!("{:#?}", data)
     }
 }

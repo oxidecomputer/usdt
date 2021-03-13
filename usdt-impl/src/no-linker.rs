@@ -98,8 +98,8 @@ fn compile_probe(
         quote! {}
     };
 
-    let is_enabled_rec = asm_rec(provider, probe.name(), true);
-    let probe_rec = asm_rec(provider, probe.name(), false);
+    let is_enabled_rec = asm_rec(provider, probe.name(), None);
+    let probe_rec = asm_rec(provider, probe.name(), Some(probe.types()));
 
     let out = quote! {
         macro_rules! #macro_name {
@@ -173,7 +173,17 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
     parse_probe_records(data)
 }
 
-fn asm_rec(prov: &str, probe: &str, is_enabled: bool) -> String {
+// Construct the ASM record for a probe. If `types` is `None`, then is is an is-enabled probe.
+fn asm_rec(prov: &str, probe: &str, types: Option<&Vec<dtrace_parser::DataType>>) -> String {
+    let is_enabled = types.is_none();
+    let n_args = types.map_or(0, |typ| typ.len());
+    let arguments = types.map_or_else(String::new, |types| {
+        types
+            .iter()
+            .map(|typ| format!(".asciz \"{}\"", typ.to_c_type()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
     format!(
         r#"
                     .pushsection set_dtrace_probes,"a","progbits"
@@ -181,18 +191,21 @@ fn asm_rec(prov: &str, probe: &str, is_enabled: bool) -> String {
             991:
                     .4byte 992f-991b    // length
                     .byte {version}
-                    .byte 0             // unused
+                    .byte {n_args}
                     .2byte {flags}
                     .8byte 990b         // address
                     .asciz "{prov}"
                     .asciz "{probe}"
+                    {arguments}         // null-terminated strings for each argument
                     .balign 8
             992:    .popsection
         "#,
         version = PROBE_REC_VERSION,
+        n_args = n_args,
         flags = if is_enabled { 1 } else { 0 },
         prov = prov,
         probe = probe,
+        arguments = arguments,
     )
 }
 
