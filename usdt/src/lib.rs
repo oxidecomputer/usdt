@@ -14,14 +14,14 @@
 //!
 //! Assuming the above is in a file called `"test.d"`, this may be compiled into Rust code with:
 //!
-//! ```no_run
+//! ```ignore
 //! usdt::dtrace_provider!("test.d");
 //! ```
 //!
 //! This procedural macro will return a Rust macro for each probe defined in the provider. For
 //! example, one may then call the `start` probe via:
 //!
-//! ```no_run
+//! ```ignore
 //! let x: u8 = 0;
 //! test_start!(|| x);
 //! ```
