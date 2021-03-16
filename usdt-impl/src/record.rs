@@ -96,8 +96,9 @@ fn process_section(mut data: &[u8]) -> Result<BTreeMap<String, Provider>, crate:
             data.len() >= std::mem::size_of::<u32>(),
             "Not enough bytes for length header"
         );
-        let full_len = data.read_u32::<NativeEndian>()? as usize;
-        let len = full_len - std::mem::size_of::<u32>();
+        // Read the length without consuming it
+        let mut len_bytes = data;
+        let len = len_bytes.read_u32::<NativeEndian>()? as usize;
         let (rec, rest) = data.split_at(len);
         process_rec(&mut providers, &rec)?;
         data = rest;
@@ -123,7 +124,8 @@ fn addr_to_info(addr: u64) -> Option<String> {
 }
 
 fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) -> Result<(), crate::Error> {
-    let mut data = rec;
+    // Skip over the length which was already read.
+    let mut data = &rec[4..];
 
     let version = data.read_u8()?;
 
@@ -206,12 +208,14 @@ mod test {
     use byteorder::{NativeEndian, WriteBytesExt};
 
     use super::process_rec;
+    use super::process_section;
     use super::PROBE_REC_VERSION;
 
     #[test]
     fn test_process_rec() {
         let mut rec = Vec::<u8>::new();
 
+        // write a dummy length
         rec.write_u32::<NativeEndian>(0).unwrap();
         rec.write_u8(PROBE_REC_VERSION).unwrap();
         rec.write_u8(0).unwrap();
@@ -219,11 +223,14 @@ mod test {
         rec.write_u64::<NativeEndian>(0x1234).unwrap();
         rec.write_cstr("provider");
         rec.write_cstr("probe");
+        // fix the length field
+        let len = rec.len();
+        (&mut rec[0..])
+            .write_u32::<NativeEndian>(len as u32)
+            .unwrap();
 
         let mut providers = BTreeMap::new();
-        process_rec(&mut providers, rec.as_slice());
-
-        println!("{:?}", providers);
+        process_rec(&mut providers, rec.as_slice()).unwrap();
 
         let probe = providers
             .get("provider")
@@ -234,6 +241,49 @@ mod test {
 
         assert_eq!(probe.name, "probe");
         assert_eq!(probe.address, 0x1234);
+    }
+
+    #[test]
+    fn test_process_section() {
+        let mut data = Vec::<u8>::new();
+
+        // write a dummy length for the first record
+        data.write_u32::<NativeEndian>(0).unwrap();
+        data.write_u8(PROBE_REC_VERSION).unwrap();
+        data.write_u8(0).unwrap();
+        data.write_u16::<NativeEndian>(0).unwrap();
+        data.write_u64::<NativeEndian>(0x1234).unwrap();
+        data.write_cstr("provider");
+        data.write_cstr("probe");
+        let len = data.len();
+        (&mut data[0..])
+            .write_u32::<NativeEndian>(len as u32)
+            .unwrap();
+
+        data.write_u32::<NativeEndian>(0).unwrap();
+        data.write_u8(PROBE_REC_VERSION).unwrap();
+        data.write_u8(0).unwrap();
+        data.write_u16::<NativeEndian>(0).unwrap();
+        data.write_u64::<NativeEndian>(0x12ab).unwrap();
+        data.write_cstr("provider");
+        data.write_cstr("probe");
+        let len2 = data.len() - len;
+        (&mut data[len..])
+            .write_u32::<NativeEndian>(len2 as u32)
+            .unwrap();
+
+        let providers = process_section(data.as_slice()).unwrap();
+
+        let probe = providers
+            .get("provider")
+            .unwrap()
+            .probes
+            .get("probe")
+            .unwrap();
+
+        assert_eq!(probe.name, "probe");
+        assert_eq!(probe.address, 0x1234);
+        assert_eq!(probe.offsets, vec![0, 0x12ab - 0x1234]);
     }
 
     trait WriteCstrExt {
