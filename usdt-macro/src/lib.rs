@@ -4,6 +4,7 @@
 use std::fs;
 use std::iter::FromIterator;
 
+use quote::quote;
 use syn::{parse_macro_input, Lit};
 
 use usdt_impl::compile_providers;
@@ -78,11 +79,22 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         _ => panic!("DTrace provider must be a single literal string filename"),
     };
     let source = if filename.ends_with(".d") {
-        fs::read_to_string(filename).expect("Could not read D source file")
+        fs::read_to_string(&filename).expect("Could not read D source file")
     } else {
-        filename
+        filename.clone()
     };
-    compile_providers(&source, &config)
-        .expect("Could not parse D source file")
-        .into()
+    match compile_providers(&source, &config) {
+        Ok(provider) => provider.into(),
+        Err(e) => {
+            let message = format!(
+                "Error building provider definition in \"{}\"\n\n{}",
+                filename,
+                e.to_string()
+            );
+            let out = quote! {
+                compile_error!(#message);
+            };
+            out.into()
+        }
+    }
 }

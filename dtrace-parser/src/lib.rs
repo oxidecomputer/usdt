@@ -10,21 +10,21 @@ use pest::iterators::{Pair, Pairs};
 use pest_derive::Parser;
 use thiserror::Error;
 
+type PestError = pest::error::Error<Rule>;
+
 /// Type representing errors that occur when parsing a D file.
 #[derive(Error, Debug)]
 pub enum DTraceError {
-    #[error("unexpected token type, expected {expected:?}, found {found:?}")]
+    #[error("Unexpected token type, expected {expected:?}, found {found:?}")]
     UnexpectedToken { expected: Rule, found: Rule },
-    #[error("this set of pairs contains no tokens")]
+    #[error("This set of pairs contains no tokens")]
     EmptyPairsIterator,
-    #[error("probe names must be unique: duplicated \"{0:?}\"")]
+    #[error("Provider and probe name pairs must be unique: duplicated \"{0:?}\"")]
     DuplicateProbeName((String, String)),
     #[error(transparent)]
     IO(#[from] std::io::Error),
-    #[error("failed to parse according to the DTrace grammar:\n{0}")]
-    ParseError(String),
-    #[error("failed to build Rust/C FFI glue: {0}")]
-    BuildError(String),
+    #[error("Input is not a valid DTrace provider definition:\n{0}")]
+    ParseError(#[from] PestError),
 }
 
 #[derive(Parser, Debug)]
@@ -351,10 +351,17 @@ impl TryFrom<&str> for File {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         use pest::Parser;
-        File::try_from(
-            &DTraceParser::parse(Rule::FILE, s)
-                .map_err(|e| DTraceError::ParseError(e.to_string()))?,
-        )
+        File::try_from(&DTraceParser::parse(Rule::FILE, s).map_err(|e| {
+            e.renamed_rules(|rule| match *rule {
+                Rule::DATA_TYPE | Rule::BIT_WIDTH => {
+                    format!(
+                        "{:?} (Check that the probe argument is a supported data type)",
+                        rule
+                    )
+                }
+                _ => format!("{:?}", rule),
+            })
+        })?)
     }
 }
 
