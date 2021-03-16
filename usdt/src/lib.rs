@@ -1,9 +1,12 @@
 //! Expose USDT probe points from Rust programs.
 //!
+//! Overview
+//! --------
+//!
 //! This crate provides methods for compiling definitions of DTrace probes into Rust code, allowing
 //! rich, low-overhead instrumentation of Rust programs.
 //!
-//! Users define a provider, with one or more probe functions, in the D language. For example:
+//! Users define a _provider_, with one or more _probe_ functions, in the D language. For example:
 //!
 //! ```d
 //! provider test {
@@ -12,19 +15,52 @@
 //! };
 //! ```
 //!
+//! Providers and probes may be named in any way, as long as they form valid Rust identifiers. The
+//! names are intended to help understand the behavior of a program, so they should be semantically
+//! meaningful. Probes accept zero or more arguments, data that is associated with the probe event
+//! itself (timestamps, file descriptors, filesystem paths, etc.). The arguments may be specified
+//! as any of the exact bit-width integer types (e.g., `int16_t`) or strings (`char *`s). See
+//! [Data types](#data-types) for a full list of supported types.
+//!
 //! Assuming the above is in a file called `"test.d"`, this may be compiled into Rust code with:
 //!
 //! ```ignore
+//! #![feature(asm)]
 //! usdt::dtrace_provider!("test.d");
 //! ```
 //!
-//! This procedural macro will return a Rust macro for each probe defined in the provider. For
-//! example, one may then call the `start` probe via:
+//! This procedural macro will generate a Rust macro for each probe defined in the provider. Note
+//! that including the `asm` feature is required; see [the notes](#notes) for a discussion. The
+//! `feature` directive and the invocation of `dtrace_provider` should both be at the crate root,
+//! i.e., `src/lib.rs` or `src/main.rs`.
+//!
+//! One may then call the `start` probe via:
 //!
 //! ```ignore
 //! let x: u8 = 0;
 //! test_start!(|| x);
 //! ```
+//!
+//! Note that `test_start!` is called with a closure which returns the arguments, rather than the
+//! actual arguments themselves. See [below](#probe-arguments) for details. Additionally, as the
+//! probes are exposed as _macros_, they should be included in the crate root, before any other
+//! module or item which references them.
+//!
+//! After declaring probes and converting them into Rust code, they must be _registered_ with the
+//! DTrace kernel module. Developers should call the function [`register_probes`] as soon as
+//! possible in the execution of their program to ensure that probes are available. At this point,
+//! the probes should be visible from the `dtrace(1)` command-line tool, and can be enabled or
+//! acted upon like any other probe. See [registration](#registration) for a discussion of probe
+//! registration, especially in the context of library crates.
+//!
+//! Examples
+//! --------
+//!
+//! See the [probe_test_macro] and [probe_test_build] crates for detailed working examples showing
+//! how the probes may be defined, included, and used.
+//!
+//! Probe arguments
+//! ---------------
 //!
 //! Note that the probe macro is called with a closure which returns the actual arguments. There
 //! are two reasons for this. First, it makes clear that the probe may not be evaluated if it is
@@ -34,19 +70,66 @@
 //! expensive to construct. However, this cost will only be incurred if the probe is actually
 //! enabled.
 //!
-//! These probes must be registered with the DTrace kernel module, which is done with the
-//! `usdt::register_probes()` function. At this point, the probes should be visible from the
-//! `dtrace(1)` command-line tool, and can be enabled or acted upon like any other probe.
+//! Data types
+//! ----------
 //!
-//! See the [probe_test_macro] and [probe_test_build] crates for detailed working examples showing
-//! how the probes may be defined, included, and used.
+//! Probes support any of the integer types which have a specific bit-width, e.g., `uint16_t`, as
+//! well as strings, which should be specified as `char *`. Below is the full list of supported
+//! types.
+//!
+//! - `uint8_t`
+//! - `uint16_t`
+//! - `uint32_t`
+//! - `uint64_t`
+//! - `int8_t`
+//! - `int16_t`
+//! - `int32_t`
+//! - `int64_t`
+//! - `char *`
+//!
+//! Currently, up to six (6) arguments are supported, though this limitation may be lifted in the
+//! future.
+//!
+//! Registration
+//! ------------
+//!
+//! USDT probes must be registered with the DTrace kernel module. This is done via a call to the
+//! [`register_probes`] function, which must be called before any of the probes become available to
+//! DTrace. Ideally, this would be done automatically; however, while there are methods by which
+//! that could be achieved, they all pose significant concerns around safety, clarity, and/or
+//! explicitness.
+//!
+//! At this point, it is incumbent upon the _application_ developer to ensure that
+//! `register_probes` is called appropriately. This will register all probes in an application,
+//! including those defined in a library dependency. To avoid foisting an explicit dependency on
+//! the `usdt` crate on downstream applications, library writers should re-export the
+//! `register_probes` function with:
+//!
+//! ```ignore
+//! pub use usdt::register_probes;
+//! ```
+//!
+//! The library should clearly document that it defines and uses USDT probes, and that this
+//! function should be called by an application.
 //!
 //! Notes
 //! -----
-//! Because the probes are defined as macros, they should be included at the crate root, before any
-//! modules with use them are declared. Additionally, the `register_probes()` function, which
-//! _must_ be called for the probes to work, should be placed as soon as possible in a program's
-//! lifetime, ideally at the top of `main()`.
+//!
+//! The USDT crate relies on inline assembly to hook into DTrace. Unfortunatley this feature is
+//! unstable, and requires explicitly opting in with `#![feature(asm)]` as well as running with a
+//! nightly Rust compiler. A nightly toolchain may be installed with:
+//!
+//! ```bash
+//! $ rustup toolchain install nightly
+//! ```
+//!
+//! and Rust code exposing USDT probes may then be built with:
+//!
+//! ```bash
+//! $ cargo +nightly build
+//! ```
+//!
+//! The `asm` feature is a default of the `usdt` crate.
 //!
 //! [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
 //! [probe_test_build]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-build
