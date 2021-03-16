@@ -29,9 +29,12 @@
 //! usdt::dtrace_provider!("test.d");
 //! ```
 //!
-//! This procedural macro will return a Rust macro for each probe defined in the provider. Note
-//! that including the `asm` feature is required; see [the notes](#notes) for a discussion. One may
-//! then call the `start` probe via:
+//! This procedural macro will generate a Rust macro for each probe defined in the provider. Note
+//! that including the `asm` feature is required; see [the notes](#notes) for a discussion. The
+//! `feature` directive and the invocation of `dtrace_provider` should both be at the crate root,
+//! i.e., `src/lib.rs` or `src/main.rs`.
+//!
+//! One may then call the `start` probe via:
 //!
 //! ```ignore
 //! let x: u8 = 0;
@@ -90,11 +93,11 @@
 //! Registration
 //! ------------
 //!
-//! USDT probes must be registered with the DTrace kernel module. This is done in Rust code with
-//! the [`register_probes`] function, which must be called before any of the probes become
-//! available to DTrace. Ideally, this would be done automatically; however, while there are
-//! methods by which that could be achieved, they all pose significant concerns around safety,
-//! clarity, and/or explicitness.
+//! USDT probes must be registered with the DTrace kernel module. This is done via a call to the
+//! [`register_probes`] function, which must be called before any of the probes become available to
+//! DTrace. Ideally, this would be done automatically; however, while there are methods by which
+//! that could be achieved, they all pose significant concerns around safety, clarity, and/or
+//! explicitness.
 //!
 //! At this point, it is incumbent upon the _application_ developer to ensure that
 //! `register_probes` is called appropriately. This will register all probes in an application,
