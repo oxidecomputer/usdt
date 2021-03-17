@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, convert::TryFrom, env, fs, process::Command};
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
 /// On systems with linker support for the compile-time construction of DTrace
@@ -78,9 +78,11 @@ fn compile_provider(
     provider_info: &ProviderInfo,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
+    let mod_name = format_ident!("__usdt_private_{}", provider.name());
     let mut probe_impls = Vec::new();
     for probe in provider.probes().iter() {
         probe_impls.push(compile_probe(
+            &mod_name,
             provider.name(),
             probe.name(),
             config,
@@ -89,19 +91,20 @@ fn compile_provider(
             &probe.types(),
         ));
     }
-    let provider_name = format_ident!("{}", provider.name());
     let stability = &provider_info.stability;
     let typedefs = &provider_info.typedefs;
     quote! {
         #[macro_use]
-        pub(crate) mod #provider_name {
+        pub(crate) mod #mod_name {
             extern "C" {
                 // These are dummy symbols, which we declare so that we can name them inside the
-                // probe macro via a valid Rust path, e.g., `$crate::provider_name::stability`.
+                // probe macro via a valid Rust path, e.g., `$crate::#mod_name::stability`.
                 // The macOS linker will actually define these symbols, which are required to
                 // generate valid DOF.
+                #[allow(unused)]
                 #[link_name = #stability]
                 pub(crate) fn stability();
+                #[allow(unused)]
                 #[link_name = #typedefs]
                 pub(crate) fn typedefs();
             }
@@ -111,6 +114,7 @@ fn compile_provider(
 }
 
 fn compile_probe(
+    mod_name: &Ident,
     provider_name: &str,
     probe_name: &str,
     config: &crate::CompileProvidersConfig,
@@ -119,7 +123,6 @@ fn compile_probe(
     types: &[dtrace_parser::DataType],
 ) -> TokenStream {
     let macro_name = crate::format_probe(&config.format, provider_name, probe_name);
-    let provider_ident = format_ident!("{}", provider_name);
     let is_enabled_fn = format_ident!("{}_{}_enabled", provider_name, probe_name);
     let probe_fn = format_ident!("{}_{}", provider_name, probe_name);
 
@@ -177,12 +180,15 @@ fn compile_probe(
     // Generate the FFI call, with the appropriate link names, and the corresponding macro
     quote! {
         extern "C" {
+            #[allow(unused)]
             #[link_name = #is_enabled]
             pub(crate) fn #is_enabled_fn() -> i32;
+            #[allow(unused)]
             #[link_name = #probe]
             pub(crate) fn #probe_fn(#(#ffi_param_list),*);
         }
 
+        #[allow(unused)]
         macro_rules! #macro_name {
             ($args_lambda:expr) => {
                 // NOTE: This block defines an internal empty function and then a lambda which
@@ -198,18 +204,18 @@ fn compile_probe(
                     };
                 }
                 unsafe {
-                    if $crate::#provider_ident::#is_enabled_fn() != 0 {
+                    if $crate::#mod_name::#is_enabled_fn() != 0 {
                         let args = $args_lambda();
                         #singleton_fix
                         #(#args)*
                         asm!(
                             ".reference {typedefs}",
-                            typedefs = sym $crate::#provider_ident::#typedef_fn,
+                            typedefs = sym $crate::#mod_name::#typedef_fn,
                         );
-                        $crate::#provider_ident::#probe_fn(#(#ffi_arg_list),*);
+                        $crate::#mod_name::#probe_fn(#(#ffi_arg_list),*);
                         asm!(
                             ".reference {stability}",
-                            stability = sym $crate::#provider_ident::#stability_fn,
+                            stability = sym $crate::#mod_name::#stability_fn,
                         );
                     }
                 }
@@ -392,11 +398,14 @@ mod tests {
     #[test]
     fn test_compile_probe() {
         let provider_name = "foo";
+        let mod_name = format!("__usdt_private_{}", provider_name);
+        let mod_ident = format_ident!("__usdt_private_{}", provider_name);
         let probe_name = "bar";
         let is_enabled = "__dtrace_isenabled$foo$bar$xxx";
         let probe = "__dtrace_probe$foo$bar$xxx";
         let types = vec![];
         let tokens = compile_probe(
+            &mod_ident,
             provider_name,
             probe_name,
             &crate::CompileProvidersConfig::default(),
@@ -421,8 +430,8 @@ mod tests {
         assert!(output.find(&needle).is_some());
 
         let needle = format!(
-            "asm ! (\".reference {{stability}}\" , stability = sym $ crate :: {provider_name} :: stability",
-            provider_name = provider_name
+            "asm ! (\".reference {{stability}}\" , stability = sym $ crate :: {mod_name} :: stability",
+            mod_name = mod_name,
         );
         assert!(output.find(&needle).is_some());
     }

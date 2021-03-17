@@ -26,7 +26,7 @@ fn compile_provider(
     provider: &dtrace_parser::Provider,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let provider_name = format_ident!("{}", provider.name());
+    let mod_name = format_ident!("__usdt_private_{}", provider.name());
     let probe_impls = provider
         .probes()
         .iter()
@@ -34,7 +34,7 @@ fn compile_provider(
         .collect::<Vec<_>>();
     quote! {
         #[macro_use]
-        pub(crate) mod #provider_name {
+        pub(crate) mod #mod_name {
             #(#probe_impls)*
         }
     }
@@ -102,6 +102,7 @@ fn compile_probe(
     let probe_rec = asm_rec(provider, probe.name(), Some(probe.types()));
 
     let out = quote! {
+        #[allow(unused)]
         macro_rules! #macro_name {
             ($args_lambda:expr) => {
                 // NOTE: This block defines an internal empty function and then a lambda which
