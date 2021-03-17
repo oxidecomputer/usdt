@@ -4,7 +4,7 @@ members = [
 	"dtrace-parser",
 	"probe-test-build",
 	"probe-test-macro",
-	"tests",
+	"tests/namespace-conflict",
 	"usdt",
 	"usdt-impl",
 	"usdt-macro"
@@ -12,7 +12,7 @@ members = [
 default-members = [
 	"dof",
 	"dtrace-parser",
-	"tests",
+	"tests/namespace-conflict",
 	"usdt",
 	"usdt-impl",
 	"usdt-macro"

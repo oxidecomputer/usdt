@@ -1,7 +1,0 @@
-[workspace]
-members = [
-	"namespace-conflict",
-]
-default-members = [
-	"namespace-conflict",
-]
