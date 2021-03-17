@@ -26,6 +26,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          override: true
           profile: minimal
       - run: cargo check --release
 
@@ -40,5 +41,6 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          override: true
           profile: minimal
       - run: cargo test --release --no-fail-fast
