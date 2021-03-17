@@ -43,6 +43,7 @@ fn compile_probe(
 ) -> TokenStream {
     let macro_name = crate::format_probe(&config.format, provider_name, probe.name());
     quote! {
+        #[allow(unused)]
         macro_rules! #macro_name {
             ( $( $args:expr ),* ) => {}
         }

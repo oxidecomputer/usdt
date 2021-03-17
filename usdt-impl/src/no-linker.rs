@@ -102,6 +102,7 @@ fn compile_probe(
     let probe_rec = asm_rec(provider, probe.name(), Some(probe.types()));
 
     let out = quote! {
+        #[allow(unused)]
         macro_rules! #macro_name {
             ($args_lambda:expr) => {
                 // NOTE: This block defines an internal empty function and then a lambda which
