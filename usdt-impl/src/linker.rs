@@ -8,6 +8,8 @@ use std::{
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
+use crate::common;
+
 /// On systems with linker support for the compile-time construction of DTrace
 /// USDT probes we can lean heavily on those mechanisms. Rather than interpretting
 /// the provider file ourselves, we invoke the system's `dtrace -h` to generate a C
@@ -131,51 +133,11 @@ fn compile_probe(
     let is_enabled_fn = format_ident!("{}_{}_enabled", provider_name, probe_name);
     let probe_fn = format_ident!("{}_{}", provider_name, probe_name);
 
-    // Construct arguments to the C-FFI call that dyld resolves at load time
     let ffi_param_list = types.iter().map(|typ| {
         syn::parse_str::<syn::FnArg>(&format!("_: {}", typ.to_rust_ffi_type())).unwrap()
     });
-    let ffi_arg_list = (0..types.len()).map(|i| format_ident!("arg_{}", i));
-
-    // Construct arguments to a unused closure declared to check the arguments to the generated
-    // probe macro itself.
-    let type_check_args = types
-        .iter()
-        .map(|typ| {
-            let arg = syn::parse_str::<syn::FnArg>(&format!("_: {}", typ.to_rust_type())).unwrap();
-            quote! { #arg }
-        })
-        .collect::<Vec<_>>();
-    let expanded_lambda_args = (0..types.len())
-        .map(|i| {
-            let index = syn::Index::from(i);
-            quote! { args.#index }
-        })
-        .collect::<Vec<_>>();
-
-    // Unpack the tuple resulting from the argument closure evaluation.
-    let args = types
-        .iter()
-        .enumerate()
-        .map(|(i, typ)| {
-            let arg = format_ident!("arg_{}", i);
-            let index = syn::Index::from(i);
-            let input = quote! { args.#index };
-            let value = asm_type_convert(typ, input);
-            quote! {
-                let #arg = #value;
-            }
-        })
-        .collect::<Vec<_>>();
-
-    let preamble = match types.len() {
-        // Don't bother with arguments if there are none.
-        0 => quote! { $args_lambda(); },
-        // Wrap a single argument in a tuple.
-        1 => quote! { let args = ($args_lambda(),); },
-        // General case.
-        _ => quote! { let args = $args_lambda(); },
-    };
+    let type_check_block = common::generate_type_check(types);
+    let (unpacked_args, in_regs) = common::construct_probe_args(types);
 
     // If there are no arguments we allow the user to optionally omit the closure.
     let no_args_match = if types.is_empty() {
@@ -204,45 +166,24 @@ fn compile_probe(
         macro_rules! #macro_name {
             #no_args_match
             ($args_lambda:expr) => {
-                // NOTE: This block defines an internal empty function and then a lambda which
-                // calls it. This is all strictly for type-checking, and is optimized out. It is
-                // defined in a scope to avoid multiple-definition errors in the scope of the macro
-                // expansion site.
-                {
-                    fn _type_check(#(#type_check_args),*) { }
-                    let _ = || {
-                        #preamble
-                        _type_check(#(#expanded_lambda_args),*);
-                    };
-                }
+                #type_check_block
                 unsafe {
                     if $crate::#mod_name::#is_enabled_fn() != 0 {
-                        // Get the input arguments
-                        #preamble
-                        // Marshal the arguments.
-                        #(#args)*
+                        #unpacked_args
                         asm!(
                             ".reference {typedefs}",
-                            typedefs = sym $crate::#mod_name::#typedef_fn,
-                        );
-                        $crate::#mod_name::#probe_fn(#(#ffi_arg_list),*);
-                        asm!(
+                            "call {probe_fn}",
                             ".reference {stability}",
+                            typedefs = sym $crate::#mod_name::#typedef_fn,
+                            probe_fn = sym $crate::#mod_name::#probe_fn,
                             stability = sym $crate::#mod_name::#stability_fn,
+                            #in_regs
+                            options(nomem, nostack, preserves_flags)
                         );
                     }
                 }
             };
         }
-    }
-}
-
-fn asm_type_convert(typ: &dtrace_parser::DataType, input: TokenStream) -> TokenStream {
-    match typ {
-        dtrace_parser::DataType::String => quote! {
-            ([#input.as_bytes(), &[0_u8]].concat().as_ptr() as _)
-        },
-        _ => quote! { (#input as _) },
     }
 }
 
@@ -450,10 +391,28 @@ mod tests {
         );
         assert!(output.find(&needle).is_some());
 
-        let needle = format!(
-            "asm ! (\".reference {{stability}}\" , stability = sym $ crate :: {mod_name} :: stability",
-            mod_name = mod_name,
-        );
-        assert!(output.find(&needle).is_some());
+        let needles = &[
+            "asm ! (\".reference {typedefs}\"",
+            "call {probe_fn}",
+            "\".reference {stability}",
+            &format!(
+                "typedefs = sym $ crate :: {mod_name} :: typedefs",
+                mod_name = mod_name,
+            ),
+            &format!(
+                "probe_fn = sym $ crate :: {mod_name} :: {provider_name}_{probe_name}",
+                mod_name = mod_name,
+                provider_name = provider_name,
+                probe_name = probe_name
+            ),
+            &format!(
+                "stability = sym $ crate :: {mod_name} :: stability",
+                mod_name = mod_name
+            ),
+        ];
+        for needle in needles.iter() {
+            println!("{}", needle);
+            assert!(output.find(needle).is_some());
+        }
     }
 }

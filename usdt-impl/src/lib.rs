@@ -3,17 +3,21 @@ use thiserror::Error;
 
 pub mod record;
 
-#[cfg(feature = "asm")]
-#[cfg_attr(target_os = "linux", path = "empty.rs")]
-#[cfg_attr(target_os = "macos", path = "linker.rs")]
-#[cfg_attr(
-    all(not(target_os = "macos"), not(target_os = "linux")),
-    path = "no-linker.rs"
-)]
-mod internal;
+#[cfg_attr(any(target_os = "linux", not(feature = "asm")), allow(dead_code))]
+mod common;
 
-#[cfg(not(feature = "asm"))]
-#[cfg_attr(not(feature = "asm"), path = "empty.rs")]
+#[cfg_attr(any(target_os = "linux", not(feature = "asm")), path = "empty.rs")]
+#[cfg_attr(not(target_os = "macos"), path = "no-linker.rs")]
+#[cfg_attr(
+    all(target_os = "macos", feature = "no-linker"),
+    path = "no-linker.rs",
+    allow(unused_attributes)
+)]
+#[cfg_attr(
+    all(target_os = "macos", not(feature = "no-linker")),
+    path = "linker.rs",
+    allow(unused_attributes)
+)]
 mod internal;
 
 /// Register an application's probe points with DTrace.

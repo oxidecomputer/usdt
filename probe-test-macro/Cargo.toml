@@ -10,3 +10,4 @@ usdt = { path = "../usdt" }
 
 [features]
 asm = ["usdt/asm"]
+no-linker = ["usdt/no-linker"]
