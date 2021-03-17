@@ -10,5 +10,3 @@ usdt = { path = "../../usdt" }
 
 [build-dependencies]
 usdt = { path = "../../usdt" }
-
-[workspace]

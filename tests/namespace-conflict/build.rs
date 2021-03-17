@@ -1,5 +1,5 @@
 use usdt::Builder;
 
 fn main() {
-    Builder::new("test.d").build().unwrap();
+    Builder::new("provider.d").build().unwrap();
 }
