@@ -13,7 +13,7 @@ pub mod record;
 mod internal;
 
 #[cfg(not(feature = "asm"))]
-#[cfg(path = "empty.rs")]
+#[cfg_attr(not(feature = "asm"), path = "empty.rs")]
 mod internal;
 
 /// Register an application's probe points with DTrace.

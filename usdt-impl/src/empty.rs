@@ -45,7 +45,9 @@ fn compile_probe(
     quote! {
         #[allow(unused)]
         macro_rules! #macro_name {
-            ( $( $args:expr ),* ) => {}
+            ($args_lambda:expr) => {
+                let _ = || ($args_lambda);
+            };
         }
     }
 }
