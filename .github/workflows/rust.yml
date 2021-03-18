@@ -23,7 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        asm-feature: [ "", "--features asm" ]
         no-linker-feature: [ "", "--features no-linker" ]
     steps:
       - uses: actions/checkout@v2
@@ -38,7 +37,6 @@ jobs:
           --release
           --verbose
           --workspace
-          ${{ matrix.asm-feature }}
           ${{ matrix.no-linker-feature }}
 
   build-and-test:
@@ -47,7 +45,6 @@ jobs:
     strategy:
       matrix:
         os: [ macos-latest ]
-        asm-feature: [ "", "--features asm" ]
         no-linker-feature: [ "", "--features no-linker" ]
     steps:
       - uses: actions/checkout@v2
@@ -63,5 +60,4 @@ jobs:
           --no-fail-fast
           --verbose
           --workspace
-          ${{ matrix.asm-feature }}
           ${{ matrix.no-linker-feature }}

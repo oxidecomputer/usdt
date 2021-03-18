@@ -17,5 +17,6 @@ usdt-impl = { path = "../usdt-impl", version = "0.1.6" }
 usdt-macro = { path = "../usdt-macro", version = "0.1.6" }
 
 [features]
+default = ["asm"]
 asm = ["usdt-impl/asm"]
-no-linker = ["usdt-impl/no-linker"]
+no-linker = ["asm", "usdt-impl/no-linker"]

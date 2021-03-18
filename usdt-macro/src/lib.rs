@@ -79,7 +79,11 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         _ => panic!("DTrace provider must be a single literal string filename"),
     };
     let source = if filename.ends_with(".d") {
-        fs::read_to_string(&filename).expect("Could not read D source file")
+        fs::read_to_string(&filename).expect(&format!(
+            "Could not read D source file \"{}\" in {:?}",
+            &filename,
+            std::env::current_dir().unwrap()
+        ))
     } else {
         filename.clone()
     };
