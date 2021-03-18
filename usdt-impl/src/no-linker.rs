@@ -90,10 +90,18 @@ fn compile_probe(
         })
         .collect::<Vec<_>>();
 
-    let singleton_fix = if probe.types().len() == 1 {
-        quote! {
-            let args = (args,);
-        }
+    let preamble = match types.len() {
+        // Don't bother with arguments if there are none.
+        0 => quote! { $args_lambda(); },
+        // Wrap a single argument in a tuple.
+        1 => quote! { let args = ($args_lambda(),); },
+        // General case.
+        _ => quote! { let args = $args_lambda(); },
+    };
+
+    // If there are no arguments we allow the user to optionally omit the closure.
+    let no_args_match = if types.is_empty() {
+        quote! { () => { #macro_name!(|| ()) }; }
     } else {
         quote! {}
     };
@@ -104,6 +112,7 @@ fn compile_probe(
     let out = quote! {
         #[allow(unused)]
         macro_rules! #macro_name {
+            #no_args_match
             ($args_lambda:expr) => {
                 // NOTE: This block defines an internal empty function and then a lambda which
                 // calls it. This is all strictly for type-checking, and is optimized out. It is
@@ -112,8 +121,7 @@ fn compile_probe(
                 {
                     fn _type_check(#(#type_check_args),*) { }
                     let _ = || {
-                        let args = $args_lambda();
-                        #singleton_fix
+                        #preamble
                         _type_check(#(#expanded_lambda_args),*);
                     };
                 }
@@ -130,10 +138,8 @@ fn compile_probe(
                 }
 
                 if is_enabled != 0 {
-                    // Compute the arguments.
-                    let args = $args_lambda();
-                    // Convert an item to a singleton tuple.
-                    #singleton_fix
+                    // Get the input arguments
+                    #preamble
                     // Marshal the arguments.
                     #(#args)*
                     unsafe {

@@ -6,6 +6,7 @@ members = [
 	"probe-test-macro",
 	"tests/empty",
 	"tests/namespace-conflict",
+	"tests/zero-arg-probe",
 	"usdt",
 	"usdt-impl",
 	"usdt-macro"
@@ -15,6 +16,7 @@ default-members = [
 	"dtrace-parser",
 	"tests/empty",
 	"tests/namespace-conflict",
+	"tests/zero-arg-probe",
 	"usdt",
 	"usdt-impl",
 	"usdt-macro"

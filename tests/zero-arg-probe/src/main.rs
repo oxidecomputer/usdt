@@ -3,16 +3,13 @@
 
 use usdt::register_probes;
 
-include!(concat!(env!("OUT_DIR"), "/provider.rs"));
+include!(concat!(env!("OUT_DIR"), "/test.rs"));
 
 fn main() {
     register_probes().unwrap();
 
-    let counter: u8 = 0;
-    stuff_start!(|| (counter));
-    stuff_stop!(|| ("the probe has fired", counter));
-    stuff_noargs!(|| ());
-    stuff_noargs!();
+    test_here__i__am!(|| ());
+    test_here__i__am!();
 }
 
 #[cfg(test)]

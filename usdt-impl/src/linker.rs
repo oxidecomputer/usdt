@@ -163,11 +163,18 @@ fn compile_probe(
         })
         .collect::<Vec<_>>();
 
-    // Handle a single return value from the closure
-    let singleton_fix = if types.len() == 1 {
-        quote! {
-            let args = (args,);
-        }
+    let preamble = match types.len() {
+        // Don't bother with arguments if there are none.
+        0 => quote! { $args_lambda(); },
+        // Wrap a single argument in a tuple.
+        1 => quote! { let args = ($args_lambda(),); },
+        // General case.
+        _ => quote! { let args = $args_lambda(); },
+    };
+
+    // If there are no arguments we allow the user to optionally omit the closure.
+    let no_args_match = if types.is_empty() {
+        quote! { () => { #macro_name!(|| ()) }; }
     } else {
         quote! {}
     };
@@ -190,6 +197,7 @@ fn compile_probe(
 
         #[allow(unused)]
         macro_rules! #macro_name {
+            #no_args_match
             ($args_lambda:expr) => {
                 // NOTE: This block defines an internal empty function and then a lambda which
                 // calls it. This is all strictly for type-checking, and is optimized out. It is
@@ -198,15 +206,15 @@ fn compile_probe(
                 {
                     fn _type_check(#(#type_check_args),*) { }
                     let _ = || {
-                        let args = $args_lambda();
-                        #singleton_fix
+                        #preamble
                         _type_check(#(#expanded_lambda_args),*);
                     };
                 }
                 unsafe {
                     if $crate::#mod_name::#is_enabled_fn() != 0 {
-                        let args = $args_lambda();
-                        #singleton_fix
+                        // Get the input arguments
+                        #preamble
+                        // Marshal the arguments.
                         #(#args)*
                         asm!(
                             ".reference {typedefs}",
@@ -219,7 +227,7 @@ fn compile_probe(
                         );
                     }
                 }
-            }
+            };
         }
     }
 }
