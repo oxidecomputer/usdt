@@ -129,30 +129,19 @@ fn compile_probe(
     probe: &str,
     types: &[dtrace_parser::DataType],
 ) -> TokenStream {
-    let macro_name = crate::format_probe(&config.format, provider_name, probe_name);
     let is_enabled_fn = format_ident!("{}_{}_enabled", provider_name, probe_name);
     let probe_fn = format_ident!("{}_{}", provider_name, probe_name);
-
     let ffi_param_list = types.iter().map(|typ| {
         syn::parse_str::<syn::FnArg>(&format!("_: {}", typ.to_rust_ffi_type())).unwrap()
     });
-    let type_check_block = common::generate_type_check(types);
     let (unpacked_args, in_regs) = common::construct_probe_args(types);
-
-    // If there are no arguments we allow the user to optionally omit the closure.
-    let no_args_match = if types.is_empty() {
-        quote! { () => { #macro_name!(|| ()) }; }
-    } else {
-        quote! {}
-    };
 
     // Create identifiers for the stability and typedef symbols, used by Apple's linker.
     // Note that the Rust symbols these refer to are defined in the caller of this function.
     let stability_fn = format_ident!("stability");
     let typedef_fn = format_ident!("typedefs");
 
-    // Generate the FFI call, with the appropriate link names, and the corresponding macro
-    quote! {
+    let pre_macro_block = quote! {
         extern "C" {
             #[allow(unused)]
             #[link_name = #is_enabled]
@@ -161,30 +150,34 @@ fn compile_probe(
             #[link_name = #probe]
             pub(crate) fn #probe_fn(#(#ffi_param_list),*);
         }
+    };
 
-        #[allow(unused)]
-        macro_rules! #macro_name {
-            #no_args_match
-            ($args_lambda:expr) => {
-                #type_check_block
-                unsafe {
-                    if $crate::#mod_name::#is_enabled_fn() != 0 {
-                        #unpacked_args
-                        asm!(
-                            ".reference {typedefs}",
-                            "call {probe_fn}",
-                            ".reference {stability}",
-                            typedefs = sym $crate::#mod_name::#typedef_fn,
-                            probe_fn = sym $crate::#mod_name::#probe_fn,
-                            stability = sym $crate::#mod_name::#stability_fn,
-                            #in_regs
-                            options(nomem, nostack, preserves_flags)
-                        );
-                    }
-                }
-            };
+    let impl_block = quote! {
+        unsafe {
+            if $crate::#mod_name::#is_enabled_fn() != 0 {
+                #unpacked_args
+                asm!(
+                    ".reference {typedefs}",
+                    "call {probe_fn}",
+                    ".reference {stability}",
+                    typedefs = sym $crate::#mod_name::#typedef_fn,
+                    probe_fn = sym $crate::#mod_name::#probe_fn,
+                    stability = sym $crate::#mod_name::#stability_fn,
+                    #in_regs
+                    options(nomem, nostack, preserves_flags)
+                );
+            }
         }
-    }
+    };
+
+    common::build_probe_macro(
+        config,
+        provider_name,
+        probe_name,
+        types,
+        pre_macro_block,
+        impl_block,
+    )
 }
 
 #[derive(Debug, Default, Clone)]

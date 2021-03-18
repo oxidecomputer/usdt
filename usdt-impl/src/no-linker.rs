@@ -43,55 +43,45 @@ fn compile_provider(
 
 fn compile_probe(
     probe: &dtrace_parser::Probe,
-    provider: &str,
+    provider_name: &str,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let macro_name = crate::format_probe(&config.format, provider, probe.name());
-    let type_check_block = common::generate_type_check(probe.types());
     let (unpacked_args, in_regs) = common::construct_probe_args(probe.types());
-    let is_enabled_rec = asm_rec(provider, probe.name(), None);
-    let probe_rec = asm_rec(provider, probe.name(), Some(probe.types()));
+    let is_enabled_rec = asm_rec(provider_name, probe.name(), None);
+    let probe_rec = asm_rec(provider_name, probe.name(), Some(probe.types()));
+    let pre_macro_block = TokenStream::new();
+    let impl_block = quote! {
+        let mut is_enabled: u64;
+        // TODO can this block be option(pure)?
+        unsafe {
+            asm!(
+                "990:   clr rax",
+                #is_enabled_rec,
+                out("rax") is_enabled,
+                options(nomem, nostack, preserves_flags)
+            );
+        }
 
-    // If there are no arguments we allow the user to optionally omit the closure.
-    let no_args_match = if probe.types().is_empty() {
-        quote! { () => { #macro_name!(|| ()) }; }
-    } else {
-        quote! {}
-    };
-
-    let out = quote! {
-        #[allow(unused)]
-        macro_rules! #macro_name {
-            #no_args_match
-            ($args_lambda:expr) => {
-                #type_check_block
-                let mut is_enabled: u64;
-                // TODO can this block be option(pure)?
-                unsafe {
-                    asm!(
-                        "990:   clr rax",
-                        #is_enabled_rec,
-                        out("rax") is_enabled,
-                        options(nomem, nostack, preserves_flags)
-                    );
-                }
-
-                if is_enabled != 0 {
-                    #unpacked_args
-                    unsafe {
-                        asm!(
-                            "990:   nop",
-                            #probe_rec,
-                            #in_regs
-                            options(nomem, nostack, preserves_flags)
-                        );
-                    }
-                }
-            };
+        if is_enabled != 0 {
+            #unpacked_args
+            unsafe {
+                asm!(
+                    "990:   nop",
+                    #probe_rec,
+                    #in_regs
+                    options(nomem, nostack, preserves_flags)
+                );
+            }
         }
     };
-
-    out
+    common::build_probe_macro(
+        config,
+        provider_name,
+        probe.name(),
+        probe.types(),
+        pre_macro_block,
+        impl_block,
+    )
 }
 
 fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error> {

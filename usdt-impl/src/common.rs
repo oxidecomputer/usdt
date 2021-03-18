@@ -93,6 +93,37 @@ fn asm_type_convert(typ: &dtrace_parser::DataType, input: TokenStream) -> TokenS
     }
 }
 
+pub(crate) fn build_probe_macro(
+    config: &crate::CompileProvidersConfig,
+    provider_name: &str,
+    probe_name: &str,
+    types: &[dtrace_parser::DataType],
+    pre_macro_block: TokenStream,
+    impl_block: TokenStream,
+) -> TokenStream {
+    let macro_name = crate::format_probe(&config.format, provider_name, probe_name);
+    let type_check_block = generate_type_check(types);
+    let no_args_match = if types.is_empty() {
+        quote! { () => { #macro_name!(|| ()) }; }
+    } else {
+        quote! {}
+    };
+    quote! {
+        #pre_macro_block
+        #[allow(unused)]
+        macro_rules! #macro_name {
+            #no_args_match
+            ($tree:tt) => {
+                compile_error!("USDT probe macros should be invoked with a closure returning the arguments");
+            };
+            ($args_lambda:expr) => {
+                #type_check_block
+                #impl_block
+            };
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
