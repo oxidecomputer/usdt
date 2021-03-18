@@ -9,14 +9,13 @@ description = "Dust your Rust with USDT probes"
 repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
-dof = { path = "../dof", version = "0.1.4" }
-dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
-proc-macro2 = "1.0.24"
-structopt = "0.3.21"
-usdt-impl = { path = "../usdt-impl", version = "0.1.6" }
-usdt-macro = { path = "../usdt-macro", version = "0.1.6" }
+dof = { path = "../dof", version = "0.1.4", optional = true }
+dtrace-parser = { path = "../dtrace-parser", version = "0.1.8", optional = true }
+usdt-impl = { path = "../usdt-impl", version = "0.1.6", optional = true }
+usdt-macro = { path = "../usdt-macro", version = "0.1.6", optional = true }
 
 [features]
 default = ["asm"]
-asm = ["usdt-impl/asm"]
+asm = ["usdt-impl/asm", "dtrace-parser", "usdt-macro"]
 no-linker = ["asm", "usdt-impl/no-linker"]
+des = ["usdt-impl/des", "dof/des"]

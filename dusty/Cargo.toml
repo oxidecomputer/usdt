@@ -1,0 +1,16 @@
+[package]
+name = "dusty"
+version = "0.1.0"
+authors = ["Benjamin Naecker <ben@oxidecomputer.com>"]
+edition = "2018"
+description = "Tool to inspect USDT probe records in object files"
+license = "Apache-2.0"
+
+[dependencies]
+dof = { path = "../dof", features = [ "des" ] }
+structopt = "0.3.21"
+
+[dependencies.usdt]
+path = "../usdt"
+default-features = false
+features = ["des"]

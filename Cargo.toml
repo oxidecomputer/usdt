@@ -2,6 +2,7 @@
 members = [
 	"dof",
 	"dtrace-parser",
+	"dusty",
 	"probe-test-build",
 	"probe-test-macro",
 	"tests/compile-errors",

@@ -28,12 +28,15 @@
 //! extracted from a DOF byte slice with the [`des::deserialize_raw_sections`] function.
 // Copyright 2021 Oxide Computer Company
 
+#[cfg(feature = "des")]
 pub mod des;
 pub mod dof;
 pub mod dof_bindings;
+#[cfg(feature = "des")]
 pub mod fmt;
 pub mod ser;
 
+#[cfg(feature = "des")]
 pub use crate::des::{
     collect_dof_sections, deserialize_section, extract_dof_sections, is_dof_section,
 };

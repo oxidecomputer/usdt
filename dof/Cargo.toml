@@ -9,8 +9,10 @@ description = "Tools to read and write the DTrace Object Format (DOF)"
 repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
-goblin = "0.3.4"
-pretty-hex = "0.2.1"
-structopt = "0.3.21"
+goblin = { version = "0.3.4", optional = true, features = ["elf64", "mach64"] }
+pretty-hex = { version = "0.2.1", optional = true }
 thiserror = "1.0.24"
 zerocopy = "0.3.0"
+
+[features]
+des = ["pretty-hex", "goblin"]

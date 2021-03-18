@@ -138,7 +138,11 @@
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
+#[cfg(any(feature = "des", feature = "no-linker"))]
+pub use usdt_impl::record;
 pub use usdt_impl::Error;
+
+#[cfg(feature = "asm")]
 pub use usdt_macro::dtrace_provider;
 
 /// A simple struct used to build DTrace probes into Rust code in a build.rs script.

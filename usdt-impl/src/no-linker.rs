@@ -5,7 +5,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
 use crate::common;
-use crate::record::{parse_probe_records, PROBE_REC_VERSION};
+use crate::record::{process_section, PROBE_REC_VERSION};
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_providers(
@@ -112,7 +112,7 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
         let stop = (&dtrace_probes_stop as *const usize) as usize;
         std::slice::from_raw_parts(start as *const u8, stop - start)
     };
-    parse_probe_records(data)
+    process_section(data)
 }
 
 // Construct the ASM record for a probe. If `types` is `None`, then is is an is-enabled probe.

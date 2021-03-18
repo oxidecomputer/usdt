@@ -5,15 +5,18 @@
 use std::{
     collections::BTreeMap,
     ffi::CStr,
-    fs,
-    path::Path,
     ptr::{null, null_mut},
 };
 
+#[cfg(feature = "des")]
+use std::{fs, path::Path};
+
 use byteorder::{NativeEndian, ReadBytesExt};
 use dof::{Probe, Provider, Section};
-use goblin::elf;
 use libc::{c_void, Dl_info};
+
+#[cfg(feature = "des")]
+use goblin::Object;
 
 pub(crate) const PROBE_REC_VERSION: u8 = 1;
 
@@ -21,74 +24,106 @@ pub(crate) const PROBE_REC_VERSION: u8 = 1;
 ///
 /// An `Err` is returned if the file not an ELF file, or if parsing the records fails in some way.
 /// `None` is returned if the file is valid, but contains no records.
+#[cfg(feature = "des")]
 pub fn extract_probe_records<P: AsRef<Path>>(file: P) -> Result<Option<Section>, crate::Error> {
     let data = fs::read(file)?;
-    // These records will only exist in ELF files
-    let object = elf::Elf::parse(&data).map_err(|_| crate::Error::InvalidFile)?;
-
-    // Try to find our special `set_dtrace_probes` section from the section headers. These may not
-    // exist, e.g., if the file has been stripped. In that case, we look for the special __start
-    // and __stop symbols themselves.
-    if let Some(section) = object
-        .section_headers
-        .iter()
-        .filter_map(|header| {
-            if let Some(result) = object.shdr_strtab.get(header.sh_name) {
-                match result {
-                    Err(_) => Some(Err(crate::Error::InvalidFile)),
-                    Ok(name) => {
-                        if name == "set_dtrace_probes" {
-                            Some(Ok(header))
-                        } else {
-                            None
+    match Object::parse(&data).map_err(|_| crate::Error::InvalidFile)? {
+        Object::Elf(object) => {
+            // Try to find our special `set_dtrace_probes` section from the section headers. These may not
+            // exist, e.g., if the file has been stripped. In that case, we look for the special __start
+            // and __stop symbols themselves.
+            if let Some(section) = object
+                .section_headers
+                .iter()
+                .filter_map(|header| {
+                    if let Some(result) = object.shdr_strtab.get(header.sh_name) {
+                        match result {
+                            Err(_) => Some(Err(crate::Error::InvalidFile)),
+                            Ok(name) => {
+                                if name == "set_dtrace_probes" {
+                                    Some(Ok(header))
+                                } else {
+                                    None
+                                }
+                            }
                         }
+                    } else {
+                        None
                     }
-                }
+                })
+                .next()
+            {
+                let section = section?;
+                let start = section.sh_offset as usize;
+                let end = start + (section.sh_size as usize);
+                process_section(&data[start..end])
             } else {
-                None
-            }
-        })
-        .next()
-    {
-        let section = section?;
-        let start = section.sh_offset as usize;
-        let end = start + (section.sh_size as usize);
-        parse_probe_records(&data[start..end])
-    } else {
-        let mut bounds = object.syms.iter().filter_map(|symbol| {
-            if let Some(result) = object.strtab.get(symbol.st_name) {
-                match result {
-                    Err(_) => Some(Err(crate::Error::InvalidFile)),
-                    Ok(name) => {
-                        if name == "__start_set_dtrace_probes" || name == "__stop_set_dtrace_probes"
-                        {
-                            Some(Ok(symbol))
-                        } else {
-                            None
+                // Failed to look up the section directly, iterate over the symbols.
+                let mut bounds = object.syms.iter().filter_map(|symbol| {
+                    if let Some(result) = object.strtab.get(symbol.st_name) {
+                        match result {
+                            Err(_) => Some(Err(crate::Error::InvalidFile)),
+                            Ok(name) => {
+                                if name == "__start_set_dtrace_probes"
+                                    || name == "__stop_set_dtrace_probes"
+                                {
+                                    Some(Ok(symbol))
+                                } else {
+                                    None
+                                }
+                            }
                         }
+                    } else {
+                        None
                     }
+                });
+                if let (Some(Ok(start)), Some(Ok(stop))) = (bounds.next(), bounds.next()) {
+                    let (start, stop) = (start.st_value as usize, stop.st_value as usize);
+                    process_section(&data[start..stop])
+                } else {
+                    Ok(None)
                 }
-            } else {
-                None
             }
-        });
-        if let (Some(Ok(start)), Some(Ok(stop))) = (bounds.next(), bounds.next()) {
-            let (start, stop) = (start.st_value as usize, stop.st_value as usize);
-            parse_probe_records(&data[start..stop])
-        } else {
-            Ok(None)
         }
+        Object::Mach(goblin::mach::Mach::Binary(object)) => {
+            // Try to find our special `__dtrace_probes` section from the section headers.
+            for section in object.segments.sections().flatten() {
+                if let Ok((section, data)) = section {
+                    if section.sectname.starts_with(b"__dtrace_probes") {
+                        return process_section(&data);
+                    }
+                }
+            }
+
+            // Failed to look up the section directly, iterate over the symbols
+            if let Some(syms) = object.symbols {
+                let mut bounds = syms.iter().filter_map(|symbol| {
+                    if let Ok((name, nlist)) = symbol {
+                        println!("{}", name);
+                        if name.contains("__dtrace_probes") {
+                            Some(nlist.n_value as usize)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
+                if let (Some(start), Some(stop)) = (bounds.next(), bounds.next()) {
+                    process_section(&data[start..stop])
+                } else {
+                    Ok(None)
+                }
+            } else {
+                Ok(None)
+            }
+        }
+        _ => Err(crate::Error::InvalidFile),
     }
 }
 
-pub(crate) fn parse_probe_records(buf: &[u8]) -> Result<Option<Section>, crate::Error> {
-    Ok(Some(Section {
-        providers: process_section(buf)?,
-        ..Default::default()
-    }))
-}
-
-fn process_section(mut data: &[u8]) -> Result<BTreeMap<String, Provider>, crate::Error> {
+// Extract records for all defined probes from our custom linker sections.
+pub(crate) fn process_section(mut data: &[u8]) -> Result<Option<Section>, crate::Error> {
     let mut providers = BTreeMap::new();
 
     while !data.is_empty() {
@@ -104,9 +139,13 @@ fn process_section(mut data: &[u8]) -> Result<BTreeMap<String, Provider>, crate:
         data = rest;
     }
 
-    Ok(providers)
+    Ok(Some(Section {
+        providers,
+        ..Default::default()
+    }))
 }
 
+// Convert an address in an object file into a function and file name, if possible.
 pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
         let mut info = Dl_info {
@@ -126,6 +165,7 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     }
 }
 
+// Process a single record from the custom linker section.
 fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) -> Result<(), crate::Error> {
     // Skip over the length which was already read.
     let mut data = &rec[4..];
@@ -275,9 +315,10 @@ mod test {
             .write_u32::<NativeEndian>(len2 as u32)
             .unwrap();
 
-        let providers = process_section(data.as_slice()).unwrap();
+        let section = process_section(data.as_slice()).unwrap().unwrap();
 
-        let probe = providers
+        let probe = section
+            .providers
             .get("provider")
             .unwrap()
             .probes

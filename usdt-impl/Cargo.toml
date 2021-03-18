@@ -12,14 +12,15 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 byteorder = "1.4.2"
 dof = { path = "../dof", version = "0.1.4" }
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
-goblin = { version = "0.3.4", features = [ "elf32", "elf64" ] }
+goblin = { version = "0.3.4", features = [ "elf32", "elf64" ], optional = true }
 libc = "0.2.88"
 proc-macro2 = "1.0.24"
 quote = "1.0.9"
 serde = { version = "1.0.124", features = ["derive"] }
-syn = "1.0.60"
+syn = { version = "1.0.60", features = ["full"] }
 thiserror = "1.0.24"
 
 [features]
 asm = []
-no-linker = []
+no-linker = ["asm"]
+des = ["goblin", "dof/des"]
