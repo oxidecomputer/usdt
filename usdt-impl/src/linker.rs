@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, convert::TryFrom, env, fs, process::Command};
+use std::{
+    collections::BTreeMap,
+    convert::TryFrom,
+    io::Write,
+    process::{Command, Stdio},
+};
 
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
@@ -336,19 +341,27 @@ fn contains_needle2<'a>(line: &'a str, needle: &str) -> Option<(&'a str, &'a str
     }
 }
 
-fn build_header_from_provider(source: &str) -> Result<String, std::io::Error> {
-    let tempdir = env::temp_dir();
-    let provider_file = tempdir.join("usdt-provider.d");
-    let header_file = tempdir.join("usdt-provider.h");
-    fs::write(&provider_file, source)?;
-    Command::new("dtrace")
+fn build_header_from_provider(source: &str) -> Result<String, crate::Error> {
+    let mut child = Command::new("dtrace")
         .arg("-h")
         .arg("-s")
-        .arg(&provider_file)
+        .arg("/dev/stdin")
         .arg("-o")
-        .arg(&header_file)
-        .output()?;
-    fs::read_to_string(&header_file)
+        .arg("/dev/stdout")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| crate::Error::DTraceError)?;
+        stdin
+            .write_all(source.as_bytes())
+            .map_err(|_| crate::Error::DTraceError)?;
+    }
+    let output = child.wait_with_output()?;
+    Ok(String::from_utf8(output.stdout).map_err(|_| crate::Error::DTraceError)?)
 }
 
 pub fn register_probes() -> Result<(), crate::Error> {
