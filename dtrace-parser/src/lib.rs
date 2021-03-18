@@ -355,8 +355,20 @@ impl TryFrom<&str> for File {
             e.renamed_rules(|rule| match *rule {
                 Rule::DATA_TYPE | Rule::BIT_WIDTH => {
                     format!(
-                        "{:?} (Check that the probe argument is a supported data type)",
-                        rule
+                        "{:?}.\n\n{}",
+                        *rule,
+                        concat!(
+                            "Unsupported type, the following are supported:\n",
+                            "  - uint8_t\n",
+                            "  - uint16_t\n",
+                            "  - uint32_t\n",
+                            "  - uint64_t\n",
+                            "  - int8_t\n",
+                            "  - int16_t\n",
+                            "  - int32_t\n",
+                            "  - int64_t\n",
+                            "  - &str\n",
+                        )
                     )
                 }
                 _ => format!("{:?}", rule),

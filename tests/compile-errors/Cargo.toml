@@ -1,0 +1,15 @@
+[package]
+name = "compile-errors"
+version = "0.1.0"
+authors = ["Benjamin Naecker <ben@oxidecomputer.com>"]
+edition = "2018"
+
+[dependencies]
+usdt = { path = "../../usdt" }
+
+[dev-dependencies]
+trybuild = "1.0.41"
+
+[features]
+asm = ["usdt/asm"]
+no-linker = ["usdt/no-linker"]
