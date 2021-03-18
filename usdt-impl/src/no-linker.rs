@@ -52,12 +52,14 @@ fn compile_probe(
     let pre_macro_block = TokenStream::new();
     let impl_block = quote! {
         // Without this the illumos linker can omit sections from .o files as
-        // they appear to be unreferenced.
+        // they appear to be unreferenced. We need both #[used] and #[no_mangle]
+        // as without the latter the section may still be removed run compiled
+        // with --release.
         #[cfg(target_os = "illumos")]
         #[link_section = "set_dtrace_probes"]
         #[used]
         #[no_mangle]
-        static FORCE_LOAD: [u8; 0] = [];
+        static FORCE_LOAD: [u64; 0] = [];
 
         let mut is_enabled: u64;
         // TODO can this block be option(pure)?
@@ -114,7 +116,7 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
     #[cfg(target_os = "illumos")]
     #[link_section = "set_dtrace_probes"]
     #[used]
-    static FORCE_LOAD: [u8; 0] = [];
+    static FORCE_LOAD: [u64; 0] = [];
 
     let data = unsafe {
         let start = (&dtrace_probes_start as *const usize) as usize;
