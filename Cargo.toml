@@ -6,6 +6,8 @@ members = [
 	"probe-test-macro",
 	"tests/compile-errors",
 	"tests/empty",
+	"tests/fake-cmd",
+	"tests/fake-lib",
 	"tests/namespace-conflict",
 	"tests/zero-arg-probe",
 	"usdt",
