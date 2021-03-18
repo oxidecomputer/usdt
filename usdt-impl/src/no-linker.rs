@@ -51,6 +51,13 @@ fn compile_probe(
     let probe_rec = asm_rec(provider_name, probe.name(), Some(probe.types()));
     let pre_macro_block = TokenStream::new();
     let impl_block = quote! {
+        // Without this the illumos linker can omit sections from .o files as
+        // they appear to be unreferenced.
+        #[cfg(target_os = "illumos")]
+        #[link_section = "set_dtrace_probes"]
+        #[used]
+        static FORCE_LOAD: [u8; 0] = [];
+
         let mut is_enabled: u64;
         // TODO can this block be option(pure)?
         unsafe {
@@ -100,8 +107,9 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
         static dtrace_probes_stop: usize;
     }
 
-    // Without this the illumos linker may decide to omit symbols referencing this section.
-    // The macos linker doesn't seem to require this.
+    // Without this the illumos linker may decide to omit the symbols above that
+    // denote the start and stop addresses for this section. The macos linker
+    // doesn't seem to require this.
     #[cfg(target_os = "illumos")]
     #[link_section = "set_dtrace_probes"]
     #[used]
