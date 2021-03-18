@@ -56,6 +56,7 @@ fn compile_probe(
         #[cfg(target_os = "illumos")]
         #[link_section = "set_dtrace_probes"]
         #[used]
+        #[no_mangle]
         static FORCE_LOAD: [u8; 0] = [];
 
         let mut is_enabled: u64;
