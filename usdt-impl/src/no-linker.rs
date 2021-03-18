@@ -90,7 +90,7 @@ fn compile_probe(
         })
         .collect::<Vec<_>>();
 
-    let preamble = match types.len() {
+    let preamble = match probe.types().len() {
         // Don't bother with arguments if there are none.
         0 => quote! { $args_lambda(); },
         // Wrap a single argument in a tuple.
@@ -100,7 +100,7 @@ fn compile_probe(
     };
 
     // If there are no arguments we allow the user to optionally omit the closure.
-    let no_args_match = if types.is_empty() {
+    let no_args_match = if probe.types().is_empty() {
         quote! { () => { #macro_name!(|| ()) }; }
     } else {
         quote! {}
