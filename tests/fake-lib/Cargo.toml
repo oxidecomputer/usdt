@@ -6,7 +6,7 @@ authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
 edition = "2018"
 
 [dependencies]
-usdt = { path = "../../usdt" }
+usdt = { path = "../../usdt", features = ["asm"] }
 
 [build-dependencies]
-usdt = { path = "../../usdt" }
+usdt = { path = "../../usdt", features = ["asm"] }

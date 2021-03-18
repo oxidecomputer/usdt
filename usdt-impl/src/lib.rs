@@ -6,6 +6,7 @@ pub mod record;
 #[cfg_attr(any(target_os = "linux", not(feature = "asm")), allow(dead_code))]
 mod common;
 
+<<<<<<< HEAD
 #[cfg_attr(target_os = "linux", path = "empty.rs")]
 #[cfg_attr(all(target_os = "macos", feature = "no-linker"), path = "no-linker.rs")]
 #[cfg_attr(
@@ -15,6 +16,21 @@ mod common;
 #[cfg_attr(
     all(not(target_os = "linux"), not(target_os = "macos")),
     path = "no-linker.rs"
+=======
+#[cfg_attr(any(target_os = "linux", not(feature = "asm")), path = "empty.rs")]
+#[cfg_attr(
+    all(not(target_os = "macos"), feature = "asm"),
+    path = "no-linker.rs")]
+#[cfg_attr(
+    all(target_os = "macos", feature = "asm", feature = "no-linker"),
+    path = "no-linker.rs",
+    allow(unused_attributes)
+)]
+#[cfg_attr(
+    all(target_os = "macos", feature = "asm", not(feature = "no-linker")),
+    path = "linker.rs",
+    allow(unused_attributes)
+>>>>>>> 7b126aa (fix post-merge for illumos)
 )]
 mod internal;
 
