@@ -173,7 +173,7 @@ fn compile_probe(
     };
 
     // If there are no arguments we allow the user to optionally omit the closure.
-    let no_args = if types.is_empty() {
+    let no_args_match = if types.is_empty() {
         quote! { () => { #macro_name!(|| ()) }; }
     } else {
         quote! {}
@@ -197,7 +197,7 @@ fn compile_probe(
 
         #[allow(unused)]
         macro_rules! #macro_name {
-            #no_args
+            #no_args_match
             ($args_lambda:expr) => {
                 // NOTE: This block defines an internal empty function and then a lambda which
                 // calls it. This is all strictly for type-checking, and is optimized out. It is

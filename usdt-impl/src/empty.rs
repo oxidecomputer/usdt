@@ -43,7 +43,7 @@ fn compile_probe(
 ) -> TokenStream {
     let macro_name = crate::format_probe(&config.format, provider_name, probe.name());
     // If there are no arguments we allow the user to optionally omit the closure.
-    let no_args = if probe.types().is_empty() {
+    let no_args_match = if probe.types().is_empty() {
         quote! { () => { #macro_name!(|| ()) }; }
     } else {
         quote! {}
@@ -51,7 +51,7 @@ fn compile_probe(
     quote! {
         #[allow(unused)]
         macro_rules! #macro_name {
-            #no_args
+            #no_args_match
             ($args_lambda:expr) => {
                 let _ = || ($args_lambda);
             };
