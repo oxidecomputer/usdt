@@ -28,7 +28,7 @@ jobs:
           toolchain: nightly
           override: true
           profile: minimal
-      - run: cargo check --release
+      - run: RUST_BACKTRACE=1 cargo check --release --verbose
 
   build-and-test:
     name: Build and test entire `usdt` project
@@ -43,4 +43,4 @@ jobs:
           toolchain: nightly
           override: true
           profile: minimal
-      - run: cargo test --release --no-fail-fast
+      - run: RUST_BACKTRACE=1 cargo test --release --no-fail-fast --verbose

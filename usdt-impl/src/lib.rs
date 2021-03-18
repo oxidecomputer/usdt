@@ -47,6 +47,9 @@ pub enum Error {
     /// An error occurred extracting probe information from the encoded object file sections
     #[error("The file is not a valid object file")]
     InvalidFile,
+    /// Error related to calling out to DTrace itself
+    #[error("Failed to call DTrace subprocess")]
+    DTraceError,
 }
 
 #[derive(Default, Debug, Deserialize)]
