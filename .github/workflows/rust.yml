@@ -21,6 +21,10 @@ jobs:
   linux-check:
     name: Basic check that `usdt` compiles without issue on Linux
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        asm-feature: [ "", "--features asm" ]
+        no-linker-feature: [ "", "--features no-linker" ]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -28,7 +32,14 @@ jobs:
           toolchain: nightly
           override: true
           profile: minimal
-      - run: RUST_BACKTRACE=1 cargo check --release --verbose
+      - run: >
+          RUST_BACKTRACE=1
+          cargo check
+          --release
+          --verbose
+          --workspace
+          ${{ matrix.asm-feature }}
+          ${{ matrix.no-linker-feature }}
 
   build-and-test:
     name: Build and test entire `usdt` project
@@ -36,6 +47,8 @@ jobs:
     strategy:
       matrix:
         os: [ macos-latest ]
+        asm-feature: [ "", "--features asm" ]
+        no-linker-feature: [ "", "--features no-linker" ]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -43,4 +56,12 @@ jobs:
           toolchain: nightly
           override: true
           profile: minimal
-      - run: RUST_BACKTRACE=1 cargo test --release --no-fail-fast --verbose
+      - run: >
+          RUST_BACKTRACE=1
+          cargo test
+          --release
+          --no-fail-fast
+          --verbose
+          --workspace
+          ${{ matrix.asm-feature }}
+          ${{ matrix.no-linker-feature }}

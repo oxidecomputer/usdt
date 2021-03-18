@@ -1,6 +1,6 @@
 [package]
 name = "usdt-macro"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
@@ -14,7 +14,7 @@ proc-macro2 = "1.0.24"
 serde_tokenstream = "0.1.2"
 syn = { version = "1.0.60", features = ["full"] }
 quote = "1.0.9"
-usdt-impl = { path = "../usdt-impl", version = "0.1.5" }
+usdt-impl = { path = "../usdt-impl", version = "0.1.6" }
 
 [lib]
 proc-macro = true

@@ -1,6 +1,6 @@
 [package]
 name = "usdt"
-version = "0.1.9"
+version = "0.1.10"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
@@ -13,9 +13,9 @@ dof = { path = "../dof", version = "0.1.4" }
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.8" }
 proc-macro2 = "1.0.24"
 structopt = "0.3.21"
-usdt-impl = { path = "../usdt-impl", version = "0.1.5" }
-usdt-macro = { path = "../usdt-macro", version = "0.1.5" }
+usdt-impl = { path = "../usdt-impl", version = "0.1.6" }
+usdt-macro = { path = "../usdt-macro", version = "0.1.6" }
 
 [features]
-default = ["asm"]
 asm = ["usdt-impl/asm"]
+no-linker = ["usdt-impl/no-linker"]

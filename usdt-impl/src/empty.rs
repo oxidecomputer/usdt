@@ -3,6 +3,8 @@ use std::convert::TryFrom;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
+use crate::common;
+
 pub fn compile_providers(
     source: &str,
     config: &crate::CompileProvidersConfig,
@@ -41,22 +43,15 @@ fn compile_probe(
     provider_name: &str,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let macro_name = crate::format_probe(&config.format, provider_name, probe.name());
-    // If there are no arguments we allow the user to optionally omit the closure.
-    let no_args_match = if probe.types().is_empty() {
-        quote! { () => { #macro_name!(|| ()) }; }
-    } else {
-        quote! {}
-    };
-    quote! {
-        #[allow(unused)]
-        macro_rules! #macro_name {
-            #no_args_match
-            ($args_lambda:expr) => {
-                let _ = || ($args_lambda);
-            };
-        }
-    }
+    let impl_block = quote! { let _ = || ($args_lambda); };
+    common::build_probe_macro(
+        config,
+        provider_name,
+        probe.name(),
+        probe.types(),
+        quote! {},
+        impl_block,
+    )
 }
 
 pub fn register_probes() -> Result<(), crate::Error> {

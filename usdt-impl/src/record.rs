@@ -107,7 +107,7 @@ fn process_section(mut data: &[u8]) -> Result<BTreeMap<String, Provider>, crate:
     Ok(providers)
 }
 
-fn addr_to_info(addr: u64) -> Option<String> {
+pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
         let mut info = Dl_info {
             dli_fname: null(),
@@ -116,9 +116,12 @@ fn addr_to_info(addr: u64) -> Option<String> {
             dli_saddr: null_mut(),
         };
         if libc::dladdr(addr as *const c_void, &mut info as *mut _) == 0 {
-            None
+            (None, None)
         } else {
-            Some(CStr::from_ptr(info.dli_sname).to_string_lossy().to_string())
+            (
+                Some(CStr::from_ptr(info.dli_sname).to_string_lossy().to_string()),
+                Some(CStr::from_ptr(info.dli_fname).to_string_lossy().to_string()),
+            )
         }
     }
 }
@@ -149,7 +152,7 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) -> Result
         args
     };
 
-    let funcname = match addr_to_info(address) {
+    let funcname = match addr_to_info(address).0 {
         Some(s) => s,
         None => format!("?{:#x}", address),
     };
