@@ -1,0 +1,15 @@
+[package]
+name = "does-it-work"
+version = "0.1.0"
+authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
+           "Adam H. Leventhal <ahl@oxidecomputer.com>"]
+edition = "2018"
+
+[dependencies]
+usdt = { path = "../../usdt" }
+
+[build-dependencies]
+usdt = { path = "../../usdt" }
+
+[features]
+no-linker = ["usdt/no-linker"]

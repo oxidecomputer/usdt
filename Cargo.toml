@@ -6,6 +6,7 @@ members = [
 	"probe-test-build",
 	"probe-test-macro",
 	"tests/compile-errors",
+	"tests/does-it-work",
 	"tests/empty",
 	"tests/fake-cmd",
 	"tests/fake-lib",
