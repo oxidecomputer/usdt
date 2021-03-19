@@ -51,6 +51,10 @@ fn compile_probe(
     let probe_rec = asm_rec(provider_name, probe.name(), Some(probe.types()));
     let pre_macro_block = TokenStream::new();
     let impl_block = quote! {
+    #[cfg(target_os = "illumos")]
+    #[link_section = "set_dtrace_probes"]
+    #[used]
+    static FORCE_LOAD: [u64; 0] = [];
         let mut is_enabled: u64;
         // TODO can this block be option(pure)?
         unsafe {
@@ -147,7 +151,6 @@ fn asm_rec(prov: &str, probe: &str, types: Option<&[dtrace_parser::DataType]>) -
                     {arguments}         // null-terminated strings for each argument
                     .balign 8
             992:    .popsection
-                    {yeet}
         "#,
         section_ident = section_ident,
         version = PROBE_REC_VERSION,
@@ -156,18 +159,6 @@ fn asm_rec(prov: &str, probe: &str, types: Option<&[dtrace_parser::DataType]>) -
         prov = prov,
         probe = probe,
         arguments = arguments,
-        yeet = if cfg!(target_os = "illumos") {
-            // When compiled --release, the illumos linker may yeet our probes section into the
-            // trash. To counteract this, we yeet references to the probes section into another
-            // section. This causes the linker to retain the probes section.
-            r#"
-                    .pushsection yeet_dtrace_probes
-                    .8byte 991b
-                    .popsection
-                "#
-        } else {
-            ""
-        },
     )
 }
 
