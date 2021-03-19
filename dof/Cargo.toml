@@ -1,6 +1,6 @@
 [package]
 name = "dof"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
