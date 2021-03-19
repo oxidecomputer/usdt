@@ -33,6 +33,7 @@ pub enum Error {
     UnsupportedObjectFile,
 
     /// An error related to parsing the object file
+    #[cfg(feature = "des")]
     #[error(transparent)]
     ObjectError(#[from] goblin::error::Error),
 
@@ -170,6 +171,7 @@ pub struct Section {
 
 impl Section {
     /// Construct a section from a DOF byte array.
+    #[cfg(feature = "des")]
     pub fn from_bytes(buf: &[u8]) -> Result<Section, Error> {
         crate::des::deserialize_section(buf)
     }

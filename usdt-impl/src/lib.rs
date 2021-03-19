@@ -1,6 +1,11 @@
 use serde::Deserialize;
 use thiserror::Error;
 
+#[cfg(any(
+    all(not(target_os = "linux"), not(target_os = "macos")),
+    feature = "des",
+    feature = "no-linker"
+))]
 pub mod record;
 
 #[cfg_attr(any(target_os = "linux", not(feature = "asm")), allow(dead_code))]
