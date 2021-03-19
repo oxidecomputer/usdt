@@ -157,9 +157,10 @@ fn asm_rec(prov: &str, probe: &str, types: Option<&[dtrace_parser::DataType]>) -
         probe = probe,
         arguments = arguments,
         yeet = if cfg!(target_os = "illumos") {
-            // When compiled --release, the illumos linker may yeet our probes section into the
-            // trash. To counteract this, we yeet references to the probes section into another
-            // section. This causes the linker to retain the probes section.
+            // The illumos linker may yeet our probes section into the trash under
+            // certain conditions. To counteract this, we yeet references to the
+            // probes section into another section. This causes the linker to
+            // retain the probes section.
             r#"
                     .pushsection yeet_dtrace_probes
                     .8byte 991b
