@@ -100,12 +100,13 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
         static dtrace_probes_stop: usize;
     }
 
-    // Without this the illumos linker may decide to omit symbols referencing this section.
-    // The macos linker doesn't seem to require this.
+    // Without this the illumos linker may decide to omit the symbols above that
+    // denote the start and stop addresses for this section. The macos linker
+    // doesn't seem to require this.
     #[cfg(target_os = "illumos")]
     #[link_section = "set_dtrace_probes"]
     #[used]
-    static FORCE_LOAD: [u8; 0] = [];
+    static FORCE_LOAD: [u64; 0] = [];
 
     let data = unsafe {
         let start = (&dtrace_probes_start as *const usize) as usize;
@@ -146,6 +147,7 @@ fn asm_rec(prov: &str, probe: &str, types: Option<&[dtrace_parser::DataType]>) -
                     {arguments}         // null-terminated strings for each argument
                     .balign 8
             992:    .popsection
+                    {yeet}
         "#,
         section_ident = section_ident,
         version = PROBE_REC_VERSION,
@@ -154,6 +156,19 @@ fn asm_rec(prov: &str, probe: &str, types: Option<&[dtrace_parser::DataType]>) -
         prov = prov,
         probe = probe,
         arguments = arguments,
+        yeet = if cfg!(target_os = "illumos") {
+            // The illumos linker may yeet our probes section into the trash under
+            // certain conditions. To counteract this, we yeet references to the
+            // probes section into another section. This causes the linker to
+            // retain the probes section.
+            r#"
+                    .pushsection yeet_dtrace_probes
+                    .8byte 991b
+                    .popsection
+                "#
+        } else {
+            ""
+        },
     )
 }
 
