@@ -99,7 +99,6 @@ pub fn extract_probe_records<P: AsRef<Path>>(file: P) -> Result<Option<Section>,
             if let Some(syms) = object.symbols {
                 let mut bounds = syms.iter().filter_map(|symbol| {
                     if let Ok((name, nlist)) = symbol {
-                        println!("{}", name);
                         if name.contains("__dtrace_probes") {
                             Some(nlist.n_value as usize)
                         } else {

@@ -31,8 +31,8 @@
 //!
 //! This procedural macro will generate a Rust macro for each probe defined in the provider. Note
 //! that including the `asm` feature is required; see [the notes](#notes) for a discussion. The
-//! `feature` directive and the invocation of `dtrace_provider` should both be at the crate root,
-//! i.e., `src/lib.rs` or `src/main.rs`.
+//! `feature` directive and the invocation of `dtrace_provider` **should both be at the crate
+//! root**, i.e., `src/lib.rs` or `src/main.rs`.
 //!
 //! One may then call the `start` probe via:
 //!
