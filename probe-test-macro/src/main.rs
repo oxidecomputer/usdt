@@ -9,7 +9,7 @@ use std::time::Duration;
 use usdt::{dtrace_provider, register_probes};
 
 // Call the macro, which generates a Rust macro for each probe in the provider.
-dtrace_provider!("probe-test-macro/test.d");
+dtrace_provider!("test.d");
 
 fn main() {
     let duration = Duration::from_secs(1);

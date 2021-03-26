@@ -1,8 +1,8 @@
 //! Prototype proc-macro crate for parsing a DTrace provider definition into Rust code.
 // Copyright 2021 Oxide Computer Company
 
-use std::fs;
 use std::iter::FromIterator;
+use std::{fs, path::Path};
 
 use quote::quote;
 use syn::{parse_macro_input, Lit};
@@ -79,10 +79,11 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         _ => panic!("DTrace provider must be a single literal string filename"),
     };
     let source = if filename.ends_with(".d") {
-        fs::read_to_string(&filename).expect(&format!(
+        let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let path = Path::new(&dir).join(&filename);
+        fs::read_to_string(path).expect(&format!(
             "Could not read D source file \"{}\" in {:?}",
-            &filename,
-            std::env::current_dir().unwrap()
+            &filename, dir,
         ))
     } else {
         filename.clone()
