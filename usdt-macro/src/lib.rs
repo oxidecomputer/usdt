@@ -33,9 +33,9 @@ use usdt_impl::compile_providers;
 /// in this case would be in the same directory as `"Cargo.toml"`.
 ///
 /// By default probe macros are named `{provider}_{probe}!`. Arguments are passed
-/// via a closure (or function) that returns a tuple. Note that the provided
-/// closure is only evaluated when the probe is enabled. One can then add points of
-/// instrumentation by invoking the macro:
+/// via a closure that returns a tuple. Note that the provided closure is only
+/// evaluated when the probe is enabled. One can then add points of instrumentation
+/// by invoking the macro:
 ///
 /// ```ignore
 /// fn do_stuff(count: u8, name: String) {
