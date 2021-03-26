@@ -136,7 +136,7 @@ which is nearly identical to the above example. However, there is no build.rs sc
 so in place of the `include!` macro, one finds the procedural macro:
 
 ```rust
-dtrace_provider!("probe-test-macro/test.d");
+dtrace_provider!("test.d");
 ```
 
 This macro generates the same macros as seen above, but does at the time the source
