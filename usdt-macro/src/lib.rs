@@ -79,8 +79,12 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         _ => panic!("DTrace provider must be a single literal string filename"),
     };
     let source = if filename.ends_with(".d") {
-        let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-        let path = Path::new(&dir).join(&filename);
+        let dir = std::env::var("CARGO_MANIFEST_DIR").map_or_else(
+            |_| std::env::current_dir().unwrap(),
+            |s| Path::new(&s).to_path_buf(),
+        );
+
+        let path = dir.join(&filename);
         fs::read_to_string(path).expect(&format!(
             "Could not read D source file \"{}\" in {:?}",
             &filename, dir,
