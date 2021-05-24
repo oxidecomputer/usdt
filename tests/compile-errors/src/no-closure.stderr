@@ -7,4 +7,4 @@ error: USDT probe macros should be invoked with a closure returning the argument
 7 |     mismatch_bad!(arg);
   |     ------------------- in this macro invocation
   |
-  = note: this error originates in a macro (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this error originates in the macro `mismatch_bad` (in Nightly builds, run with -Z macro-backtrace for more info)
