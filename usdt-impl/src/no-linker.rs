@@ -209,7 +209,11 @@ fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), 
     let ret = unsafe {
         let file = CString::new("/dev/dtrace/helper".as_bytes()).unwrap();
         let fd = libc::open(file.as_ptr(), libc::O_RDWR);
-        libc::ioctl(fd, cmd, data)
+        if fd < 0 {
+            fd
+        } else {
+            libc::ioctl(fd, cmd, data)
+        }
     };
     if ret == 0 {
         Ok(())
@@ -233,7 +237,11 @@ fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), 
     let ret = unsafe {
         let file = CString::new("/dev/dtracehelper".as_bytes()).unwrap();
         let fd = libc::open(file.as_ptr(), libc::O_RDWR);
-        libc::ioctl(fd, cmd, data)
+        if fd < 0 {
+            fd
+        } else {
+            libc::ioctl(fd, cmd, data)
+        }
     };
     if ret == 0 {
         Ok(())
