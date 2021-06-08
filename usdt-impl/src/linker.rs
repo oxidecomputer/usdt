@@ -152,13 +152,20 @@ fn compile_probe(
         }
     };
 
+    #[cfg(target_arch = "x86_64")]
+    let call_instruction = quote! { "call {probe_fn}" };
+    #[cfg(target_arch = "aarch64")]
+    let call_instruction = quote! { "bl {probe_fn}" };
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+    compile_error!("USDT only supports x86_64 and AArch64 architectures");
+
     let impl_block = quote! {
         unsafe {
             if $crate::#mod_name::#is_enabled_fn() != 0 {
                 #unpacked_args
                 asm!(
                     ".reference {typedefs}",
-                    "call {probe_fn}",
+                    #call_instruction,
                     ".reference {stability}",
                     typedefs = sym $crate::#mod_name::#typedef_fn,
                     probe_fn = sym $crate::#mod_name::#probe_fn,

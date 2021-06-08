@@ -41,8 +41,16 @@ pub fn generate_type_check(types: &[dtrace_parser::DataType]) -> TokenStream {
 // Return code to destructure a probe arguments into identifiers, and to pass those to ASM
 // registers.
 pub fn construct_probe_args(types: &[dtrace_parser::DataType]) -> (TokenStream, TokenStream) {
-    // TODO this will fail with more than 6 parameters.
+    // x86_64 passes the first 6 arguments in registers, with the rest on the stack.
+    // We limit this to 6 arguments in all cases for now, as handling those stack
+    // arguments would be challenging with the current `asm!` macro implementation.
+    #[cfg(target_arch = "x86_64")]
     let abi_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+    #[cfg(target_arch = "aarch64")]
+    let abi_regs = ["x0", "x1", "x2", "x3", "x4", "x5"];
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+    compile_error!("USDT only supports x86_64 and ARM64 architectures");
+
     assert!(
         types.len() <= abi_regs.len(),
         "Up to 6 probe arguments are currently supported"
