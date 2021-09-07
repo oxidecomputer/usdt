@@ -8,7 +8,7 @@ use std::{
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
-use crate::common;
+use crate::{common, DataType};
 
 /// On systems with linker support for the compile-time construction of DTrace
 /// USDT probes we can lean heavily on those mechanisms. Rather than interpretting
@@ -63,7 +63,7 @@ use crate::common;
 ///    a symbol name we can reference for the asm! macro that won't get garbled.
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
-pub fn compile_providers(
+pub fn compile_provider_source(
     source: &str,
     config: &crate::CompileProvidersConfig,
 ) -> Result<TokenStream, crate::Error> {
@@ -78,6 +78,19 @@ pub fn compile_providers(
     Ok(quote! {
         #(#providers)*
     })
+}
+
+pub fn compile_provider_from_definition(
+    provider: &dtrace_parser::Provider,
+    config: &crate::CompileProvidersConfig,
+) -> TokenStream {
+    // Unwrap safety: The type signature confirms that `provider` is valid.
+    let header = build_header_from_provider(&provider.to_d_source()).unwrap();
+    let provider_info = extract_providers(&header);
+    let provider_tokens = compile_provider(provider, &provider_info[provider.name()], config);
+    quote! {
+        #provider_tokens
+    }
 }
 
 fn compile_provider(
@@ -127,7 +140,7 @@ fn compile_probe(
     config: &crate::CompileProvidersConfig,
     is_enabled: &str,
     probe: &str,
-    types: &[dtrace_parser::DataType],
+    types: &[DataType],
 ) -> TokenStream {
     let is_enabled_fn = format_ident!("{}_{}_enabled", provider_name, probe_name);
     let probe_fn = format_ident!("{}_{}", provider_name, probe_name);
@@ -293,16 +306,13 @@ fn build_header_from_provider(source: &str) -> Result<String, crate::Error> {
         .stdout(Stdio::piped())
         .spawn()?;
     {
-        let stdin = child
-            .stdin
-            .as_mut()
-            .ok_or_else(|| crate::Error::DTraceError)?;
+        let stdin = child.stdin.as_mut().ok_or(crate::Error::DTraceError)?;
         stdin
             .write_all(source.as_bytes())
             .map_err(|_| crate::Error::DTraceError)?;
     }
     let output = child.wait_with_output()?;
-    Ok(String::from_utf8(output.stdout).map_err(|_| crate::Error::DTraceError)?)
+    String::from_utf8(output.stdout).map_err(|_| crate::Error::DTraceError)
 }
 
 pub fn register_probes() -> Result<(), crate::Error> {

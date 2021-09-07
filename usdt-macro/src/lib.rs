@@ -7,7 +7,7 @@ use std::{fs, path::Path};
 use quote::quote;
 use syn::{parse_macro_input, Lit};
 
-use usdt_impl::compile_providers;
+use usdt_impl::compile_provider_source;
 
 /// Generate DTrace probe macros from a provider definition file.
 ///
@@ -103,7 +103,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
     } else {
         filename.clone()
     };
-    match compile_providers(&source, &config) {
+    match compile_provider_source(&source, &config) {
         Ok(provider) => provider.into(),
         Err(e) => {
             let message = format!(

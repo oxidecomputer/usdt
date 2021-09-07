@@ -4,16 +4,23 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
+use crate::DataType;
+
 // Construct function call that is used internally in the UDST-generated macros, to allow
 // compile-time type checking of the lambda arguments.
-pub fn generate_type_check(types: &[dtrace_parser::DataType]) -> TokenStream {
+pub fn generate_type_check(types: &[DataType]) -> TokenStream {
     let mut has_strings = false;
+    let mut has_serializables = false;
     let type_check_args = types
         .iter()
         .map(|typ| match typ {
-            dtrace_parser::DataType::String => {
+            DataType::String => {
                 has_strings = true;
                 quote! { _: S }
+            }
+            DataType::Serializable => {
+                has_serializables = true;
+                quote! { _: &T }
             }
             _ => {
                 let arg = format_ident!("{}", typ.to_rust_type());
@@ -30,10 +37,11 @@ pub fn generate_type_check(types: &[dtrace_parser::DataType]) -> TokenStream {
 
     let preamble = unpack_argument_lambda(&types);
 
-    let string_generic = if has_strings {
-        quote! { <S: AsRef<str>> }
-    } else {
-        quote! {}
+    let generics = match (has_strings, has_serializables) {
+        (false, false) => quote! {},
+        (true, false) => quote! { <S: AsRef<str>> },
+        (false, true) => quote! { <T: ::serde::Serialize> },
+        (true, true) => quote! { <S: AsRef<str>, T: ::serde::Serialize> },
     };
 
     // NOTE: This block defines an internal empty function and then a lambda which
@@ -42,7 +50,7 @@ pub fn generate_type_check(types: &[dtrace_parser::DataType]) -> TokenStream {
     // expansion site.
     quote! {
         {
-            fn _type_check #string_generic (#(#type_check_args),*) { }
+            fn _type_check #generics (#(#type_check_args),*) { }
             let _ = || {
                 #preamble
                 _type_check(#(#expanded_lambda_args),*);
@@ -53,7 +61,7 @@ pub fn generate_type_check(types: &[dtrace_parser::DataType]) -> TokenStream {
 
 // Return code to destructure a probe arguments into identifiers, and to pass those to ASM
 // registers.
-pub fn construct_probe_args(types: &[dtrace_parser::DataType]) -> (TokenStream, TokenStream) {
+pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
     // x86_64 passes the first 6 arguments in registers, with the rest on the stack.
     // We limit this to 6 arguments in all cases for now, as handling those stack
     // arguments would be challenging with the current `asm!` macro implementation.
@@ -99,7 +107,7 @@ pub fn construct_probe_args(types: &[dtrace_parser::DataType]) -> (TokenStream, 
     (unpacked_args, in_regs)
 }
 
-fn unpack_argument_lambda(types: &[dtrace_parser::DataType]) -> TokenStream {
+fn unpack_argument_lambda(types: &[DataType]) -> TokenStream {
     match types.len() {
         // Don't bother with arguments if there are none.
         0 => quote! { $args_lambda(); },
@@ -124,6 +132,21 @@ fn asm_type_convert(
             },
             quote! { .as_ptr() as i64 },
         ),
+        DataType::Serializable => (
+            // Convert the input to JSON. This is a fallible operation, however, so we wrap the
+            // data in a result-like JSON blob, mapping the `Result`'s variants to the keys "ok"
+            // and "err".
+            quote! {
+                [
+                    match serde_json::to_string(&#input) {
+                        Ok(json) => format!("{{\"ok\": {}}}", json),
+                        Err(e) => format!("{{\"err\": \"{}\"}}", e.to_string()),
+                    }.as_bytes(),
+                    &[0_u8]
+                ].concat()
+            },
+            quote! { .as_ptr() as i64 },
+        ),
         _ => (quote! { (#input as i64) }, quote! {}),
     }
 }
@@ -132,7 +155,7 @@ pub(crate) fn build_probe_macro(
     config: &crate::CompileProvidersConfig,
     provider_name: &str,
     probe_name: &str,
-    types: &[dtrace_parser::DataType],
+    types: &[DataType],
     pre_macro_block: TokenStream,
     impl_block: TokenStream,
 ) -> TokenStream {
@@ -165,11 +188,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_type_check() {
-        let types = &[dtrace_parser::DataType::U8, dtrace_parser::DataType::String];
+    fn test_generate_type_check_simple() {
+        let types = &[DataType::U8, DataType::I64];
         let expected = quote! {
             {
-                fn _type_check<S: AsRef<str>>(_: u8, _: S) { }
+                fn _type_check(_: u8, _: i64) { }
                 let _ = || {
                     let args = $args_lambda();
                     _type_check(args.0, args.1);
@@ -181,8 +204,24 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_type_check_with_generics() {
+        let types = &[DataType::U8, DataType::String, DataType::Serializable];
+        let expected = quote! {
+            {
+                fn _type_check<S: AsRef<str>, T: ::serde::Serialize>(_: u8, _: S, _: &T) { }
+                let _ = || {
+                    let args = $args_lambda();
+                    _type_check(args.0, args.1, args.2);
+                };
+            }
+        };
+        let block = generate_type_check(types);
+        assert_eq!(block.to_string(), expected.to_string());
+    }
+
+    #[test]
     fn test_construct_probe_args() {
-        let types = &[dtrace_parser::DataType::U8, dtrace_parser::DataType::String];
+        let types = &[DataType::U8, DataType::String];
         let registers = &["rdi", "rsi"];
         let (args, regs) = construct_probe_args(types);
         for (i, arg) in args
@@ -212,17 +251,12 @@ mod tests {
     #[test]
     fn test_asm_type_convert() {
         use std::str::FromStr;
-        let (out, post) = asm_type_convert(
-            &dtrace_parser::DataType::U8,
-            TokenStream::from_str("foo").unwrap(),
-        );
+        let (out, post) = asm_type_convert(&DataType::U8, TokenStream::from_str("foo").unwrap());
         assert_eq!(out.to_string(), quote! {(foo as i64)}.to_string());
         assert_eq!(post.to_string(), quote! {}.to_string());
 
-        let (out, post) = asm_type_convert(
-            &dtrace_parser::DataType::String,
-            TokenStream::from_str("foo").unwrap(),
-        );
+        let (out, post) =
+            asm_type_convert(&DataType::String, TokenStream::from_str("foo").unwrap());
         assert_eq!(
             out.to_string(),
             quote! { [(foo.as_ref() as &str).as_bytes(), &[0_u8]].concat() }.to_string()

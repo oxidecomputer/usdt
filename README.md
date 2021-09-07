@@ -4,14 +4,21 @@ Dust your Rust with USDT probes.
 
 ## Overview
 
-`usdt` exposes statically-defined DTrace probes to Rust code. Users write a provider definition
-as usual, in a D language script. The provider's probes may then be compiled into Rust code that
-fires the probes.
+`usdt` exposes statically-defined [DTrace probes][1] to Rust code. Users write a _provider_
+definition, in either the D language or directly in Rust code. The _probes_ of the provider
+can then be compiled into Rust code that fire the probes. These are visible via the `dtrace`
+command-line tool.
 
-There are two mechanisms for converting the D probe definitions into Rust: a build.rs script and
-a procedural macro. The generated code is interchangeable, so it's simply the preference of the
-consuming developer that dictates which method is used. The build-time and macro versions are
-shown in the example crates `probe-test-build` and `probe-test-macro`, respectively.
+There are three mechanisms for converting the D probe definitions into Rust.
+
+1. A `build.rs` script
+2. A function-like procedural macro, `usdt::dtrace_provider`.
+3. An attribute macro, `usdt::provider`.
+
+The generated code is the same in all cases, though the third provides a bit more flexibility
+than the first two. See [below][Serializable types] for more details, but briefly, the third
+form supports probe arguments of any type that implement [`serde::Seralize`][2]. These different
+versions are shown in the crates `probe-test-{build,macro,attr}` respectively.
 
 > Note: This crate uses inline assembly to work its magic. As such a nightly Rust toolchain is
 required, and the functionality is hidden behind the `"asm"` feature flag. A nightly toolchain
@@ -147,6 +154,59 @@ even if the provider definition is unchanged. This may be negligible for small p
 definitions, but users may see a noticeable increase in compile times when many probes
 are defined.
 
+## Serializable types
+
+As described above, the three forms of defining a provider a _nearly_ equivalent. The
+only distinction is in the support of types implementing [`serde::Serialize`][2]. This uses
+DTrace's [JSON functionality][3] -- Any serializable type is serialized to JSON with
+[`serde_json::to_string()`][4], and the string may be unpacked and inspected in DTrace
+scripts with the `json` function. For example, imagine we have the type:
+
+```rust
+#[derive(serde::Serialize)]
+pub struct Arg {
+    val: u8,
+    data: Vec<String>,
+}
+```
+
+and a probe definition:
+
+```rust
+#[usdt::provider]
+mod my_provider {
+    use super::Arg;
+    fn my_probe(_: &Arg) {}
+}
+```
+
+Values of type `Arg` may be used in the generated probe macros. In a DTrace script, one can
+look at the data in the argument like:
+
+```
+dtrace -n 'my_probe { printf("%s", json(copyinstr(arg0), "ok.val")); }' # prints `Arg::val`.
+```
+
+The `json` function also supports nested objects and array indexing, so one could also do:
+
+```
+dtrace -n 'my_probe { printf("%s", json(copyinstr(arg0), "ok.data[0]")); }' # prints `Arg::data[0]`.
+```
+
+See the `probe-test-attr` example for more details and usage.
+
+### Serialization is fallible
+
+Note that in the above examples, the first key of the JSON blob being accessed is `"ok"`. This
+is because the `serde_json::to_string` function is fallible, returning a `Result`. This is mapped
+into JSON in a natural way:
+
+- `Ok(_) => {"ok": _}`
+- `Err(_) => {"err": _}`
+
+In the error case, the [`Error`][serde-json-error] returned is formatted using its `Display`
+implementation.
+
 ## A note about registration
 
 Note that the `usdt::register_probes()` function is called at the top of main in the above
@@ -159,3 +219,11 @@ comes with significant tradeoffs. As such the current recommendation is:
 > Library developers are encouraged to re-export the `usdt::register_probes` (or a
 function calling it), and document to their users that this function should be called to
 guarantee that probes are registered.
+
+## References
+
+[1]: https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt
+[2]: https://docs.rs/serde/1.0.130/serde/trait.Serialize.html
+[3]: https://sysmgr.org/blog/2012/11/29/dtrace_and_json_together_at_last/
+[4]: https://docs.rs/serde_json/1.0.68/serde_json/fn.to_string.html
+[serde-json-error]: https://docs.serde.rs/serde_json/error/struct.Error.html

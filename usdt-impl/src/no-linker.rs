@@ -4,11 +4,11 @@ use dof::{serialize_section, Section};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-use crate::common;
 use crate::record::{process_section, PROBE_REC_VERSION};
+use crate::{common, DataType};
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
-pub fn compile_providers(
+pub fn compile_provider_source(
     source: &str,
     config: &crate::CompileProvidersConfig,
 ) -> Result<TokenStream, crate::Error> {
@@ -21,6 +21,13 @@ pub fn compile_providers(
     Ok(quote! {
         #(#providers)*
     })
+}
+
+pub fn compile_provider_from_definition(
+    provider: &dtrace_parser::Provider,
+    config: &crate::CompileProvidersConfig,
+) -> TokenStream {
+    compile_provider(provider, config)
 }
 
 fn compile_provider(
@@ -117,7 +124,7 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
 }
 
 // Construct the ASM record for a probe. If `types` is `None`, then is is an is-enabled probe.
-fn asm_rec(prov: &str, probe: &str, types: Option<&[dtrace_parser::DataType]>) -> String {
+fn asm_rec(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
     let section_ident = if cfg!(target_os = "macos") {
         r#"__DATA,__dtrace_probes,regular,no_dead_strip"#
     } else {
@@ -258,7 +265,7 @@ mod tests {
     fn test_asm_rec() {
         let provider = "provider";
         let probe = "probe";
-        let types = [dtrace_parser::DataType::U8, dtrace_parser::DataType::String];
+        let types = [DataType::U8, DataType::String];
         let record = asm_rec(provider, probe, Some(&types));
         let mut lines = record.lines();
         println!("{}", record);
