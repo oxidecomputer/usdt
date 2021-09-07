@@ -20,7 +20,7 @@ pub fn compile_providers(
     })
 }
 
-fn compile_provider(
+pub fn compile_provider(
     provider: &dtrace_parser::Provider,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {

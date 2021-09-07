@@ -4,9 +4,11 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
+use crate::DataType;
+
 // Construct function call that is used internally in the UDST-generated macros, to allow
 // compile-time type checking of the lambda arguments.
-pub fn generate_type_check(types: &[dtrace_parser::DataType]) -> TokenStream {
+pub fn generate_type_check(types: &[DataType]) -> TokenStream {
     let type_check_args = types
         .iter()
         .map(|typ| {
@@ -40,7 +42,7 @@ pub fn generate_type_check(types: &[dtrace_parser::DataType]) -> TokenStream {
 
 // Return code to destructure a probe arguments into identifiers, and to pass those to ASM
 // registers.
-pub fn construct_probe_args(types: &[dtrace_parser::DataType]) -> (TokenStream, TokenStream) {
+pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
     // x86_64 passes the first 6 arguments in registers, with the rest on the stack.
     // We limit this to 6 arguments in all cases for now, as handling those stack
     // arguments would be challenging with the current `asm!` macro implementation.
@@ -80,7 +82,7 @@ pub fn construct_probe_args(types: &[dtrace_parser::DataType]) -> (TokenStream, 
     (unpacked_args, in_regs)
 }
 
-fn unpack_argument_lambda(types: &[dtrace_parser::DataType]) -> TokenStream {
+fn unpack_argument_lambda(types: &[DataType]) -> TokenStream {
     match types.len() {
         // Don't bother with arguments if there are none.
         0 => quote! { $args_lambda(); },
@@ -92,10 +94,13 @@ fn unpack_argument_lambda(types: &[dtrace_parser::DataType]) -> TokenStream {
 }
 
 // Convert a supported data type to one passed to the probe function in a register
-fn asm_type_convert(typ: &dtrace_parser::DataType, input: TokenStream) -> TokenStream {
+fn asm_type_convert(typ: &DataType, input: TokenStream) -> TokenStream {
     match typ {
-        dtrace_parser::DataType::String => quote! {
+        DataType::String => quote! {
             ([#input.as_bytes(), &[0_u8]].concat().as_ptr() as i64)
+        },
+        DataType::Serializable => quote! {
+            ([serde_json::to_string(&#input).unwrap().as_bytes(), &[0_u8]].concat().as_ptr() as i64)
         },
         _ => quote! { (#input as i64) },
     }
@@ -105,7 +110,7 @@ pub(crate) fn build_probe_macro(
     config: &crate::CompileProvidersConfig,
     provider_name: &str,
     probe_name: &str,
-    types: &[dtrace_parser::DataType],
+    types: &[DataType],
     pre_macro_block: TokenStream,
     impl_block: TokenStream,
 ) -> TokenStream {
@@ -139,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_generate_type_check() {
-        let types = &[dtrace_parser::DataType::U8, dtrace_parser::DataType::String];
+        let types = &[DataType::U8, DataType::String];
         let block = generate_type_check(types);
         let s = block.to_string();
         let fn_start = s.find('f').unwrap();
@@ -161,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_construct_probe_args() {
-        let types = &[dtrace_parser::DataType::U8, dtrace_parser::DataType::String];
+        let types = &[DataType::U8, DataType::String];
         let registers = &["rdi", "rsi"];
         let (args, regs) = construct_probe_args(types);
         for (i, arg) in args
@@ -191,18 +196,12 @@ mod tests {
     #[test]
     fn test_asm_type_convert() {
         use std::str::FromStr;
-        let out = asm_type_convert(
-            &dtrace_parser::DataType::U8,
-            TokenStream::from_str("foo").unwrap(),
-        );
+        let out = asm_type_convert(&DataType::U8, TokenStream::from_str("foo").unwrap());
         let out = syn::parse_str::<syn::Expr>(&out.to_string()).unwrap();
         let expected = syn::parse_str::<syn::Expr>("(foo as i64)").unwrap();
         assert_eq!(out, expected);
 
-        let out = asm_type_convert(
-            &dtrace_parser::DataType::String,
-            TokenStream::from_str("foo").unwrap(),
-        );
+        let out = asm_type_convert(&DataType::String, TokenStream::from_str("foo").unwrap());
         let out = syn::parse_str::<syn::Expr>(&out.to_string()).unwrap();
         let expected =
             syn::parse_str::<syn::Expr>("([foo.as_bytes(), &[0_u8]].concat().as_ptr() as i64)")

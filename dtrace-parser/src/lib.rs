@@ -55,6 +55,7 @@ pub enum DataType {
     I32,
     I64,
     String,
+    Serializable,
 }
 
 impl TryFrom<&Pair<'_, Rule>> for DataType {
@@ -110,6 +111,7 @@ impl DataType {
             DataType::I32 => "int32_t",
             DataType::I64 => "int64_t",
             DataType::String => "char*",
+            DataType::Serializable => "char*",
         }
         .into()
     }
@@ -126,6 +128,7 @@ impl DataType {
             DataType::I32 => "::std::os::raw::c_int",
             DataType::I64 => "::std::os::raw::c_longlong",
             DataType::String => "*const ::std::os::raw::c_char",
+            DataType::Serializable => "*const ::std::os::raw::c_char",
         }
         .into()
     }
@@ -142,6 +145,7 @@ impl DataType {
             DataType::I32 => "i32",
             DataType::I64 => "i64",
             DataType::String => "&str",
+            DataType::Serializable => "impl serde::Serialize",
         }
         .into()
     }
@@ -150,8 +154,8 @@ impl DataType {
 /// Type representing a single D probe definition within a provider.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Probe {
-    name: String,
-    types: Vec<DataType>,
+    pub name: String,
+    pub types: Vec<DataType>,
 }
 
 impl Probe {
@@ -219,8 +223,8 @@ impl TryFrom<&Pairs<'_, Rule>> for Probe {
 /// Type representing a single DTrace provider and all of its probes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Provider {
-    name: String,
-    probes: Vec<Probe>,
+    pub name: String,
+    pub probes: Vec<Probe>,
 }
 
 impl Provider {

@@ -8,7 +8,7 @@ use std::{
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
-use crate::common;
+use crate::{common, DataType};
 
 /// On systems with linker support for the compile-time construction of DTrace
 /// USDT probes we can lean heavily on those mechanisms. Rather than interpretting
@@ -80,7 +80,7 @@ pub fn compile_providers(
     })
 }
 
-fn compile_provider(
+pub fn compile_provider(
     provider: &dtrace_parser::Provider,
     provider_info: &ProviderInfo,
     config: &crate::CompileProvidersConfig,
@@ -127,7 +127,7 @@ fn compile_probe(
     config: &crate::CompileProvidersConfig,
     is_enabled: &str,
     probe: &str,
-    types: &[dtrace_parser::DataType],
+    types: &[DataType],
 ) -> TokenStream {
     let is_enabled_fn = format_ident!("{}_{}_enabled", provider_name, probe_name);
     let probe_fn = format_ident!("{}_{}", provider_name, probe_name);

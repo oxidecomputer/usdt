@@ -145,6 +145,9 @@ pub use usdt_impl::Error;
 #[cfg(feature = "asm")]
 pub use usdt_macro::dtrace_provider;
 
+#[cfg(feature = "asm")]
+pub use usdt_attr_macro::provider;
+
 /// A simple struct used to build DTrace probes into Rust code in a build.rs script.
 #[derive(Debug)]
 pub struct Builder {

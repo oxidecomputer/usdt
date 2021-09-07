@@ -1,0 +1,15 @@
+[package]
+name = "usdt-attr-macro"
+version = "0.1.0"
+authors = ["Benjamin Naecker <ben@oxide.computer>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0.24"
+serde_tokenstream = "0.1.2"
+syn = { version = "1.0.60", features = ["full"] }
+quote = "1.0.9"
+usdt-impl = { path = "../usdt-impl", version = "0.1.8" }

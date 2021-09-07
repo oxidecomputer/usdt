@@ -1,0 +1,10 @@
+[package]
+name = "probe-test-attr"
+version = "0.1.0"
+authors = ["Benjamin Naecker <ben@oxide.computer>"]
+edition = "2018"
+
+[dependencies]
+usdt = { path = "../usdt" }
+serde = "1.0.124"
+serde_json = "1.0.67"

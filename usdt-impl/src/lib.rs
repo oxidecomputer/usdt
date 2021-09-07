@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use thiserror::Error;
 
+pub use dtrace_parser::{DataType, Probe, Provider};
+
 #[cfg(any(
     all(not(target_os = "linux"), not(target_os = "macos")),
     feature = "des",
@@ -92,4 +94,11 @@ pub fn compile_providers(
     config: &CompileProvidersConfig,
 ) -> Result<proc_macro2::TokenStream, Error> {
     crate::internal::compile_providers(source, config)
+}
+
+pub fn compile_provider(
+    provider: &dtrace_parser::Provider,
+    config: &CompileProvidersConfig,
+) -> proc_macro2::TokenStream {
+    crate::internal::compile_provider(provider, config)
 }
