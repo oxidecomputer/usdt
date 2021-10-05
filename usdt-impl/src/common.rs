@@ -110,7 +110,7 @@ fn unpack_argument_lambda(types: &[dtrace_parser::DataType]) -> TokenStream {
     }
 }
 
-// Convert a supported data type to a type to store for the duration of the
+// Convert a supported data type to 1. a type to store for the duration of the
 // probe invocation and 2. a transformation for compatibility with an asm
 // register.
 fn asm_type_convert(
