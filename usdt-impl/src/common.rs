@@ -7,11 +7,18 @@ use quote::{format_ident, quote};
 // Construct function call that is used internally in the UDST-generated macros, to allow
 // compile-time type checking of the lambda arguments.
 pub fn generate_type_check(types: &[dtrace_parser::DataType]) -> TokenStream {
+    let mut has_strings = false;
     let type_check_args = types
         .iter()
-        .map(|typ| {
-            let arg = syn::parse_str::<syn::FnArg>(&format!("_: {}", typ.to_rust_type())).unwrap();
-            quote! { #arg }
+        .map(|typ| match typ {
+            dtrace_parser::DataType::String => {
+                has_strings = true;
+                quote! { _: S }
+            }
+            _ => {
+                let arg = format_ident!("{}", typ.to_rust_type());
+                quote! { _: #arg }
+            }
         })
         .collect::<Vec<_>>();
     let expanded_lambda_args = (0..types.len())
@@ -23,13 +30,19 @@ pub fn generate_type_check(types: &[dtrace_parser::DataType]) -> TokenStream {
 
     let preamble = unpack_argument_lambda(&types);
 
+    let string_generic = if has_strings {
+        quote! { <S: AsRef<str>> }
+    } else {
+        quote! {}
+    };
+
     // NOTE: This block defines an internal empty function and then a lambda which
     // calls it. This is all strictly for type-checking, and is optimized out. It is
     // defined in a scope to avoid multiple-definition errors in the scope of the macro
     // expansion site.
     quote! {
         {
-            fn _type_check(#(#type_check_args),*) { }
+            fn _type_check #string_generic (#(#type_check_args),*) { }
             let _ = || {
                 #preamble
                 _type_check(#(#expanded_lambda_args),*);
@@ -63,15 +76,21 @@ pub fn construct_probe_args(types: &[dtrace_parser::DataType]) -> (TokenStream, 
             let arg = format_ident!("arg_{}", i);
             let index = syn::Index::from(i);
             let input = quote! { args.#index };
-            let value = asm_type_convert(typ, input);
+            let (value, at_use) = asm_type_convert(typ, input);
+
+            // These values must refer to the actual traced data and prevent it
+            // from being dropped until after we've completed the probe
+            // invocation.
             let destructured_arg = quote! {
                 let #arg = #value;
             };
-            let register_arg = quote! { in(#reg) #arg };
+            // Here, we convert the argument to store it within a register.
+            let register_arg = quote! { in(#reg) (#arg #at_use) };
+
             (destructured_arg, register_arg)
         })
         .unzip();
-    let preamble = unpack_argument_lambda(&types);
+    let preamble = unpack_argument_lambda(types);
     let unpacked_args = quote! {
         #preamble
         #(#unpacked_args)*
@@ -91,13 +110,21 @@ fn unpack_argument_lambda(types: &[dtrace_parser::DataType]) -> TokenStream {
     }
 }
 
-// Convert a supported data type to one passed to the probe function in a register
-fn asm_type_convert(typ: &dtrace_parser::DataType, input: TokenStream) -> TokenStream {
+// Convert a supported data type to a type to store for the duration of the
+// probe invocation and 2. a transformation for compatibility with an asm
+// register.
+fn asm_type_convert(
+    typ: &dtrace_parser::DataType,
+    input: TokenStream,
+) -> (TokenStream, TokenStream) {
     match typ {
-        dtrace_parser::DataType::String => quote! {
-            ([#input.as_bytes(), &[0_u8]].concat().as_ptr() as i64)
-        },
-        _ => quote! { (#input as i64) },
+        dtrace_parser::DataType::String => (
+            quote! {
+                [(#input.as_ref() as &str).as_bytes(), &[0_u8]].concat()
+            },
+            quote! { .as_ptr() as i64 },
+        ),
+        _ => (quote! { (#input as i64) }, quote! {}),
     }
 }
 
@@ -140,23 +167,17 @@ mod tests {
     #[test]
     fn test_generate_type_check() {
         let types = &[dtrace_parser::DataType::U8, dtrace_parser::DataType::String];
+        let expected = quote! {
+            {
+                fn _type_check<S: AsRef<str>>(_: u8, _: S) { }
+                let _ = || {
+                    let args = $args_lambda();
+                    _type_check(args.0, args.1);
+                };
+            }
+        };
         let block = generate_type_check(types);
-        let s = block.to_string();
-        let fn_start = s.find('f').unwrap();
-        let fn_body = s.find("{ }").unwrap();
-        let should_be_fn = &s[fn_start..fn_body + 3];
-        let type_check_fn = syn::parse_str::<syn::ItemFn>(should_be_fn)
-            .expect("Could not parse out type-check function signature");
-        let expected = syn::parse_str::<syn::ItemFn>("fn _type_check(_: u8, _: &str) { }").unwrap();
-        assert_eq!(type_check_fn, expected);
-
-        let call_start = s[fn_body..].find("_type_check").unwrap();
-        let call_end = s.rfind("; } ; }").unwrap();
-        let should_be_call = &s[fn_body + call_start..call_end];
-        let call_fn = syn::parse_str::<syn::ExprCall>(should_be_call)
-            .expect("Could not parse out call to type-check function");
-        let expected = syn::parse_str::<syn::ExprCall>("_type_check(args.0, args.1)").unwrap();
-        assert_eq!(call_fn, expected);
+        assert_eq!(block.to_string(), expected.to_string());
     }
 
     #[test]
@@ -172,7 +193,7 @@ mod tests {
             .enumerate()
         {
             let arg = arg.replace(" ", "");
-            let expected = format!("letarg_{}=({}args.{}", i, if i > 0 { "[" } else { "" }, i);
+            let expected = format!("letarg_{}={}(args.{}", i, if i > 0 { "[" } else { "" }, i);
             println!("{}\n\n{}", arg, expected);
             assert!(arg.starts_with(&expected));
         }
@@ -183,30 +204,29 @@ mod tests {
             .enumerate()
         {
             let reg = actual.replace(" ", "");
-            let expected = format!("in(\"{}\")arg_{}", expected, i);
-            assert_eq!(reg, expected);
+            let expected = format!("in(\"{}\")(arg_{}", expected, i);
+            assert!(reg.starts_with(&expected));
         }
     }
 
     #[test]
     fn test_asm_type_convert() {
         use std::str::FromStr;
-        let out = asm_type_convert(
+        let (out, post) = asm_type_convert(
             &dtrace_parser::DataType::U8,
             TokenStream::from_str("foo").unwrap(),
         );
-        let out = syn::parse_str::<syn::Expr>(&out.to_string()).unwrap();
-        let expected = syn::parse_str::<syn::Expr>("(foo as i64)").unwrap();
-        assert_eq!(out, expected);
+        assert_eq!(out.to_string(), quote! {(foo as i64)}.to_string());
+        assert_eq!(post.to_string(), quote! {}.to_string());
 
-        let out = asm_type_convert(
+        let (out, post) = asm_type_convert(
             &dtrace_parser::DataType::String,
             TokenStream::from_str("foo").unwrap(),
         );
-        let out = syn::parse_str::<syn::Expr>(&out.to_string()).unwrap();
-        let expected =
-            syn::parse_str::<syn::Expr>("([foo.as_bytes(), &[0_u8]].concat().as_ptr() as i64)")
-                .unwrap();
-        assert_eq!(out, expected);
+        assert_eq!(
+            out.to_string(),
+            quote! { [(foo.as_ref() as &str).as_bytes(), &[0_u8]].concat() }.to_string()
+        );
+        assert_eq!(post.to_string(), quote! { .as_ptr() as i64 }.to_string());
     }
 }
