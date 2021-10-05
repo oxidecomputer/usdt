@@ -26,8 +26,12 @@ fn main() {
         // Do some work.
         sleep(duration);
 
-        // Call the "stop" probe, which accepts a &str and a u8.
-        test_stop!(|| ("the probe has fired", counter));
+        // Call the "stop" probe, which accepts a string, u8, and string.
+        test_stop!(|| (
+            format!("the probe has fired {}", counter),
+            counter,
+            format!("{:x}", counter)
+        ));
 
         counter = counter.wrapping_add(1);
     }
