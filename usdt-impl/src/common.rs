@@ -20,7 +20,7 @@ pub fn generate_type_check(types: &[DataType]) -> TokenStream {
             }
             DataType::Serializable => {
                 has_serializables = true;
-                quote! { _: &T }
+                quote! { _: T }
             }
             _ => {
                 let arg = format_ident!("{}", typ.to_rust_type());
@@ -208,7 +208,7 @@ mod tests {
         let types = &[DataType::U8, DataType::String, DataType::Serializable];
         let expected = quote! {
             {
-                fn _type_check<S: AsRef<str>, T: ::serde::Serialize>(_: u8, _: S, _: &T) { }
+                fn _type_check<S: AsRef<str>, T: ::serde::Serialize>(_: u8, _: S, _: T) { }
                 let _ = || {
                     let args = $args_lambda();
                     _type_check(args.0, args.1, args.2);

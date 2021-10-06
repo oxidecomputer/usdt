@@ -38,6 +38,7 @@ mod test {
     use super::Arg;
     fn start(x: u8) {}
     fn stop(_: String, arg: &Arg) {}
+    fn stop_by_value(_: String, _: Arg) {}
 }
 
 fn main() {
@@ -51,5 +52,12 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_secs(1));
         arg.x = arg.x.wrapping_add(1);
         test_stop!(|| { (format!("the probe has fired {}", arg.x), &arg) });
+        test_stop_by_value!(|| {
+            let new_arg = Arg {
+                x: arg.x,
+                buffer: vec![arg.x.into()],
+            };
+            (format!("the probe has fired {}", arg.x), new_arg)
+        });
     }
 }

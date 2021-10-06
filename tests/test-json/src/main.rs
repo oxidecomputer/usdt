@@ -73,6 +73,11 @@ fn run_test(recv: Receiver<()>) {
     test_json_bad!(|| &data);
 }
 
+fn main() {
+    usdt::register_probes().unwrap();
+    test_json_good!(|| ProbeArg::default());
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
