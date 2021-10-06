@@ -60,4 +60,24 @@ jobs:
           --no-fail-fast
           --verbose
           --workspace
+          --exclude test-json
           ${{ matrix.no-linker-feature }}
+
+  test-json-support:
+    name: Test JSON-serialization support
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo test
+          --release
+          --no-fail-fast
+          --verbose
+          --workspace
+          --package test-json

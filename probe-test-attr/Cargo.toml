@@ -8,3 +8,7 @@ edition = "2018"
 usdt = { path = "../usdt" }
 serde = "1.0.124"
 serde_json = "1.0.67"
+
+[features]
+asm = ["usdt/asm"]
+no-linker = ["usdt/no-linker"]

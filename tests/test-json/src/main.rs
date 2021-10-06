@@ -18,6 +18,9 @@ const SLEEP_DURATION: Duration = Duration::from_secs(1);
 // Expected error message from serialization failure
 const SERIALIZATION_ERROR: &str = "nonono";
 
+// Maximum duration to wait for DTrace, controlling total test duration
+const MAX_WAIT: Duration = Duration::from_secs(30);
+
 #[derive(Debug, Serialize)]
 pub struct ProbeArg {
     value: u8,
@@ -84,6 +87,7 @@ mod tests {
     use serde_json::Value;
     use std::process::{Command, Stdio};
     use std::sync::mpsc::Sender;
+    use std::time::Instant;
 
     #[test]
     fn test_json_support() {
@@ -92,7 +96,7 @@ mod tests {
 
         fn run_dtrace_and_return_json(tx: &Sender<()>, probe_name: &str) -> Value {
             // Start the DTrace subprocess, and don't exit if the probe doesn't exist.
-            let dtrace = Command::new("sudo")
+            let mut dtrace = Command::new("sudo")
                 .arg("dtrace")
                 .arg("-Z")
                 .arg("-n")
@@ -108,11 +112,26 @@ mod tests {
             // We should now see the probe having fired exactly once. Grab the output data, kill the
             // DTrace process, and then parse the output as JSON.
             tx.send(()).unwrap();
+
+            // Wait for the process to finish, up to a pretty generous limit.
+            let now = Instant::now();
+            while matches!(dtrace.try_wait(), Ok(None)) && now.elapsed() < MAX_WAIT {
+                println!("DTrace still running");
+                sleep(SLEEP_DURATION);
+            }
+            assert!(
+                now.elapsed() < MAX_WAIT,
+                "DTrace did not complete within {:?}",
+                MAX_WAIT
+            );
             let output = dtrace.wait_with_output().unwrap();
             println!("DTrace output\n\n{:#?}", output);
             let stdout = String::from_utf8(output.stdout).unwrap();
             let needle = format!("{} ", probe_name);
-            let data_start = stdout.find(&needle).unwrap() + needle.len();
+            let data_start = stdout
+                .find(&needle)
+                .expect("Failed to find expected DTrace output")
+                + needle.len();
             let json: Value = serde_json::from_str(&stdout[data_start..]).unwrap();
             json
         }
