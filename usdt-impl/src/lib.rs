@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use thiserror::Error;
 
+pub use dtrace_parser::{DataType, Probe, Provider};
+
 #[cfg(any(
     all(not(target_os = "linux"), not(target_os = "macos")),
     feature = "des",
@@ -87,9 +89,17 @@ fn format_probe(
 // (if it's enabled). See [probe_test_macro] for a detailed example.
 //
 // [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
-pub fn compile_providers(
+pub fn compile_provider_source(
     source: &str,
     config: &CompileProvidersConfig,
 ) -> Result<proc_macro2::TokenStream, Error> {
-    crate::internal::compile_providers(source, config)
+    crate::internal::compile_provider_source(source, config)
+}
+
+// Compile a DTrace provider from its representation in the USDT crate.
+pub fn compile_provider(
+    provider: &dtrace_parser::Provider,
+    config: &CompileProvidersConfig,
+) -> proc_macro2::TokenStream {
+    crate::internal::compile_provider_from_definition(provider, config)
 }

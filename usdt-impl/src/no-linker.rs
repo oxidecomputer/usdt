@@ -1,14 +1,29 @@
+//! Implementation of USDT functionality on platforms without runtime linker support.
+
+// Copyright 2021 Oxide Computer Company
+
+// NOTE: Although this file compiles and is semi-useful on macOS, it can't be used to generate
+// probes that DTrace actually understands. In particular, running `dtrace -l` will list the
+// probes, but doing anything on the basis of a probe _firing_ is meaningless.
+//
+// This is because Apple seems to use a different definition for the base address of a probe
+// function in the kernel than other systems. See:
+// https://github.com/apple/darwin-xnu/blob/8f02f2a044b9bb1ad951987ef5bab20ec9486310/bsd/dev/dtrace/dtrace.c#L9394
+// for a note indicating the platform difference. It's not clear why they do this, but it does mean
+// that the probes are not actually usable when running with the no-linker feature flag. This flag
+// is mostly used for testing the code to the extent possible on any system.
+
 use std::{convert::TryFrom, ffi::CString};
 
 use dof::{serialize_section, Section};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-use crate::common;
 use crate::record::{process_section, PROBE_REC_VERSION};
+use crate::{common, DataType};
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
-pub fn compile_providers(
+pub fn compile_provider_source(
     source: &str,
     config: &crate::CompileProvidersConfig,
 ) -> Result<TokenStream, crate::Error> {
@@ -21,6 +36,13 @@ pub fn compile_providers(
     Ok(quote! {
         #(#providers)*
     })
+}
+
+pub fn compile_provider_from_definition(
+    provider: &dtrace_parser::Provider,
+    config: &crate::CompileProvidersConfig,
+) -> TokenStream {
+    compile_provider(provider, config)
 }
 
 fn compile_provider(
@@ -117,7 +139,7 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
 }
 
 // Construct the ASM record for a probe. If `types` is `None`, then is is an is-enabled probe.
-fn asm_rec(prov: &str, probe: &str, types: Option<&[dtrace_parser::DataType]>) -> String {
+fn asm_rec(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
     let section_ident = if cfg!(target_os = "macos") {
         r#"__DATA,__dtrace_probes,regular,no_dead_strip"#
     } else {
@@ -258,7 +280,7 @@ mod tests {
     fn test_asm_rec() {
         let provider = "provider";
         let probe = "probe";
-        let types = [dtrace_parser::DataType::U8, dtrace_parser::DataType::String];
+        let types = [DataType::U8, DataType::String];
         let record = asm_rec(provider, probe, Some(&types));
         let mut lines = record.lines();
         println!("{}", record);

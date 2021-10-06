@@ -3,10 +3,25 @@
 //! Overview
 //! --------
 //!
-//! This crate provides methods for compiling definitions of DTrace probes into Rust code, allowing
-//! rich, low-overhead instrumentation of Rust programs.
+//! This crate provides methods for compiling definitions of [DTrace probes][dtrace] into Rust
+//! code, allowing rich, low-overhead instrumentation of [userland][dtrace-usdt] Rust programs.
 //!
-//! Users define a _provider_, with one or more _probe_ functions, in the D language. For example:
+//! DTrace _probes_ are instrumented points in software, usually corresponding to some important
+//! event such as opening a file, writing to standard output, acquiring a lock, and much more.
+//! Probes are grouped into _providers_, collections of related probes covering distinct classes
+//! functionality. The _syscall_ provider, for example, includes probes for the entry and exit of
+//! certain important system calls, such as `write(2)`.
+//!
+//! USDT probes may be defined in the [D language](#defining-probes-in-d) or [inline in Rust
+//! code](#inline-rust-probes). These definitions are used to create macros, which, when called,
+//! fire the corresponding DTrace probe. The two methods for defining probes are very similar --
+//! one key difference, besides the syntax used to describe them, is that inline probes support any
+//! Rust type that is JSON serializable. We'll cover each in turn.
+//!
+//! Defining probes in D
+//! --------------------
+//!
+//! Users define a provider, with one or more _probe_ functions in the D language. For example:
 //!
 //! ```d
 //! provider test {
@@ -22,7 +37,8 @@
 //! as any of the exact bit-width integer types (e.g., `int16_t`) or strings (`char *`s). See
 //! [Data types](#data-types) for a full list of supported types.
 //!
-//! Assuming the above is in a file called `"test.d"`, this may be compiled into Rust code with:
+//! Assuming the above is in a file called `"test.d"`, the probes may be compiled into Rust code
+//! with:
 //!
 //! ```ignore
 //! #![feature(asm)]
@@ -53,11 +69,64 @@
 //! acted upon like any other probe. See [registration](#registration) for a discussion of probe
 //! registration, especially in the context of library crates.
 //!
+//! Inline Rust probes
+//! ------------------
+//!
+//! Writing probes in the D language is convenient and familiar to those who've previously used
+//! DTrace. There are a few drawbacks though. Maintaining another file may be annoying or error
+//! prone, but more importantly, it provides limited support for Rust's rich type system. In
+//! particular, only those types with a clear C analog are currently supported. (See [the full
+//! list](#data-types).)
+//!
+//! More complex, user-defined types can be supported if one defines the probes in Rust directly.
+//! In particular, this crate supports any type implementing [`serde::Serialize`][serde], by
+//! serializing the type to JSON and using DTrace's native [JSON support][dtrace-json]. Providers
+//! can be defined inline by attaching the [`provider`] attribute macro to a module.
+//!
+//! ```rust,ignore
+//! #[derive(serde::Serialize)]
+//! pub struct Arg {
+//!     pub x: u8,
+//!     pub buffer: Vec<i32>,
+//! }
+//!
+//! // A module named `test` describes the provider, and each (empty) function definition in the
+//! // module's body generates a probe macro.
+//! #[usdt::provider]
+//! mod test {
+//!     use super::Arg;
+//!     fn start(x: u8) {}
+//!     fn stop(arg: &Arg) {}
+//! }
+//! ```
+//!
+//! The `arg` parameter to the `stop` probe will be converted into JSON, and its fields may be
+//! accessed in DTrace with the `json` function. The signature is `json(string, key)`, where `key`
+//! is used to access the named key of a JSON-encoded string. For example:
+//!
+//! ```bash
+//! $ dtrace -n 'stop { printf("%s", json(copyinstr(arg0), "ok.buffer[0]")); }'
+//! ```
+//!
+//! would print the first element of the vector `Arg::buffer`.
+//!
+//! > Important: Notice that the JSON key used in the above example to access the data inside
+//! DTrace is `"ok.buffer[0]"`. JSON values serialized to DTrace are always `Result` types,
+//! because the internal serialization method is _fallible_. So they are always encoded as objects
+//! like `{"ok": _}` or `{"err": "some error message"}`. In the error case, the message is
+//! created by formatting the `serde_json::error::Error` that describes why serialization failed.
+//!
+//! > Note: It's not possible to define probes in D that accept a serializable type, because the
+//! corresponding C type is just `char *`. There's currently no way to disambiguate such a type
+//! from an actual string, when generating the Rust probe macros.
+//!
+//! See the [probe_test_attr] example for a complete example implementing probes in Rust.
+//!
 //! Examples
 //! --------
 //!
-//! See the [probe_test_macro] and [probe_test_build] crates for detailed working examples showing
-//! how the probes may be defined, included, and used.
+//! See the [probe_test_macro], [probe_test_build], and [probe_test_attr] crates for detailed working
+//! examples showing how the probes may be defined, included, and used.
 //!
 //! Probe arguments
 //! ---------------
@@ -74,18 +143,14 @@
 //! ----------
 //!
 //! Probes support any of the integer types which have a specific bit-width, e.g., `uint16_t`, as
-//! well as strings, which should be specified as `char *`. Below is the full list of supported
-//! types.
+//! well as strings, which should be specified as `char *`. As described [above](#inline-rust-probes),
+//! any types implementing `Serialize` may be used, if the probes are defined in Rust directly.
 //!
-//! - `uint8_t`
-//! - `uint16_t`
-//! - `uint32_t`
-//! - `uint64_t`
-//! - `int8_t`
-//! - `int16_t`
-//! - `int32_t`
-//! - `int64_t`
+//! Below is the full list of supported types.
+//!
+//! - `(u?)int(8|16|32|64)_t`
 //! - `char *`
+//! - `T: serde::Serialize` (Only when defining probes in Rust)
 //!
 //! Currently, up to six (6) arguments are supported, though this limitation may be lifted in the
 //! future.
@@ -110,7 +175,9 @@
 //! ```
 //!
 //! The library should clearly document that it defines and uses USDT probes, and that this
-//! function should be called by an application.
+//! function should be called by an application. Alternatively, library developers may call this
+//! function during some initialization routines required by their library. There is no harm in
+//! calling this method twice.
 //!
 //! Notes
 //! -----
@@ -131,8 +198,13 @@
 //!
 //! The `asm` feature is a default of the `usdt` crate.
 //!
+//! [dtrace]: https://illumos.org/books/dtrace/preface.html#preface
+//! [dtrace-usdt]: https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt
+//! [dtrace-json]: https://sysmgr.org/blog/2012/11/29/dtrace_and_json_together_at_last/
 //! [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
 //! [probe_test_build]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-build
+//! [probe_test_attr]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-attr
+//! [serde]: https://serde.rs
 // Copyright 2021 Oxide Computer Company
 
 use std::path::{Path, PathBuf};
@@ -144,6 +216,9 @@ pub use usdt_impl::Error;
 
 #[cfg(feature = "asm")]
 pub use usdt_macro::dtrace_provider;
+
+#[cfg(feature = "asm")]
+pub use usdt_attr_macro::provider;
 
 /// A simple struct used to build DTrace probes into Rust code in a build.rs script.
 #[derive(Debug)]
@@ -185,7 +260,7 @@ impl Builder {
     /// Generate the Rust code from the D provider file, writing the result to the output file.
     pub fn build(self) -> Result<(), Error> {
         let source = fs::read_to_string(self.source_file)?;
-        let tokens = usdt_impl::compile_providers(&source, &self.config)?;
+        let tokens = usdt_impl::compile_provider_source(&source, &self.config)?;
         let mut out_file = Path::new(&env::var("OUT_DIR")?).to_path_buf();
         out_file.push(
             &self

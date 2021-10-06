@@ -5,7 +5,7 @@ use quote::{format_ident, quote};
 
 use crate::common;
 
-pub fn compile_providers(
+pub fn compile_provider_source(
     source: &str,
     config: &crate::CompileProvidersConfig,
 ) -> Result<TokenStream, crate::Error> {
@@ -18,6 +18,13 @@ pub fn compile_providers(
     Ok(quote! {
         #(#providers)*
     })
+}
+
+pub fn compile_provider_from_definition(
+    provider: &dtrace_parser::Provider,
+    config: &crate::CompileProvidersConfig,
+) -> TokenStream {
+    compile_provider(provider, config)
 }
 
 fn compile_provider(

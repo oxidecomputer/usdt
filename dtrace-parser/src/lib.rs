@@ -55,6 +55,7 @@ pub enum DataType {
     I32,
     I64,
     String,
+    Serializable,
 }
 
 impl TryFrom<&Pair<'_, Rule>> for DataType {
@@ -110,6 +111,7 @@ impl DataType {
             DataType::I32 => "int32_t",
             DataType::I64 => "int64_t",
             DataType::String => "char*",
+            DataType::Serializable => "char*",
         }
         .into()
     }
@@ -126,6 +128,7 @@ impl DataType {
             DataType::I32 => "::std::os::raw::c_int",
             DataType::I64 => "::std::os::raw::c_longlong",
             DataType::String => "*const ::std::os::raw::c_char",
+            DataType::Serializable => "*const ::std::os::raw::c_char",
         }
         .into()
     }
@@ -142,6 +145,7 @@ impl DataType {
             DataType::I32 => "i32",
             DataType::I64 => "i64",
             DataType::String => "&str",
+            DataType::Serializable => "&impl ::serde::Serialize",
         }
         .into()
     }
@@ -150,8 +154,8 @@ impl DataType {
 /// Type representing a single D probe definition within a provider.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Probe {
-    name: String,
-    types: Vec<DataType>,
+    pub name: String,
+    pub types: Vec<DataType>,
 }
 
 impl Probe {
@@ -163,6 +167,17 @@ impl Probe {
     /// Return the list of data types in this probe's signature.
     pub fn types(&self) -> &Vec<DataType> {
         &self.types
+    }
+
+    /// Return the representation of this probe in D source.
+    pub fn to_d_source(&self) -> String {
+        let types = self
+            .types
+            .iter()
+            .map(|typ| typ.to_c_type())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("probe {name}({types});", name = self.name, types = types)
     }
 }
 
@@ -219,8 +234,8 @@ impl TryFrom<&Pairs<'_, Rule>> for Probe {
 /// Type representing a single DTrace provider and all of its probes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Provider {
-    name: String,
-    probes: Vec<Probe>,
+    pub name: String,
+    pub probes: Vec<Probe>,
 }
 
 impl Provider {
@@ -232,6 +247,21 @@ impl Provider {
     /// Return the list of probes this provider defines.
     pub fn probes(&self) -> &Vec<Probe> {
         &self.probes
+    }
+
+    /// Return the representation of this provider in D source.
+    pub fn to_d_source(&self) -> String {
+        let probes = self
+            .probes
+            .iter()
+            .map(|probe| format!("\t{}", probe.to_d_source()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!(
+            "provider {provider_name} {{\n{probes}\n}};",
+            provider_name = self.name,
+            probes = probes
+        )
     }
 }
 
@@ -343,6 +373,17 @@ impl File {
     /// Return the list of providers this file defines.
     pub fn providers(&self) -> &Vec<Provider> {
         &self.providers
+    }
+
+    /// Return the representation of this `File` in D source.
+    pub fn to_d_source(&self) -> String {
+        let providers = self
+            .providers
+            .iter()
+            .map(|provider| provider.to_d_source())
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!("{}", providers)
     }
 }
 
@@ -584,5 +625,12 @@ mod tests {
         assert_eq!(file, file2);
 
         assert!(File::try_from("this is not a D file").is_err());
+    }
+
+    #[test]
+    fn test_to_d_source() {
+        let as_str = "provider my_provider {\n\tprobe foo(int8_t, char*);\n};";
+        let file = File::try_from(as_str).unwrap();
+        assert_eq!(file.to_d_source(), as_str);
     }
 }

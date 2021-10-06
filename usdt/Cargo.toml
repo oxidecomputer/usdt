@@ -13,9 +13,10 @@ dof = { path = "../dof", version = "0.1.5", optional = true }
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.9", optional = true }
 usdt-impl = { path = "../usdt-impl", version = "0.1.8", optional = true }
 usdt-macro = { path = "../usdt-macro", version = "0.1.9", optional = true }
+usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.1.0", optional = true }
 
 [features]
 default = ["asm"]
-asm = ["usdt-impl/asm", "dtrace-parser", "usdt-macro"]
-no-linker = ["asm", "usdt-impl/no-linker"]
+asm = ["usdt-impl/asm", "dtrace-parser", "usdt-macro", "usdt-attr-macro"]
+no-linker = ["asm", "usdt-impl/no-linker", "dof"]
 des = ["usdt-impl/des", "dof/des"]
