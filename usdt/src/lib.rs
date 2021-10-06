@@ -6,21 +6,22 @@
 //! This crate provides methods for compiling definitions of [DTrace probes][dtrace] into Rust
 //! code, allowing rich, low-overhead instrumentation of [userland][dtrace-usdt] Rust programs.
 //!
-//! DTrace probes are instrumented points in software, usually corresponding to some important
+//! DTrace _probes_ are instrumented points in software, usually corresponding to some important
 //! event such as opening a file, writing to standard output, acquiring a lock, and much more.
-//! Probes are grouped into "providers," collections of probes related to certain types of
+//! Probes are grouped into _providers_, collections of related probes covering distinct classes
 //! functionality. The _syscall_ provider, for example, includes probes for the entry and exit of
 //! certain important system calls, such as `write(2)`.
 //!
 //! USDT probes may be defined in the [D language](#defining-probes-in-d) or [inline in Rust
-//! code](#inline-rust-probes]. These methods are nearly identical, the main difference being the
-//! syntax used to describe them and that inline probes support serializable data types. We'll
-//! cover each in turn.
+//! code](#inline-rust-probes). These definitions are used to create macros, which, when called,
+//! fire the corresponding DTrace probe. The two methods for defining probes are very similar --
+//! one key difference, besides the syntax used to describe them, is that inline probes support any
+//! Rust type that is JSON serializable. We'll cover each in turn.
 //!
 //! Defining probes in D
 //! --------------------
 //!
-//! Users define a provider, with one or more probe_ functions in the D language. For example:
+//! Users define a provider, with one or more _probe_ functions in the D language. For example:
 //!
 //! ```d
 //! provider test {
@@ -36,7 +37,8 @@
 //! as any of the exact bit-width integer types (e.g., `int16_t`) or strings (`char *`s). See
 //! [Data types](#data-types) for a full list of supported types.
 //!
-//! Assuming the above is in a file called `"test.d"`, this may be compiled into Rust code with:
+//! Assuming the above is in a file called `"test.d"`, the probes may be compiled into Rust code
+//! with:
 //!
 //! ```ignore
 //! #![feature(asm)]
@@ -77,7 +79,7 @@
 //! list](#data-types).)
 //!
 //! More complex, user-defined types can be supported if one defines the probes in Rust directly.
-//! In particular, it's possible to support any type implementing [`serde::Serialize`][serde], by
+//! In particular, this crate supports any type implementing [`serde::Serialize`][serde], by
 //! serializing the type to JSON and using DTrace's native [JSON support][dtrace-json]. Providers
 //! can be defined inline by attaching the [`provider`] attribute macro to a module.
 //!
@@ -88,6 +90,8 @@
 //!     pub buffer: Vec<i32>,
 //! }
 //!
+//! // A module named `test` describes the provider, and each (empty) function definition in the
+//! // module's body generates a probe macro.
 //! #[usdt::provider]
 //! mod test {
 //!     use super::Arg;
@@ -107,7 +111,7 @@
 //! would print the first element of the vector `Arg::buffer`.
 //!
 //! > Important: Notice that the JSON key used in the above example to access the data inside
-//! DTrace is `"ok.buffer[0]"`. JSON values serialized to DTrace are always "result" types,
+//! DTrace is `"ok.buffer[0]"`. JSON values serialized to DTrace are always `Result` types,
 //! because the internal serialization method is _fallible_. So they are always encoded as objects
 //! like `{"ok": _}` or `{"err": "some error message"}`. In the error case, the message is
 //! created by formatting the `serde_json::error::Error` that describes why serialization failed.
@@ -171,7 +175,9 @@
 //! ```
 //!
 //! The library should clearly document that it defines and uses USDT probes, and that this
-//! function should be called by an application.
+//! function should be called by an application. Alternatively, library developers may call this
+//! function during some initialization routines required by their library. There is no harm in
+//! calling this method twice.
 //!
 //! Notes
 //! -----
