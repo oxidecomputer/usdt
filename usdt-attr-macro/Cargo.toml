@@ -3,6 +3,9 @@ name = "usdt-attr-macro"
 version = "0.1.0"
 authors = ["Benjamin Naecker <ben@oxide.computer>"]
 edition = "2018"
+license = "Apache-2.0"
+description = "Procedural macro for generating Rust macros for USDT probes"
+repository = "https://github.com/oxidecomputer/usdt.git"
 
 [lib]
 proc-macro = true
@@ -12,4 +15,4 @@ proc-macro2 = "1.0.24"
 serde_tokenstream = "0.1.2"
 syn = { version = "1.0.60", features = ["full"] }
 quote = "1.0.9"
-usdt-impl = { path = "../usdt-impl", version = "0.1.8" }
+usdt-impl = { path = "../usdt-impl", version = "0.1.9" }
