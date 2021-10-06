@@ -79,5 +79,4 @@ jobs:
           --release
           --no-fail-fast
           --verbose
-          --workspace
           --package test-json

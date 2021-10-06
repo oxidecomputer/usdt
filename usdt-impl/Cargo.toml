@@ -10,7 +10,7 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
 byteorder = "1.4.2"
-dof = { path = "../dof", version = "0.1.5" }
+dof = { path = "../dof", version = "0.1.5", optional = true }
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.9" }
 goblin = { version = "0.3.4", features = [ "elf32", "elf64" ], optional = true }
 libc = "0.2.88"
@@ -22,5 +22,5 @@ thiserror = "1.0.24"
 
 [features]
 asm = []
-no-linker = ["asm"]
+no-linker = ["asm", "dof"]
 des = ["goblin", "dof/des"]

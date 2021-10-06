@@ -5,21 +5,9 @@
 #![feature(asm)]
 
 use serde::{Serialize, Serializer};
-use std::sync::mpsc::{channel, Receiver};
-use std::thread::sleep;
-use std::time::Duration;
-
-// Duration the thread firing probes waits after receiving a notification.
-//
-// This is required to make sure DTrace is "ready" to receive the probe, which takes a bit of time
-// after the process itself starts.
-const SLEEP_DURATION: Duration = Duration::from_secs(1);
 
 // Expected error message from serialization failure
 const SERIALIZATION_ERROR: &str = "nonono";
-
-// Maximum duration to wait for DTrace, controlling total test duration
-const MAX_WAIT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Serialize)]
 pub struct ProbeArg {
@@ -55,27 +43,6 @@ mod test_json {
     fn bad(_: NotJsonSerializable) {}
 }
 
-fn run_test(recv: Receiver<()>) {
-    usdt::register_probes().unwrap();
-
-    // Wait for notification from the main thread
-    let _ = recv.recv().unwrap();
-    sleep(SLEEP_DURATION);
-    println!("Test runner firing first probe");
-
-    // Fire the good probe until the main thread signals us to continue.
-    let data = ProbeArg::default();
-    test_json_good!(|| &data);
-    println!("Test runner awaiting notification");
-    let _ = recv.recv().unwrap();
-
-    // Fire the bad probe.
-    sleep(SLEEP_DURATION);
-    println!("Test runner firing second probe");
-    let data = NotJsonSerializable::default();
-    test_json_bad!(|| &data);
-}
-
 fn main() {
     usdt::register_probes().unwrap();
     test_json_good!(|| ProbeArg::default());
@@ -87,7 +54,40 @@ mod tests {
     use serde_json::Value;
     use std::process::{Command, Stdio};
     use std::sync::mpsc::Sender;
+    use std::sync::mpsc::{channel, Receiver};
+    use std::thread::sleep;
+    use std::time::Duration;
     use std::time::Instant;
+
+    // Duration the thread firing probes waits after receiving a notification.
+    //
+    // This is required to make sure DTrace is "ready" to receive the probe, which takes a bit of time
+    // after the process itself starts.
+    const SLEEP_DURATION: Duration = Duration::from_secs(1);
+
+    // Maximum duration to wait for DTrace, controlling total test duration
+    const MAX_WAIT: Duration = Duration::from_secs(30);
+
+    fn run_test(recv: Receiver<()>) {
+        usdt::register_probes().unwrap();
+
+        // Wait for notification from the main thread
+        let _ = recv.recv().unwrap();
+        sleep(SLEEP_DURATION);
+        println!("Test runner firing first probe");
+
+        // Fire the good probe until the main thread signals us to continue.
+        let data = ProbeArg::default();
+        test_json_good!(|| &data);
+        println!("Test runner awaiting notification");
+        let _ = recv.recv().unwrap();
+
+        // Fire the bad probe.
+        sleep(SLEEP_DURATION);
+        println!("Test runner firing second probe");
+        let data = NotJsonSerializable::default();
+        test_json_bad!(|| &data);
+    }
 
     #[test]
     fn test_json_support() {

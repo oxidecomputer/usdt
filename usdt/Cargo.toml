@@ -18,5 +18,5 @@ usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.1.0", optional = t
 [features]
 default = ["asm"]
 asm = ["usdt-impl/asm", "dtrace-parser", "usdt-macro", "usdt-attr-macro"]
-no-linker = ["asm", "usdt-impl/no-linker"]
+no-linker = ["asm", "usdt-impl/no-linker", "dof"]
 des = ["usdt-impl/des", "dof/des"]
