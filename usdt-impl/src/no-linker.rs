@@ -2,6 +2,17 @@
 
 // Copyright 2021 Oxide Computer Company
 
+// NOTE: Although this file compiles and is semi-useful on macOS, it can't be used to generate
+// probes that DTrace actually understands. In particular, running `dtrace -l` will list the
+// probes, but doing anything on the basis of a probe _firing_ is meaningless.
+//
+// This is because Apple seems to use a different definition for the base address of a probe
+// function in the kernel than other systems. See:
+// https://github.com/apple/darwin-xnu/blob/8f02f2a044b9bb1ad951987ef5bab20ec9486310/bsd/dev/dtrace/dtrace.c#L9394
+// for a note indicating the platform difference. It's not clear why they do this, but it does mean
+// that the probes are not actually usable when running with the no-linker feature flag. This flag
+// is mostly used for testing the code to the extent possible on any system.
+
 use std::{convert::TryFrom, ffi::CString};
 
 use dof::{serialize_section, Section};
@@ -10,19 +21,6 @@ use quote::{format_ident, quote};
 
 use crate::record::{process_section, PROBE_REC_VERSION};
 use crate::{common, DataType};
-
-/// NOTE: Although this file compiles and is semi-useful on macOS, it can't be used to generate
-/// probes that DTrace actually understands. In particular, running `dtrace -l` will list the
-/// probes, but doing anything on the basis of a probe _firing_ is meaningless.
-///
-/// This is because Apple seems to use a different definition for the base address of a probe
-/// function in the kernel than other systems. See:
-/// https://github.com/apple/darwin-xnu/blob/8f02f2a044b9bb1ad951987ef5bab20ec9486310/bsd/dev/dtrace/dtrace.c#L9394
-/// for a note indicating the platform difference. It's not clear why they do this, but it does mean
-/// that the probes are not actually usable when running with the no-linker feature flag. This flag
-/// is mostly used for testing the code to the extent possible on any system.
-#[cfg(target_os = "macos")]
-struct NoLinkerFeatureIsUnusableOnMacos;
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_provider_source(

@@ -99,9 +99,11 @@ mod tests {
             let mut dtrace = Command::new("sudo")
                 .arg("dtrace")
                 .arg("-Z")
+                .arg("-q")
                 .arg("-n")
                 .arg(format!(
-                    "test_json*:::{} {{ printf(\"%s\", copyinstr(arg0)); exit(0); }}",
+                    "test_json{}:::{} {{ printf(\"%s\", copyinstr(arg0)); exit(0); }}",
+                    std::process::id(),
                     probe_name
                 ))
                 .stdin(Stdio::piped())
@@ -125,14 +127,13 @@ mod tests {
                 MAX_WAIT
             );
             let output = dtrace.wait_with_output().unwrap();
+            assert!(
+                output.status.success(),
+                "DTrace process failed:\n{}",
+                String::from_utf8(output.stderr).unwrap()
+            );
             println!("DTrace output\n\n{:#?}", output);
-            let stdout = String::from_utf8(output.stdout).unwrap();
-            let needle = format!("{} ", probe_name);
-            let data_start = stdout
-                .find(&needle)
-                .expect("Failed to find expected DTrace output")
-                + needle.len();
-            let json: Value = serde_json::from_str(&stdout[data_start..]).unwrap();
+            let json: Value = serde_json::from_slice(&output.stdout).unwrap();
             json
         }
 

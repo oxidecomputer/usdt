@@ -184,13 +184,13 @@ Values of type `Arg` may be used in the generated probe macros. In a DTrace scri
 look at the data in the argument like:
 
 ```
-dtrace -n 'my_probe { printf("%s", json(copyinstr(arg0), "ok.val")); }' # prints `Arg::val`.
+dtrace -n 'my_probe* { printf("%s", json(copyinstr(arg0), "ok.val")); }' # prints `Arg::val`.
 ```
 
 The `json` function also supports nested objects and array indexing, so one could also do:
 
 ```
-dtrace -n 'my_probe { printf("%s", json(copyinstr(arg0), "ok.data[0]")); }' # prints `Arg::data[0]`.
+dtrace -n 'my_probe* { printf("%s", json(copyinstr(arg0), "ok.data[0]")); }' # prints `Arg::data[0]`.
 ```
 
 See the `probe-test-attr` example for more details and usage.
@@ -205,7 +205,9 @@ into JSON in a natural way:
 - `Err(_) => {"err": _}`
 
 In the error case, the [`Error`][serde-json-error] returned is formatted using its `Display`
-implementation.
+implementation. This isn't an academic concern. It's quite easy to build types that successfully
+compile, and yet fail to serialize at runtime, even with types that `#[derive(Serialize)]`. See
+[this issue][serde-runtime-fail] for details.
 
 ## A note about registration
 
@@ -227,3 +229,4 @@ guarantee that probes are registered.
 [3]: https://sysmgr.org/blog/2012/11/29/dtrace_and_json_together_at_last/
 [4]: https://docs.rs/serde_json/1.0.68/serde_json/fn.to_string.html
 [serde-json-error]: https://docs.serde.rs/serde_json/error/struct.Error.html
+[serde-runtime-fail]: https://github.com/serde-rs/serde/issues/1307
