@@ -1,0 +1,8 @@
+[package]
+name = "usdt-tests-common"
+version = "0.0.0"
+license = "Apache-2.0"
+description = "Common routines for integration tests in this repository"
+edition = "2018"
+
+[dependencies]

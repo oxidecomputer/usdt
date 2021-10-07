@@ -17,7 +17,8 @@ members = [
 	"usdt",
 	"usdt-attr-macro",
 	"usdt-impl",
-	"usdt-macro"
+	"usdt-macro",
+	"usdt-tests-common",
 ]
 default-members = [
 	"dof",
@@ -37,5 +38,5 @@ default-members = [
 	"usdt",
 	"usdt-attr-macro",
 	"usdt-impl",
-	"usdt-macro"
+	"usdt-macro",
 ]
