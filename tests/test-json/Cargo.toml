@@ -6,5 +6,6 @@ edition = "2018"
 
 [dependencies]
 usdt = { path = "../../usdt" }
+usdt-tests-common = { path = "../../usdt-tests-common" }
 serde = "*"
 serde_json = "*"

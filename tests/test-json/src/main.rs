@@ -52,12 +52,13 @@ fn main() {
 mod tests {
     use super::*;
     use serde_json::Value;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     use std::sync::mpsc::Sender;
     use std::sync::mpsc::{channel, Receiver};
     use std::thread::sleep;
     use std::time::Duration;
     use std::time::Instant;
+    use usdt_tests_common::root_command;
 
     // Duration the thread firing probes waits after receiving a notification.
     //
@@ -96,8 +97,7 @@ mod tests {
 
         fn run_dtrace_and_return_json(tx: &Sender<()>, probe_name: &str) -> Value {
             // Start the DTrace subprocess, and don't exit if the probe doesn't exist.
-            let mut dtrace = Command::new("sudo")
-                .arg("dtrace")
+            let mut dtrace = root_command("dtrace")
                 .arg("-Z")
                 .arg("-q")
                 .arg("-n")

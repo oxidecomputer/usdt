@@ -23,16 +23,16 @@ fn run_test(rx: std::sync::mpsc::Receiver<()>) {
 #[cfg(test)]
 mod tests {
     use super::run_test;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     use std::sync::mpsc::channel;
     use std::thread;
+    use usdt_tests_common::root_command;
 
     #[test]
     fn test_does_it_work() {
         let (send, recv) = channel();
         let thr = thread::spawn(move || run_test(recv));
-        let dtrace = Command::new("sudo")
-            .arg("dtrace")
+        let dtrace = root_command("dtrace")
             .arg("-l")
             .arg("-v")
             .arg("-n")
@@ -80,16 +80,6 @@ mod tests {
             "Mangled function name appears incorrect: {}",
             mangled_function
         );
-
-        let function = parts.next().expect("Expected a function name");
-        assert!(
-            function.contains("[does_it_work::run_test::"),
-            "Function name appears incorrect: {}",
-            function
-        );
-
-        let probe = parts.next().expect("Expected a probe name");
-        assert_eq!(probe, "work", "Probe name appears incorrect: {}", probe);
 
         // Verify the argument types
         let mut lines = lines.skip_while(|line| !line.contains("args[0]"));
