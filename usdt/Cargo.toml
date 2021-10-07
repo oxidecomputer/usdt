@@ -1,6 +1,6 @@
 [package]
 name = "usdt"
-version = "0.1.14"
+version = "0.1.15"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
@@ -9,11 +9,16 @@ description = "Dust your Rust with USDT probes"
 repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
-dof = { path = "../dof", version = "0.1.5", optional = true }
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.10", optional = true }
-usdt-impl = { path = "../usdt-impl", version = "0.1.9", optional = true }
-usdt-macro = { path = "../usdt-macro", version = "0.1.10", optional = true }
-usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.1.0", optional = true }
+usdt-impl = { path = "../usdt-impl", version = "0.1.10", optional = true }
+usdt-macro = { path = "../usdt-macro", version = "0.1.11", optional = true }
+usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.1.1", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+dof = { path = "../dof", version = "0.1.5", optional = true }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+dof = { path = "../dof", version = "0.1.5" }
 
 [features]
 default = ["asm"]

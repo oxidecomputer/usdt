@@ -17,5 +17,4 @@ rustc --version
 export RUST_BACKTRACE=1
 
 banner test
-ptime -m cargo test --release --no-fail-fast --verbose --workspace \
-    --features no-linker
+ptime -m cargo test --release --no-fail-fast --verbose --workspace
