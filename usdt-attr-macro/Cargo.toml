@@ -1,6 +1,6 @@
 [package]
 name = "usdt-attr-macro"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Benjamin Naecker <ben@oxide.computer>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -11,12 +11,12 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 proc-macro = true
 
 [dependencies]
+dtrace-parser = { path = "../dtrace-parser", version = "0.1.11" }
 proc-macro2 = "1.0.24"
 serde_tokenstream = "0.1.2"
 syn = { version = "1.0.60", features = ["full"] }
 quote = "1.0.9"
-dtrace-parser = { path = "../dtrace-parser", version = "0.1.10" }
-usdt-impl = { path = "../usdt-impl", version = "0.1.10" }
+usdt-impl = { path = "../usdt-impl", version = "0.1.11" }
 
 [dev-dependencies]
 rstest = "0.11.0"
