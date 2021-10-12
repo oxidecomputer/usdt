@@ -10,18 +10,17 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.10", optional = true }
-usdt-impl = { path = "../usdt-impl", version = "0.1.10", optional = true }
-usdt-macro = { path = "../usdt-macro", version = "0.1.11", optional = true }
-usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.1.1", optional = true }
+usdt-impl = { path = "../usdt-impl", version = "0.1.10", default-features = false }
+usdt-macro = { path = "../usdt-macro", version = "0.1.11" }
+usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.1.1" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-dof = { path = "../dof", version = "0.1.5", optional = true }
+dof = { path = "../dof", version = "0.1.5", optional = true, default-features = false }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-dof = { path = "../dof", version = "0.1.5" }
+dof = { path = "../dof", version = "0.1.5", default-features = false }
 
 [features]
 default = ["asm"]
-asm = ["usdt-impl/asm", "dtrace-parser", "usdt-macro", "usdt-attr-macro"]
-no-linker = ["asm", "usdt-impl/no-linker", "dof"]
+asm = ["usdt-impl/asm", "dtrace-parser"]
 des = ["usdt-impl/des", "dof/des"]

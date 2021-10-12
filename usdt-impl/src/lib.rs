@@ -3,26 +3,28 @@ use thiserror::Error;
 
 pub use dtrace_parser::{DataType, Probe, Provider};
 
-#[cfg(any(
-    all(not(target_os = "linux"), not(target_os = "macos")),
-    feature = "des",
-    feature = "no-linker"
+#[cfg(all(
+    feature = "asm",
+    any(
+        all(not(target_os = "linux"), not(target_os = "macos")),
+        feature = "des",
+    )
 ))]
 pub mod record;
 
 #[cfg_attr(any(target_os = "linux", not(feature = "asm")), allow(dead_code))]
 mod common;
 
-#[cfg_attr(target_os = "linux", path = "empty.rs")]
-#[cfg_attr(all(target_os = "macos", feature = "no-linker"), path = "no-linker.rs")]
 #[cfg_attr(
-    all(target_os = "macos", not(feature = "no-linker")),
-    path = "linker.rs"
+    feature = "asm",
+    cfg_attr(target_os = "linux", path = "empty.rs"),
+    cfg_attr(target_os = "macos", path = "linker.rs"),
+    cfg_attr(
+        all(not(target_os = "linux"), not(target_os = "macos")),
+        path = "no-linker.rs"
+    )
 )]
-#[cfg_attr(
-    all(not(target_os = "linux"), not(target_os = "macos")),
-    path = "no-linker.rs"
-)]
+#[cfg_attr(not(feature = "asm"), path = "empty.rs")]
 mod internal;
 
 /// Register an application's probe points with DTrace.

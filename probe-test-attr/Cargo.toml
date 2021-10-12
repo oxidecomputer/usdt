@@ -5,10 +5,10 @@ authors = ["Benjamin Naecker <ben@oxide.computer>"]
 edition = "2018"
 
 [dependencies]
-usdt = { path = "../usdt" }
+usdt = { path = "../usdt", default-features = false }
 serde = "1.0.124"
 serde_json = "1.0.67"
 
 [features]
+default = ["asm"]
 asm = ["usdt/asm"]
-no-linker = ["usdt/no-linker"]

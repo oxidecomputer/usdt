@@ -18,6 +18,3 @@ usdt-impl = { path = "../usdt-impl", version = "0.1.10" }
 
 [lib]
 proc-macro = true
-
-[features]
-asm = ["usdt-impl/asm"]

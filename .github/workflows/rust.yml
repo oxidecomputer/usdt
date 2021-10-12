@@ -18,53 +18,30 @@ jobs:
           components: rustfmt
       - run: cargo fmt -- --check
 
-  linux-check:
-    name: Basic check that `usdt` compiles without issue on Linux
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        no-linker-feature: [ "", "--features no-linker" ]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          profile: minimal
-      - run: >
-          RUST_BACKTRACE=1
-          cargo check
-          --release
-          --verbose
-          --workspace
-          ${{ matrix.no-linker-feature }}
-
-  build-and-test:
-    name: Build and test entire `usdt` project
+  stable-test:
+    name: Verify stable toolchain
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-latest ]
-        no-linker-feature: [ "", "--features no-linker" ]
+        os: [ "ubuntu-latest", "macos-latest" ]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           override: true
           profile: minimal
       - run: >
           RUST_BACKTRACE=1
           cargo test
           --release
-          --no-fail-fast
           --verbose
-          --workspace
-          --exclude test-json
-          ${{ matrix.no-linker-feature }}
+          --package
+          empty
+          --no-default-features
 
-  test-json-support:
-    name: Test JSON-serialization support
+  build-and-test:
+    name: Run all tests
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
@@ -77,6 +54,5 @@ jobs:
           RUST_BACKTRACE=1
           cargo test
           --release
-          --no-fail-fast
           --verbose
-          --package test-json
+          --workspace

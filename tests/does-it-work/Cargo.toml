@@ -11,6 +11,3 @@ usdt-tests-common = { path = "../../usdt-tests-common" }
 
 [build-dependencies]
 usdt = { path = "../../usdt" }
-
-[features]
-no-linker = ["usdt/no-linker"]

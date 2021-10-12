@@ -198,6 +198,26 @@
 //!
 //! The `asm` feature is a default of the `usdt` crate.
 //!
+//! Selecting the no-op implementation
+//! ----------------------------------
+//!
+//! It's also important to note that it's possible to use the `usdt` crate in libraries without
+//! transitively requiring a nightly compiler of one's users. Though `asm` is a default feature,
+//! users can opt to build with `--no-default-features`, which uses a no-op implementation of the
+//! internals. This generates the same probe macros, but with empty bodies, meaning the code can be
+//! compiled unchanged.
+//!
+//! Library developers can choose to re-export this feature, with a name such as `probes`, which
+//! implies the `asm` feature of the `usdt` crate. This feature-gating allows users to select a
+//! nightly compiler in exchange for probes, but still allows the code to be compiled with a stable
+//! toolchain.
+//!
+//! Note that the `#![feature(asm)]` directive is required anywhere the generated macros are
+//! _called_, rather than where they're defined. (Because they're macros-by-example, and expand to
+//! an actual `asm!` macro call.) So library writers should probably gate the feature directive on
+//! their own re-exported feature, e.g., `#![cfg_attr(feature = "probes", feature(asm))]`, and
+//! instruct developers consuming their libraries to do the same.
+//!
 //! [dtrace]: https://illumos.org/books/dtrace/preface.html#preface
 //! [dtrace-usdt]: https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt
 //! [dtrace-json]: https://sysmgr.org/blog/2012/11/29/dtrace_and_json_together_at_last/
@@ -210,15 +230,11 @@
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
-#[cfg(any(feature = "des", feature = "no-linker"))]
+pub use usdt_attr_macro::provider;
+#[cfg(any(feature = "des"))]
 pub use usdt_impl::record;
 pub use usdt_impl::Error;
-
-#[cfg(feature = "asm")]
 pub use usdt_macro::dtrace_provider;
-
-#[cfg(feature = "asm")]
-pub use usdt_attr_macro::provider;
 
 /// A simple struct used to build DTrace probes into Rust code in a build.rs script.
 #[derive(Debug)]
