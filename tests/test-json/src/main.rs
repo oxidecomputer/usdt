@@ -38,7 +38,7 @@ impl Serialize for NotJsonSerializable {
 
 #[usdt::provider]
 mod test_json {
-    use super::{NotJsonSerializable, ProbeArg};
+    use crate::{NotJsonSerializable, ProbeArg};
     fn good(_: &ProbeArg) {}
     fn bad(_: &NotJsonSerializable) {}
 }

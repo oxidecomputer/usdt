@@ -54,7 +54,7 @@ fn generate_provider_item(
     item: TokenStream,
     config: &CompileProvidersConfig,
 ) -> Result<TokenStream, syn::Error> {
-    let mod_ = syn::parse2::<syn::ItemMod>(item)?;
+    let mut mod_ = syn::parse2::<syn::ItemMod>(item)?;
     if mod_.ident == "provider" {
         return Err(syn::Error::new(
             mod_.ident.span(),
@@ -71,6 +71,7 @@ fn generate_provider_item(
 
     let mut check_fns = Vec::new();
     let mut probes = Vec::new();
+    let mut use_statements = Vec::new();
     for (fn_index, item) in content.iter().enumerate() {
         match item {
             syn::Item::Fn(ref func) => {
@@ -131,7 +132,10 @@ fn generate_provider_item(
                     types: item_types,
                 });
             }
-            syn::Item::Use(_) => {}
+            syn::Item::Use(ref use_statement) => {
+                verify_use_tree(&use_statement.tree)?;
+                use_statements.push(use_statement.clone());
+            }
             _ => {
                 return Err(syn::Error::new(
                     item.span(),
@@ -143,18 +147,45 @@ fn generate_provider_item(
     let provider = Provider {
         name: mod_.ident.to_string(),
         probes,
+        use_statements,
     };
     let compiled = usdt_impl::compile_provider(&provider, &config);
-    let out = quote! {
-        mod __usdt_attr_macro_type_checks {
+    let type_checks = quote! {
+        const _: fn() = || {
             fn usdt_types_must_be_serializable<T: ?Sized + ::serde::Serialize>() {}
-            #( #check_fns )*
-        }
-        #compiled
-        #[allow(unused)]
-        #mod_
+            #(#check_fns)*
+        };
     };
-    Ok(out)
+    let mut content = mod_.content.as_ref().unwrap().1.clone();
+    content.push(syn::parse2(type_checks).unwrap());
+    content.push(syn::parse2(compiled).unwrap());
+    mod_.content = Some((mod_.content.as_ref().unwrap().0, content));
+    mod_.ident = quote::format_ident!("__usdt_private_{}", mod_.ident);
+    Ok(quote! {
+        #[macro_use]
+        #[allow(unused_variables)]
+        #[allow(dead_code)]
+        #mod_
+    })
+}
+
+fn verify_use_tree(tree: &syn::UseTree) -> syn::Result<()> {
+    match tree {
+        syn::UseTree::Path(ref path) => {
+            if path.ident == "super" {
+                return Err(syn::Error::new(
+                    path.span(),
+                    concat!(
+                        "Use-statements in USDT macros cannot contain relative imports (`super`), ",
+                        "because the generated macros may be called from anywhere in a crate. ",
+                        "Consider using `crate` instead.",
+                    ),
+                ));
+            }
+            verify_use_tree(&*path.tree)
+        }
+        _ => Ok(()),
+    }
 }
 
 // Parse an argument from a probe function, into a possible type-checking function and identifier
@@ -310,5 +341,20 @@ mod tests {
         check_is_err(r#"extern "C" fn foo(_: u8)"#);
         check_is_err("fn foo<T: Debug>(_: u8)");
         check_is_err("fn foo(_: u8) -> u8");
+    }
+
+    #[test]
+    fn test_verify_use_tree() {
+        let tokens = quote! { use std::net::IpAddr; };
+        let item: syn::ItemUse = syn::parse2(tokens).unwrap();
+        assert!(verify_use_tree(&item.tree).is_ok());
+
+        let tokens = quote! { use super::SomeType; };
+        let item: syn::ItemUse = syn::parse2(tokens).unwrap();
+        assert!(verify_use_tree(&item.tree).is_err());
+
+        let tokens = quote! { use crate::super::SomeType; };
+        let item: syn::ItemUse = syn::parse2(tokens).unwrap();
+        assert!(verify_use_tree(&item.tree).is_err());
     }
 }

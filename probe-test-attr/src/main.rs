@@ -35,9 +35,20 @@ pub struct Arg {
 /// type as an argument, it must be defined using this macro.
 #[usdt::provider]
 mod test {
-    use super::Arg;
+    /// The `Arg` type needs to be imported here, just like in any other module. Note that you
+    /// _must_ use an absolute import, such as `crate::Arg` or `::std::net::IpAddr`. Relative
+    /// imports will generate a compiler error. The generated probe macros may be called from
+    /// anywhere, meaning that those relative imports generally can't be resolved in the same way
+    /// at the macro invocation site.
+    use crate::Arg;
+
+    /// Parameters may be given names, but these are only for documentation purposes.
     fn start(x: u8) {}
+
+    /// Parameters need not have names, and may be taken by reference...
     fn stop(_: String, arg: &Arg) {}
+
+    /// ... or by value
     fn stop_by_value(_: String, _: Arg) {}
 }
 

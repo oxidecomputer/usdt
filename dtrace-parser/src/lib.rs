@@ -237,6 +237,7 @@ impl TryFrom<&Pairs<'_, Rule>> for Probe {
 pub struct Provider {
     pub name: String,
     pub probes: Vec<Probe>,
+    pub use_statements: Vec<syn::ItemUse>,
 }
 
 impl Provider {
@@ -298,7 +299,11 @@ impl TryFrom<&Pair<'_, Rule>> for Provider {
             &inner.next().expect("Expected a literal ';'"),
             Rule::SEMICOLON,
         )?;
-        Ok(Provider { name, probes })
+        Ok(Provider {
+            name,
+            probes,
+            use_statements: vec![],
+        })
     }
 }
 

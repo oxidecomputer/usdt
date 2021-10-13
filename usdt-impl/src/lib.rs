@@ -84,6 +84,10 @@ fn format_probe(
     }
 }
 
+fn module_ident_for_provider(provider: &Provider) -> syn::Ident {
+    quote::format_ident!("__usdt_private_{}", provider.name())
+}
+
 // Compile DTrace provider source code into Rust.
 //
 // This function parses a provider definition, and, for each probe, a corresponding Rust macro is

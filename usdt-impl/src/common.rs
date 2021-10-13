@@ -1,15 +1,16 @@
 //! Shared code used in both the linker and no-linker implementations of this crate.
 // Copyright 2021 Oxide Computer Company
 
+use crate::DataType;
+use dtrace_parser::Provider;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-
-use crate::DataType;
 
 // Construct function call that is used internally in the UDST-generated macros, to allow
 // compile-time type checking of the lambda arguments.
 pub fn generate_type_check(
     provider_name: &str,
+    use_statements: &[syn::ItemUse],
     probe_name: &str,
     types: &[DataType],
 ) -> TokenStream {
@@ -83,6 +84,8 @@ pub fn generate_type_check(
         format_ident!("__usdt_private_{}_{}_type_check", provider_name, probe_name);
     quote! {
         {
+            #![allow(unused_imports)]
+            #(#use_statements)*
             fn #type_check_function #generics (#(#type_check_args),*) { }
             let _ = || {
                 #preamble
@@ -186,14 +189,19 @@ fn asm_type_convert(
 
 pub(crate) fn build_probe_macro(
     config: &crate::CompileProvidersConfig,
-    provider_name: &str,
+    provider: &Provider,
     probe_name: &str,
     types: &[DataType],
     pre_macro_block: TokenStream,
     impl_block: TokenStream,
 ) -> TokenStream {
-    let macro_name = crate::format_probe(&config.format, provider_name, probe_name);
-    let type_check_block = generate_type_check(provider_name, probe_name, types);
+    let macro_name = crate::format_probe(&config.format, &provider.name(), probe_name);
+    let type_check_block = generate_type_check(
+        &provider.name(),
+        &provider.use_statements,
+        probe_name,
+        types,
+    );
     let no_args_match = if types.is_empty() {
         quote! { () => { #macro_name!(|| ()) }; }
     } else {
@@ -208,8 +216,10 @@ pub(crate) fn build_probe_macro(
                 compile_error!("USDT probe macros should be invoked with a closure returning the arguments");
             };
             ($args_lambda:expr) => {
-                #type_check_block
-                #impl_block
+                {
+                    #type_check_block
+                    #impl_block
+                }
             };
         }
     }
@@ -230,7 +240,7 @@ mod tests {
                 };
             }
         };
-        let block = generate_type_check("", "", types);
+        let block = generate_type_check("", &[], "", types);
         assert_eq!(block.to_string(), expected.to_string());
     }
 
@@ -241,6 +251,7 @@ mod tests {
         let types = &[DataType::U8, DataType::I64];
         let expected = quote! {
             {
+                #![allow(unused_imports)]
                 fn __usdt_private_provider_probe_type_check(_: u8, _: i64) { }
                 let _ = || {
                     let args = $args_lambda();
@@ -248,7 +259,7 @@ mod tests {
                 };
             }
         };
-        let block = generate_type_check(provider, probe, types);
+        let block = generate_type_check(provider, &[], probe, types);
         assert_eq!(block.to_string(), expected.to_string());
     }
 
@@ -261,8 +272,11 @@ mod tests {
             DataType::String,
             DataType::Serializable(String::from("MyType")),
         ];
+        let use_statements = vec![syn::parse2(quote! { use my_module::MyType; }).unwrap()];
         let expected = quote! {
             {
+                #![allow(unused_imports)]
+                use my_module::MyType;
                 fn __usdt_private_provider_probe_type_check<S: AsRef<str>>(_: u8, _: S, _: MyType) { }
                 let _ = || {
                     let args = $args_lambda();
@@ -270,7 +284,7 @@ mod tests {
                 };
             }
         };
-        let block = generate_type_check(provider, probe, types);
+        let block = generate_type_check(provider, &use_statements, probe, types);
         assert_eq!(block.to_string(), expected.to_string());
     }
 

@@ -2,12 +2,13 @@
 
 // Copyright 2021 Oxide Computer Company
 
+use crate::module_ident_for_provider;
 use crate::record::{process_section, PROBE_REC_VERSION};
 use crate::{common, DataType};
 use dof::{serialize_section, Section};
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
 use std::convert::TryFrom;
+use quote::quote;
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_provider_source(
@@ -18,7 +19,16 @@ pub fn compile_provider_source(
     let providers = dfile
         .providers()
         .iter()
-        .map(|provider| compile_provider(provider, &config))
+        .map(|provider| {
+            let tokens = compile_provider(provider, &config);
+            let mod_name = module_ident_for_provider(&provider);
+            quote! {
+                #[macro_use]
+                pub(crate) mod #mod_name {
+                    #tokens
+                }
+            }
+        })
         .collect::<Vec<_>>();
     Ok(quote! {
         #(#providers)*
@@ -36,11 +46,11 @@ fn compile_provider(
     provider: &dtrace_parser::Provider,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let mod_name = format_ident!("__usdt_private_{}", provider.name());
+    let mod_name = module_ident_for_provider(&provider);
     let probe_impls = provider
         .probes()
         .iter()
-        .map(|probe| compile_probe(probe, provider.name(), config))
+        .map(|probe| compile_probe(provider, probe, config))
         .collect::<Vec<_>>();
     quote! {
         #[macro_use]
@@ -51,10 +61,11 @@ fn compile_provider(
 }
 
 fn compile_probe(
+    provider: &dtrace_parser::Provider,
     probe: &dtrace_parser::Probe,
-    provider_name: &str,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
+    let provider_name = provider.name();
     let (unpacked_args, in_regs) = common::construct_probe_args(probe.types());
     let is_enabled_rec = asm_rec(provider_name, probe.name(), None);
     let probe_rec = asm_rec(provider_name, probe.name(), Some(probe.types()));
@@ -86,7 +97,7 @@ fn compile_probe(
     };
     common::build_probe_macro(
         config,
-        provider_name,
+        provider,
         probe.name(),
         probe.types(),
         pre_macro_block,
