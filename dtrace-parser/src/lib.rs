@@ -55,7 +55,8 @@ pub enum DataType {
     I32,
     I64,
     String,
-    Serializable,
+    /// Any type `T: serde::Serialize`, with the original type name stored as a string.
+    Serializable(String),
 }
 
 impl TryFrom<&Pair<'_, Rule>> for DataType {
@@ -111,7 +112,7 @@ impl DataType {
             DataType::I32 => "int32_t",
             DataType::I64 => "int64_t",
             DataType::String => "char*",
-            DataType::Serializable => "char*",
+            DataType::Serializable(_) => "char*",
         }
         .into()
     }
@@ -128,7 +129,7 @@ impl DataType {
             DataType::I32 => "::std::os::raw::c_int",
             DataType::I64 => "::std::os::raw::c_longlong",
             DataType::String => "*const ::std::os::raw::c_char",
-            DataType::Serializable => "*const ::std::os::raw::c_char",
+            DataType::Serializable(_) => "*const ::std::os::raw::c_char",
         }
         .into()
     }
@@ -145,7 +146,7 @@ impl DataType {
             DataType::I32 => "i32",
             DataType::I64 => "i64",
             DataType::String => "&str",
-            DataType::Serializable => "&impl ::serde::Serialize",
+            DataType::Serializable(ref name) => name.as_str(),
         }
         .into()
     }

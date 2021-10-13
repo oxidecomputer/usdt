@@ -6,6 +6,8 @@ edition = "2018"
 
 [dependencies]
 usdt = { path = "../../usdt" }
+serde = "*"
+serde_json = "*"
 
 [dev-dependencies]
 trybuild = "1.0.41"

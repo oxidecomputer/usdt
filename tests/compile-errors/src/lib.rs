@@ -10,5 +10,7 @@ mod tests {
         t.compile_fail("src/unsupported-type.rs");
         t.compile_fail("src/no-closure.rs");
         t.compile_fail("src/no-provider-file.rs");
+        t.compile_fail("src/zero-arg-probe-type-check.rs");
+        t.compile_fail("src/different-serializable-type.rs");
     }
 }
