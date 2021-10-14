@@ -1,5 +1,5 @@
 use crate::module_ident_for_provider;
-use crate::{common, DataType};
+use crate::{common, DataType, Provider};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use std::{
@@ -71,9 +71,10 @@ pub fn compile_provider_source(
     let provider_info = extract_providers(&header);
     let providers = dfile
         .providers()
-        .iter()
+        .into_iter()
         .map(|provider| {
-            let tokens = compile_provider(provider, &provider_info[provider.name()], config);
+            let provider = Provider::from(provider);
+            let tokens = compile_provider(&provider, &provider_info[&provider.name], config);
             let mod_name = module_ident_for_provider(&provider);
             quote! {
                 #[macro_use]
@@ -89,34 +90,34 @@ pub fn compile_provider_source(
 }
 
 pub fn compile_provider_from_definition(
-    provider: &dtrace_parser::Provider,
+    provider: &Provider,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     // Unwrap safety: The type signature confirms that `provider` is valid.
     let header = build_header_from_provider(&provider.to_d_source()).unwrap();
     let provider_info = extract_providers(&header);
-    let provider_tokens = compile_provider(provider, &provider_info[provider.name()], config);
+    let provider_tokens = compile_provider(provider, &provider_info[&provider.name], config);
     quote! {
         #provider_tokens
     }
 }
 
 fn compile_provider(
-    provider: &dtrace_parser::Provider,
+    provider: &Provider,
     provider_info: &ProviderInfo,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     let mod_name = module_ident_for_provider(&provider);
     let mut probe_impls = Vec::new();
-    for probe in provider.probes().iter() {
+    for probe in provider.probes.iter() {
         probe_impls.push(compile_probe(
             &mod_name,
             provider,
-            probe.name(),
+            &probe.name,
             config,
-            &provider_info.is_enabled[probe.name()],
-            &provider_info.probes[probe.name()],
-            &probe.types(),
+            &provider_info.is_enabled[&probe.name],
+            &provider_info.probes[&probe.name],
+            &probe.types,
         ));
     }
     let stability = &provider_info.stability;
@@ -143,18 +144,18 @@ fn compile_provider(
 
 fn compile_probe(
     mod_name: &Ident,
-    provider: &dtrace_parser::Provider,
+    provider: &Provider,
     probe_name: &str,
     config: &crate::CompileProvidersConfig,
     is_enabled: &str,
     probe: &str,
     types: &[DataType],
 ) -> TokenStream {
-    let provider_name = provider.name();
-    let is_enabled_fn = format_ident!("{}_{}_enabled", provider_name, probe_name);
-    let probe_fn = format_ident!("{}_{}", provider_name, probe_name);
+    let is_enabled_fn = format_ident!("{}_{}_enabled", &provider.name, probe_name);
+    let probe_fn = format_ident!("{}_{}", &provider.name, probe_name);
     let ffi_param_list = types.iter().map(|typ| {
-        syn::parse_str::<syn::FnArg>(&format!("_: {}", typ.to_rust_ffi_type())).unwrap()
+        let ty = typ.to_rust_ffi_type();
+        syn::parse2::<syn::FnArg>(quote! { _: #ty }).unwrap()
     });
     let (unpacked_args, in_regs) = common::construct_probe_args(types);
 
@@ -333,6 +334,7 @@ pub fn register_probes() -> Result<(), crate::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Probe;
 
     #[test]
     fn test_is_stability_line() {
@@ -383,9 +385,9 @@ mod tests {
         let is_enabled = "__dtrace_isenabled$foo$bar$xxx";
         let probe = "__dtrace_probe$foo$bar$xxx";
         let types = vec![];
-        let provider = dtrace_parser::Provider {
+        let provider = Provider {
             name: provider_name.to_string(),
-            probes: vec![dtrace_parser::Probe {
+            probes: vec![Probe {
                 name: probe_name.to_string(),
                 types: types.clone(),
             }],

@@ -219,7 +219,8 @@ fn build_serializable_check_function(
         quote::format_ident!("usdt_types_must_be_serializable_{}_{}", fn_index, arg_index);
     quote! {
         fn #fn_name() {
-            use super::#ident;
+            // #ident must be in scope here, because this function is defined in the same module as
+            // the actual probe functions, and thus shares any imports the consumer wants.
             usdt_types_must_be_serializable::<#ident>()
         }
     }
@@ -238,34 +239,30 @@ fn is_simple_type(ident: &syn::Ident) -> bool {
 // Return the `dtrace_parser::DataType` corresponding to the given `path`
 fn data_type_from_path(path: &syn::Path, is_reference: bool) -> DataType {
     if path.is_ident("u8") {
-        DataType::U8
+        DataType::Native(dtrace_parser::DataType::U8)
     } else if path.is_ident("u16") {
-        DataType::U16
+        DataType::Native(dtrace_parser::DataType::U16)
     } else if path.is_ident("u32") {
-        DataType::U32
+        DataType::Native(dtrace_parser::DataType::U32)
     } else if path.is_ident("u64") {
-        DataType::U64
+        DataType::Native(dtrace_parser::DataType::U64)
     } else if path.is_ident("i8") {
-        DataType::I8
+        DataType::Native(dtrace_parser::DataType::I8)
     } else if path.is_ident("i16") {
-        DataType::I16
+        DataType::Native(dtrace_parser::DataType::I16)
     } else if path.is_ident("i32") {
-        DataType::I32
+        DataType::Native(dtrace_parser::DataType::I32)
     } else if path.is_ident("i64") {
-        DataType::I64
+        DataType::Native(dtrace_parser::DataType::I64)
     } else if path.is_ident("String") || path.is_ident("str") {
-        DataType::String
+        DataType::Native(dtrace_parser::DataType::String)
     } else {
-        let path = format!(
-            "{}{}",
-            if is_reference { "&" } else { "" },
-            path.segments
-                .iter()
-                .map(|segment| format!("{}", segment.ident))
-                .collect::<Vec<_>>()
-                .join("::")
-        );
-        DataType::Serializable(path)
+        let tokens = if is_reference {
+            quote! { & #path }
+        } else {
+            quote! { #path }
+        };
+        DataType::Serializable(syn::parse2(tokens).unwrap())
     }
 }
 
@@ -312,19 +309,19 @@ mod tests {
     fn test_data_type_from_path() {
         assert_eq!(
             data_type_from_path(&syn::parse_str("u8").unwrap(), false),
-            DataType::U8
+            DataType::Native(dtrace_parser::DataType::U8)
         );
         assert_eq!(
             data_type_from_path(&syn::parse_str("String").unwrap(), false),
-            DataType::String
+            DataType::Native(dtrace_parser::DataType::String)
         );
         assert_eq!(
             data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap(), false),
-            DataType::Serializable(String::from("std::net::IpAddr")),
+            DataType::Serializable(syn::parse_str("std::net::IpAddr").unwrap()),
         );
         assert_eq!(
             data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap(), true),
-            DataType::Serializable(String::from("&std::net::IpAddr")),
+            DataType::Serializable(syn::parse_str("&std::net::IpAddr").unwrap()),
         );
     }
 

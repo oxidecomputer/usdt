@@ -1,8 +1,7 @@
 //! Shared code used in both the linker and no-linker implementations of this crate.
 // Copyright 2021 Oxide Computer Company
 
-use crate::DataType;
-use dtrace_parser::Provider;
+use crate::{DataType, Provider};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
@@ -32,16 +31,16 @@ pub fn generate_type_check(
     let type_check_args = types
         .iter()
         .map(|typ| match typ {
-            DataType::String => {
+            DataType::Serializable(_) => {
+                let arg = typ.to_rust_type();
+                quote! { _: #arg }
+            }
+            DataType::Native(dtrace_parser::DataType::String) => {
                 has_strings = true;
                 quote! { _: S }
             }
-            DataType::Serializable(_) => {
-                let arg: syn::Type = syn::parse_str(&typ.to_rust_type()).unwrap();
-                quote! { _: #arg }
-            }
             _ => {
-                let arg = format_ident!("{}", typ.to_rust_type());
+                let arg = typ.to_rust_type();
                 quote! { _: #arg }
             }
         })
@@ -157,17 +156,8 @@ fn unpack_argument_lambda(types: &[DataType]) -> TokenStream {
 // Convert a supported data type to 1. a type to store for the duration of the
 // probe invocation and 2. a transformation for compatibility with an asm
 // register.
-fn asm_type_convert(
-    typ: &dtrace_parser::DataType,
-    input: TokenStream,
-) -> (TokenStream, TokenStream) {
+fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenStream) {
     match typ {
-        dtrace_parser::DataType::String => (
-            quote! {
-                [(#input.as_ref() as &str).as_bytes(), &[0_u8]].concat()
-            },
-            quote! { .as_ptr() as i64 },
-        ),
         DataType::Serializable(_) => (
             // Convert the input to JSON. This is a fallible operation, however, so we wrap the
             // data in a result-like JSON blob, mapping the `Result`'s variants to the keys "ok"
@@ -183,6 +173,12 @@ fn asm_type_convert(
             },
             quote! { .as_ptr() as i64 },
         ),
+        DataType::Native(dtrace_parser::DataType::String) => (
+            quote! {
+                [(#input.as_ref() as &str).as_bytes(), &[0_u8]].concat()
+            },
+            quote! { .as_ptr() as i64 },
+        ),
         _ => (quote! { (#input as i64) }, quote! {}),
     }
 }
@@ -195,13 +191,9 @@ pub(crate) fn build_probe_macro(
     pre_macro_block: TokenStream,
     impl_block: TokenStream,
 ) -> TokenStream {
-    let macro_name = crate::format_probe(&config.format, &provider.name(), probe_name);
-    let type_check_block = generate_type_check(
-        &provider.name(),
-        &provider.use_statements,
-        probe_name,
-        types,
-    );
+    let macro_name = crate::format_probe(&config.format, &provider.name, probe_name);
+    let type_check_block =
+        generate_type_check(&provider.name, &provider.use_statements, probe_name, types);
     let no_args_match = if types.is_empty() {
         quote! { () => { #macro_name!(|| ()) }; }
     } else {
@@ -248,7 +240,10 @@ mod tests {
     fn test_generate_type_check_simple() {
         let provider = "provider";
         let probe = "probe";
-        let types = &[DataType::U8, DataType::I64];
+        let types = &[
+            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(dtrace_parser::DataType::I64),
+        ];
         let expected = quote! {
             {
                 #![allow(unused_imports)]
@@ -268,9 +263,9 @@ mod tests {
         let provider = "provider";
         let probe = "probe";
         let types = &[
-            DataType::U8,
-            DataType::String,
-            DataType::Serializable(String::from("MyType")),
+            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(dtrace_parser::DataType::String),
+            DataType::Serializable(syn::parse_str("MyType").unwrap()),
         ];
         let use_statements = vec![syn::parse2(quote! { use my_module::MyType; }).unwrap()];
         let expected = quote! {
@@ -290,7 +285,10 @@ mod tests {
 
     #[test]
     fn test_construct_probe_args() {
-        let types = &[DataType::U8, DataType::String];
+        let types = &[
+            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(dtrace_parser::DataType::String),
+        ];
         let registers = &["rdi", "rsi"];
         let (args, regs) = construct_probe_args(types);
         for (i, arg) in args
@@ -320,12 +318,17 @@ mod tests {
     #[test]
     fn test_asm_type_convert() {
         use std::str::FromStr;
-        let (out, post) = asm_type_convert(&DataType::U8, TokenStream::from_str("foo").unwrap());
+        let (out, post) = asm_type_convert(
+            &DataType::Native(dtrace_parser::DataType::U8),
+            TokenStream::from_str("foo").unwrap(),
+        );
         assert_eq!(out.to_string(), quote! {(foo as i64)}.to_string());
         assert_eq!(post.to_string(), quote! {}.to_string());
 
-        let (out, post) =
-            asm_type_convert(&DataType::String, TokenStream::from_str("foo").unwrap());
+        let (out, post) = asm_type_convert(
+            &DataType::Native(dtrace_parser::DataType::String),
+            TokenStream::from_str("foo").unwrap(),
+        );
         assert_eq!(
             out.to_string(),
             quote! { [(foo.as_ref() as &str).as_bytes(), &[0_u8]].concat() }.to_string()
