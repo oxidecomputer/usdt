@@ -92,38 +92,14 @@ fn generate_provider_item(
                                 "Probe functions may not take Self",
                             ));
                         }
-                        syn::FnArg::Typed(item) => match *item.ty {
-                            syn::Type::Path(ref path) => {
-                                let (maybe_check_fn, item_type) =
-                                    parse_fn_arg(&path.path, fn_index, arg_index, false)?;
-                                if let Some(check_fn) = maybe_check_fn {
-                                    item_check_fns.push(check_fn);
-                                }
-                                item_types.push(item_type);
+                        syn::FnArg::Typed(ref item) => {
+                            let (maybe_check_fn, item_type) =
+                                parse_probe_argument(&*item.ty, fn_index, arg_index)?;
+                            if let Some(check_fn) = maybe_check_fn {
+                                item_check_fns.push(check_fn);
                             }
-                            syn::Type::Reference(ref reference) => match *reference.elem {
-                                syn::Type::Path(ref path) => {
-                                    let (maybe_check_fn, item_type) =
-                                        parse_fn_arg(&path.path, fn_index, arg_index, true)?;
-                                    if let Some(check_fn) = maybe_check_fn {
-                                        item_check_fns.push(check_fn);
-                                    }
-                                    item_types.push(item_type);
-                                }
-                                _ => {
-                                    return Err(syn::Error::new(
-                                        item.ty.span(),
-                                        "Probe arguments must be path types",
-                                    ))
-                                }
-                            },
-                            _ => {
-                                return Err(syn::Error::new(
-                                    item.ty.span(),
-                                    "Probe arguments must be path types",
-                                ))
-                            }
-                        },
+                            item_types.push(item_type);
+                        }
                     }
                 }
                 check_fns.extend(item_check_fns);
@@ -169,6 +145,48 @@ fn generate_provider_item(
     })
 }
 
+fn parse_probe_argument(
+    item: &syn::Type,
+    fn_index: usize,
+    arg_index: usize,
+) -> syn::Result<(Option<TokenStream>, DataType)> {
+    match item {
+        syn::Type::Path(ref path) => {
+            let last_ident = &path
+                .path
+                .segments
+                .last()
+                .ok_or_else(|| {
+                    syn::Error::new(path.span(), "Probe arguments should resolve to path types")
+                })?
+                .ident;
+            if is_simple_type(last_ident) {
+                Ok((None, data_type_from_path(&path.path)))
+            } else {
+                let check_fn = build_serializable_check_function(item, fn_index, arg_index);
+                Ok((Some(check_fn), DataType::Serializable(item.clone())))
+            }
+        }
+        syn::Type::Reference(ref reference) => {
+            match parse_probe_argument(&*reference.elem, fn_index, arg_index)? {
+                (None, ty) => Ok((None, ty)),
+                _ => Ok((
+                    Some(build_serializable_check_function(item, fn_index, arg_index)),
+                    DataType::Serializable(item.clone()),
+                )),
+            }
+        }
+        syn::Type::Array(_) | syn::Type::Slice(_) | syn::Type::Tuple(_) => {
+            let check_fn = build_serializable_check_function(item, fn_index, arg_index);
+            Ok((Some(check_fn), DataType::Serializable(item.clone())))
+        }
+        _ => Err(syn::Error::new(
+            item.span(),
+            "Probe arguments must be path types, slices, arrays, tuples or references",
+        )),
+    }
+}
+
 fn verify_use_tree(tree: &syn::UseTree) -> syn::Result<()> {
     match tree {
         syn::UseTree::Path(ref path) => {
@@ -188,33 +206,11 @@ fn verify_use_tree(tree: &syn::UseTree) -> syn::Result<()> {
     }
 }
 
-// Parse an argument from a probe function, into a possible type-checking function and identifier
-// of the argument's type. `index` is the argument's index in the function signature.
-fn parse_fn_arg(
-    path: &syn::Path,
-    fn_index: usize,
-    arg_index: usize,
-    is_reference: bool,
-) -> syn::Result<(Option<TokenStream>, DataType)> {
-    let last_ident = &path
-        .segments
-        .last()
-        .ok_or_else(|| syn::Error::new(path.span(), "Probe arguments must be path types"))?
-        .ident;
-    let check_fn = if is_simple_type(last_ident) {
-        None
-    } else {
-        Some(build_serializable_check_function(path, fn_index, arg_index))
-    };
-    Ok((check_fn, data_type_from_path(path, is_reference)))
-}
-
 // Create a function that statically asserts the given identifier implements `Serialize`.
-fn build_serializable_check_function(
-    ident: &syn::Path,
-    fn_index: usize,
-    arg_index: usize,
-) -> TokenStream {
+fn build_serializable_check_function<T>(ident: &T, fn_index: usize, arg_index: usize) -> TokenStream
+where
+    T: quote::ToTokens,
+{
     let fn_name =
         quote::format_ident!("usdt_types_must_be_serializable_{}_{}", fn_index, arg_index);
     quote! {
@@ -237,7 +233,7 @@ fn is_simple_type(ident: &syn::Ident) -> bool {
 }
 
 // Return the `dtrace_parser::DataType` corresponding to the given `path`
-fn data_type_from_path(path: &syn::Path, is_reference: bool) -> DataType {
+fn data_type_from_path(path: &syn::Path) -> DataType {
     if path.is_ident("u8") {
         DataType::Native(dtrace_parser::DataType::U8)
     } else if path.is_ident("u16") {
@@ -257,12 +253,7 @@ fn data_type_from_path(path: &syn::Path, is_reference: bool) -> DataType {
     } else if path.is_ident("String") || path.is_ident("str") {
         DataType::Native(dtrace_parser::DataType::String)
     } else {
-        let tokens = if is_reference {
-            quote! { & #path }
-        } else {
-            quote! { #path }
-        };
-        DataType::Serializable(syn::parse2(tokens).unwrap())
+        unreachable!("Tried to parse a non-path data type");
     }
 }
 
@@ -298,6 +289,7 @@ fn check_probe_function_signature(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     fn test_is_simple_type() {
@@ -308,21 +300,49 @@ mod tests {
     #[test]
     fn test_data_type_from_path() {
         assert_eq!(
-            data_type_from_path(&syn::parse_str("u8").unwrap(), false),
+            data_type_from_path(&syn::parse_str("u8").unwrap()),
             DataType::Native(dtrace_parser::DataType::U8)
         );
         assert_eq!(
-            data_type_from_path(&syn::parse_str("String").unwrap(), false),
+            data_type_from_path(&syn::parse_str("String").unwrap()),
             DataType::Native(dtrace_parser::DataType::String)
         );
-        assert_eq!(
-            data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap(), false),
-            DataType::Serializable(syn::parse_str("std::net::IpAddr").unwrap()),
-        );
-        assert_eq!(
-            data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap(), true),
-            DataType::Serializable(syn::parse_str("&std::net::IpAddr").unwrap()),
-        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_data_type_from_path_panics() {
+        data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap());
+    }
+
+    #[rstest]
+    #[case("u8", dtrace_parser::DataType::U8)]
+    #[case("&u8", dtrace_parser::DataType::U8)]
+    #[case("&str", dtrace_parser::DataType::String)]
+    #[case("String", dtrace_parser::DataType::String)]
+    #[case("&str", dtrace_parser::DataType::String)]
+    #[case("&String", dtrace_parser::DataType::String)]
+    fn test_parse_probe_argument_native(#[case] name: &str, #[case] ty: dtrace_parser::DataType) {
+        let arg = syn::parse_str(name).unwrap();
+        let out = parse_probe_argument(&arg, 0, 0).unwrap();
+        assert!(out.0.is_none());
+        assert_eq!(out.1, DataType::Native(ty));
+    }
+
+    #[rstest]
+    #[case("std::net::IpAddr")]
+    #[case("&std::net::IpAddr")]
+    #[case("&SomeType")]
+    #[case("&&[u8]")]
+    fn test_parse_probe_argument_serializable(#[case] name: &str) {
+        let ty = syn::parse_str(name).unwrap();
+        let out = parse_probe_argument(&ty, 0, 0).unwrap();
+        assert!(out.0.is_some());
+        assert_eq!(out.1, DataType::Serializable(ty));
+        if let (Some(chk), DataType::Serializable(ty)) = out {
+            println!("{}", quote! { #chk }.to_string());
+            println!("{}", quote! { #ty }.to_string());
+        }
     }
 
     #[test]

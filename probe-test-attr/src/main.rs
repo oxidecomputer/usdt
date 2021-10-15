@@ -22,6 +22,15 @@ pub struct Arg {
     buffer: Vec<i32>,
 }
 
+/// Note that not all types are JSON serializable. The most common case is internally-tagged
+/// enums with a newtype variant, such as this type. Note that this will not break your program,
+/// but an error message will be transmitted to DTrace rather than a succesfully-converted value.
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
+pub enum Whoops {
+    NoBueno(u8),
+}
+
 /// Providers may be defined directly in Rust code using the `usdt::provider` attribute.
 ///
 /// The attribute should be attached to a module, whose name becomes the provider name. The module
@@ -50,6 +59,15 @@ mod test {
 
     /// ... or by value
     fn stop_by_value(_: String, _: Arg) {}
+
+    /// Probes usually contain standard path types, such as `u8` or `std::net::IpAddr`. However,
+    /// they may also contain slices, arrays, tuples, and references. In these cases, as in the
+    /// case of any non-native D type, the value will be JSON serialized when sending to DTrace.
+    fn arg_as_tuple(_: (u8, &[i32])) {}
+
+    /// Some types aren't JSON serializable. These will not break the program, but an error message
+    /// will be seen in DTrace.
+    fn not_json_serializable(_: crate::Whoops) {}
 }
 
 fn main() {
@@ -70,5 +88,7 @@ fn main() {
             };
             (format!("the probe has fired {}", arg.x), new_arg)
         });
+        test_arg_as_tuple!(|| (arg.x, &arg.buffer[..]));
+        test_not_json_serializable!(|| Whoops::NoBueno(0));
     }
 }
