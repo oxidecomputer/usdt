@@ -62,7 +62,6 @@ fn compile_probe(
     let impl_block = quote! {
         {
             let mut is_enabled: u64;
-            // TODO can this block be option(pure)?
             unsafe {
                 asm!(
                     "990:   clr rax",
