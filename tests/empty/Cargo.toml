@@ -12,3 +12,7 @@ default-features = false
 [build-dependencies.usdt]
 path = "../../usdt"
 default-features = false
+
+[features]
+default = ["asm"]
+asm = ["usdt/asm"]

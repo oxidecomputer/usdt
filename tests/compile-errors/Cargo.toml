@@ -9,7 +9,3 @@ usdt = { path = "../../usdt" }
 
 [dev-dependencies]
 trybuild = "1.0.41"
-
-[features]
-asm = ["usdt/asm"]
-no-linker = ["usdt/no-linker"]

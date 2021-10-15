@@ -2,25 +2,12 @@
 
 // Copyright 2021 Oxide Computer Company
 
-// NOTE: Although this file compiles and is semi-useful on macOS, it can't be used to generate
-// probes that DTrace actually understands. In particular, running `dtrace -l` will list the
-// probes, but doing anything on the basis of a probe _firing_ is meaningless.
-//
-// This is because Apple seems to use a different definition for the base address of a probe
-// function in the kernel than other systems. See:
-// https://github.com/apple/darwin-xnu/blob/8f02f2a044b9bb1ad951987ef5bab20ec9486310/bsd/dev/dtrace/dtrace.c#L9394
-// for a note indicating the platform difference. It's not clear why they do this, but it does mean
-// that the probes are not actually usable when running with the no-linker feature flag. This flag
-// is mostly used for testing the code to the extent possible on any system.
-
-use std::{convert::TryFrom, ffi::CString};
-
+use crate::record::{process_section, PROBE_REC_VERSION};
+use crate::{common, DataType};
 use dof::{serialize_section, Section};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-
-use crate::record::{process_section, PROBE_REC_VERSION};
-use crate::{common, DataType};
+use std::convert::TryFrom;
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_provider_source(
@@ -219,8 +206,10 @@ pub fn register_probes() -> Result<(), crate::Error> {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
 fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), std::io::Error> {
+    use std::fs::OpenOptions;
+    use std::os::unix::io::AsRawFd;
+
     let helper = dof::dof_bindings::dof_helper {
         dofhp_mod: modname,
         dofhp_addr: buf.as_ptr() as u64,
@@ -228,47 +217,14 @@ fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), 
     };
     let data = &helper as *const _;
     let cmd: i32 = 0x64746803;
-    let ret = unsafe {
-        let file = CString::new("/dev/dtrace/helper".as_bytes()).unwrap();
-        let fd = libc::open(file.as_ptr(), libc::O_RDWR);
-        if fd < 0 {
-            fd
-        } else {
-            libc::ioctl(fd, cmd, data)
-        }
-    };
-    if ret == 0 {
-        Ok(())
-    } else {
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/dev/dtrace/helper")?;
+    if unsafe { libc::ioctl(file.as_raw_fd(), cmd, data) } < 0 {
         Err(std::io::Error::last_os_error())
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), std::io::Error> {
-    let helper = dof::dof_bindings::dof_ioctl_data {
-        dofiod_count: 1,
-        dofiod_helpers: [dof::dof_bindings::dof_helper {
-            dofhp_mod: modname,
-            dofhp_addr: buf.as_ptr() as u64,
-            dofhp_dof: buf.as_ptr() as u64,
-        }],
-    };
-    let data = &(&helper) as *const _;
-    let cmd: u64 = 0x80086804;
-    let ret = unsafe {
-        let file = CString::new("/dev/dtracehelper".as_bytes()).unwrap();
-        let fd = libc::open(file.as_ptr(), libc::O_RDWR);
-        if fd < 0 {
-            fd
-        } else {
-            libc::ioctl(fd, cmd, data)
-        }
-    };
-    if ret == 0 {
-        Ok(())
     } else {
-        Err(std::io::Error::last_os_error())
+        Ok(())
     }
 }
 

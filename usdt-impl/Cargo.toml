@@ -20,12 +20,11 @@ syn = { version = "1.0.60", features = ["full"] }
 thiserror = "1.0.24"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-dof = { path = "../dof", version = "0.1.5", optional = true }
+dof = { path = "../dof", version = "0.1.5", optional = true, default-features = false }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-dof = { path = "../dof", version = "0.1.5" }
+dof = { path = "../dof", version = "0.1.5", default-features = false }
 
 [features]
 asm = []
-no-linker = ["asm", "dof"]
-des = ["goblin", "dof/des"]
+des = ["goblin", "dof", "dof/des"]

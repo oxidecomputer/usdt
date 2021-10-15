@@ -6,10 +6,11 @@ authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
 edition = "2018"
 
 [dependencies]
-usdt = { path = "../usdt" }
+usdt = { path = "../usdt", default-features = false }
 
 [build-dependencies]
 usdt = { path = "../usdt" }
 
 [features]
+default = ["asm"]
 asm = ["usdt/asm"]

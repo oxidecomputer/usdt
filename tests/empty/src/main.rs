@@ -1,4 +1,4 @@
-#![feature(asm)]
+#![cfg_attr(feature = "asm", feature(asm))]
 #![deny(warnings)]
 
 use usdt::register_probes;
