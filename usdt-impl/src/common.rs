@@ -8,9 +8,26 @@ use crate::DataType;
 
 // Construct function call that is used internally in the UDST-generated macros, to allow
 // compile-time type checking of the lambda arguments.
-pub fn generate_type_check(types: &[DataType]) -> TokenStream {
+pub fn generate_type_check(
+    provider_name: &str,
+    probe_name: &str,
+    types: &[DataType],
+) -> TokenStream {
+    // If the probe has zero arguments, verify that the result of calling the closure is `()`
+    if types.is_empty() {
+        return quote! {
+            {
+                let _ = || {
+                    let _: () = $args_lambda();
+                };
+            }
+        };
+    }
+
+    // For one or more arguments, verify that we can unpack the closure into a tuple of type
+    // `(arg0, arg1, ...)` and those items can be passed to a function with the same signature as
+    // the probe, i.e., `fn(type0, type1, ...)`.
     let mut has_strings = false;
-    let mut has_serializables = false;
     let type_check_args = types
         .iter()
         .map(|typ| match typ {
@@ -18,9 +35,9 @@ pub fn generate_type_check(types: &[DataType]) -> TokenStream {
                 has_strings = true;
                 quote! { _: S }
             }
-            DataType::Serializable => {
-                has_serializables = true;
-                quote! { _: T }
+            DataType::Serializable(_) => {
+                let arg: syn::Type = syn::parse_str(&typ.to_rust_type()).unwrap();
+                quote! { _: #arg }
             }
             _ => {
                 let arg = format_ident!("{}", typ.to_rust_type());
@@ -28,6 +45,8 @@ pub fn generate_type_check(types: &[DataType]) -> TokenStream {
             }
         })
         .collect::<Vec<_>>();
+
+    // Unpack the tuple from the closure to `args.0, args.1, ...`.
     let expanded_lambda_args = (0..types.len())
         .map(|i| {
             let index = syn::Index::from(i);
@@ -37,23 +56,37 @@ pub fn generate_type_check(types: &[DataType]) -> TokenStream {
 
     let preamble = unpack_argument_lambda(&types);
 
-    let generics = match (has_strings, has_serializables) {
-        (false, false) => quote! {},
-        (true, false) => quote! { <S: AsRef<str>> },
-        (false, true) => quote! { <T: ::serde::Serialize> },
-        (true, true) => quote! { <S: AsRef<str>, T: ::serde::Serialize> },
+    // NOTE: We currently are a bit loose with string types. In particular, a probe function
+    // defined with an argument of type `String` or `&str` map to the same `DataType` variant. The
+    // argument closure can actually be called with a _different_ type, as long as that type
+    // implements `AsRef<str>`. For example, a probe defined like:
+    //
+    // ```rust
+    // #[usdt::provider]
+    // mod provider {
+    //      fn probe(_: String) {}
+    // }
+    // ```
+    //
+    // Can be called like:
+    //
+    // ```rust
+    // provider_probe!(|| "This is a `&'static str`, not a `String`");
+    // ```
+    let generics = if has_strings {
+        quote! { <S: AsRef<str>> }
+    } else {
+        quote! {}
     };
 
-    // NOTE: This block defines an internal empty function and then a lambda which
-    // calls it. This is all strictly for type-checking, and is optimized out. It is
-    // defined in a scope to avoid multiple-definition errors in the scope of the macro
-    // expansion site.
+    let type_check_function =
+        format_ident!("__usdt_private_{}_{}_type_check", provider_name, probe_name);
     quote! {
         {
-            fn _type_check #generics (#(#type_check_args),*) { }
+            fn #type_check_function #generics (#(#type_check_args),*) { }
             let _ = || {
                 #preamble
-                _type_check(#(#expanded_lambda_args),*);
+                #type_check_function(#(#expanded_lambda_args),*);
             };
         }
     }
@@ -132,7 +165,7 @@ fn asm_type_convert(
             },
             quote! { .as_ptr() as i64 },
         ),
-        DataType::Serializable => (
+        DataType::Serializable(_) => (
             // Convert the input to JSON. This is a fallible operation, however, so we wrap the
             // data in a result-like JSON blob, mapping the `Result`'s variants to the keys "ok"
             // and "err".
@@ -160,7 +193,7 @@ pub(crate) fn build_probe_macro(
     impl_block: TokenStream,
 ) -> TokenStream {
     let macro_name = crate::format_probe(&config.format, provider_name, probe_name);
-    let type_check_block = generate_type_check(types);
+    let type_check_block = generate_type_check(provider_name, probe_name, types);
     let no_args_match = if types.is_empty() {
         quote! { () => { #macro_name!(|| ()) }; }
     } else {
@@ -188,34 +221,56 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_type_check_simple() {
-        let types = &[DataType::U8, DataType::I64];
+    fn test_generate_type_check_empty() {
+        let types = &[];
         let expected = quote! {
             {
-                fn _type_check(_: u8, _: i64) { }
                 let _ = || {
-                    let args = $args_lambda();
-                    _type_check(args.0, args.1);
+                    let _: () = $args_lambda();
                 };
             }
         };
-        let block = generate_type_check(types);
+        let block = generate_type_check("", "", types);
+        assert_eq!(block.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn test_generate_type_check_simple() {
+        let provider = "provider";
+        let probe = "probe";
+        let types = &[DataType::U8, DataType::I64];
+        let expected = quote! {
+            {
+                fn __usdt_private_provider_probe_type_check(_: u8, _: i64) { }
+                let _ = || {
+                    let args = $args_lambda();
+                    __usdt_private_provider_probe_type_check(args.0, args.1);
+                };
+            }
+        };
+        let block = generate_type_check(provider, probe, types);
         assert_eq!(block.to_string(), expected.to_string());
     }
 
     #[test]
     fn test_generate_type_check_with_generics() {
-        let types = &[DataType::U8, DataType::String, DataType::Serializable];
+        let provider = "provider";
+        let probe = "probe";
+        let types = &[
+            DataType::U8,
+            DataType::String,
+            DataType::Serializable(String::from("MyType")),
+        ];
         let expected = quote! {
             {
-                fn _type_check<S: AsRef<str>, T: ::serde::Serialize>(_: u8, _: S, _: T) { }
+                fn __usdt_private_provider_probe_type_check<S: AsRef<str>>(_: u8, _: S, _: MyType) { }
                 let _ = || {
                     let args = $args_lambda();
-                    _type_check(args.0, args.1, args.2);
+                    __usdt_private_provider_probe_type_check(args.0, args.1, args.2);
                 };
             }
         };
-        let block = generate_type_check(types);
+        let block = generate_type_check(provider, probe, types);
         assert_eq!(block.to_string(), expected.to_string());
     }
 

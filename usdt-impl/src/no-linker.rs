@@ -60,26 +60,27 @@ fn compile_probe(
     let probe_rec = asm_rec(provider_name, probe.name(), Some(probe.types()));
     let pre_macro_block = TokenStream::new();
     let impl_block = quote! {
-        let mut is_enabled: u64;
-        // TODO can this block be option(pure)?
-        unsafe {
-            asm!(
-                "990:   clr rax",
-                #is_enabled_rec,
-                out("rax") is_enabled,
-                options(nomem, nostack, preserves_flags)
-            );
-        }
-
-        if is_enabled != 0 {
-            #unpacked_args
+        {
+            let mut is_enabled: u64;
             unsafe {
                 asm!(
-                    "990:   nop",
-                    #probe_rec,
-                    #in_regs
+                    "990:   clr rax",
+                    #is_enabled_rec,
+                    out("rax") is_enabled,
                     options(nomem, nostack, preserves_flags)
                 );
+            }
+
+            if is_enabled != 0 {
+                #unpacked_args
+                unsafe {
+                    asm!(
+                        "990:   nop",
+                        #probe_rec,
+                        #in_regs
+                        options(nomem, nostack, preserves_flags)
+                    );
+                }
             }
         }
     };

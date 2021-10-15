@@ -55,6 +55,12 @@ fn generate_provider_item(
     config: &CompileProvidersConfig,
 ) -> Result<TokenStream, syn::Error> {
     let mod_ = syn::parse2::<syn::ItemMod>(item)?;
+    if mod_.ident == "provider" {
+        return Err(syn::Error::new(
+            mod_.ident.span(),
+            "Provider modules may not be named \"provider\"",
+        ));
+    }
     let content = &mod_
         .content
         .as_ref()
@@ -68,6 +74,12 @@ fn generate_provider_item(
     for (fn_index, item) in content.iter().enumerate() {
         match item {
             syn::Item::Fn(ref func) => {
+                if func.sig.ident == "probe" {
+                    return Err(syn::Error::new(
+                        func.sig.ident.span(),
+                        "Probe functions may not be named \"probe\"",
+                    ));
+                }
                 let signature = check_probe_function_signature(&func.sig)?;
                 let mut item_check_fns = Vec::new();
                 let mut item_types = Vec::new();
@@ -82,7 +94,7 @@ fn generate_provider_item(
                         syn::FnArg::Typed(item) => match *item.ty {
                             syn::Type::Path(ref path) => {
                                 let (maybe_check_fn, item_type) =
-                                    parse_fn_arg(&path.path, fn_index, arg_index)?;
+                                    parse_fn_arg(&path.path, fn_index, arg_index, false)?;
                                 if let Some(check_fn) = maybe_check_fn {
                                     item_check_fns.push(check_fn);
                                 }
@@ -91,7 +103,7 @@ fn generate_provider_item(
                             syn::Type::Reference(ref reference) => match *reference.elem {
                                 syn::Type::Path(ref path) => {
                                     let (maybe_check_fn, item_type) =
-                                        parse_fn_arg(&path.path, fn_index, arg_index)?;
+                                        parse_fn_arg(&path.path, fn_index, arg_index, true)?;
                                     if let Some(check_fn) = maybe_check_fn {
                                         item_check_fns.push(check_fn);
                                     }
@@ -135,7 +147,7 @@ fn generate_provider_item(
     let compiled = usdt_impl::compile_provider(&provider, &config);
     let out = quote! {
         mod __usdt_attr_macro_type_checks {
-            fn usdt_types_must_be_serializable<T: ?Sized + serde::Serialize>() {}
+            fn usdt_types_must_be_serializable<T: ?Sized + ::serde::Serialize>() {}
             #( #check_fns )*
         }
         #compiled
@@ -151,6 +163,7 @@ fn parse_fn_arg(
     path: &syn::Path,
     fn_index: usize,
     arg_index: usize,
+    is_reference: bool,
 ) -> syn::Result<(Option<TokenStream>, DataType)> {
     let last_ident = &path
         .segments
@@ -162,7 +175,7 @@ fn parse_fn_arg(
     } else {
         Some(build_serializable_check_function(path, fn_index, arg_index))
     };
-    Ok((check_fn, data_type_from_ident(last_ident)))
+    Ok((check_fn, data_type_from_path(path, is_reference)))
 }
 
 // Create a function that statically asserts the given identifier implements `Serialize`.
@@ -187,23 +200,41 @@ fn is_simple_type(ident: &syn::Ident) -> bool {
     let ident = format!("{}", ident);
     matches!(
         ident.as_str(),
-        "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "String"
+        "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "String" | "str"
     )
 }
 
-// Return the `dtrace_parser::DataType` corresponding to the given `ident`
-fn data_type_from_ident(ident: &syn::Ident) -> DataType {
-    match ident.to_string().as_str() {
-        "u8" => DataType::U8,
-        "u16" => DataType::U16,
-        "u32" => DataType::U32,
-        "u64" => DataType::U64,
-        "i8" => DataType::I8,
-        "i16" => DataType::I16,
-        "i32" => DataType::I32,
-        "i64" => DataType::I64,
-        "&str" | "String" => DataType::String,
-        _ => DataType::Serializable,
+// Return the `dtrace_parser::DataType` corresponding to the given `path`
+fn data_type_from_path(path: &syn::Path, is_reference: bool) -> DataType {
+    if path.is_ident("u8") {
+        DataType::U8
+    } else if path.is_ident("u16") {
+        DataType::U16
+    } else if path.is_ident("u32") {
+        DataType::U32
+    } else if path.is_ident("u64") {
+        DataType::U64
+    } else if path.is_ident("i8") {
+        DataType::I8
+    } else if path.is_ident("i16") {
+        DataType::I16
+    } else if path.is_ident("i32") {
+        DataType::I32
+    } else if path.is_ident("i64") {
+        DataType::I64
+    } else if path.is_ident("String") || path.is_ident("str") {
+        DataType::String
+    } else {
+        let path = format!(
+            "{}{}",
+            if is_reference { "&" } else { "" },
+            path.segments
+                .iter()
+                .map(|segment| format!("{}", segment.ident))
+                .collect::<Vec<_>>()
+                .join("::")
+        );
+        DataType::Serializable(path)
     }
 }
 
@@ -247,14 +278,22 @@ mod tests {
     }
 
     #[test]
-    fn test_data_type_from_ident() {
+    fn test_data_type_from_path() {
         assert_eq!(
-            data_type_from_ident(&quote::format_ident!("u8")),
+            data_type_from_path(&syn::parse_str("u8").unwrap(), false),
             DataType::U8
         );
         assert_eq!(
-            data_type_from_ident(&quote::format_ident!("String")),
+            data_type_from_path(&syn::parse_str("String").unwrap(), false),
             DataType::String
+        );
+        assert_eq!(
+            data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap(), false),
+            DataType::Serializable(String::from("std::net::IpAddr")),
+        );
+        assert_eq!(
+            data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap(), true),
+            DataType::Serializable(String::from("&std::net::IpAddr")),
         );
     }
 

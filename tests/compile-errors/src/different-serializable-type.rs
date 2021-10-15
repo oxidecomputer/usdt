@@ -1,0 +1,26 @@
+//! Test that passing a type that is serializable, but not the same concrete type as the probe
+//! signature, fails compilation.
+
+// Copyright 2021 Oxide Computer Company
+
+#![feature(asm)]
+
+#[derive(serde::Serialize)]
+struct Expected {
+    x: u8
+}
+
+#[derive(serde::Serialize)]
+struct Different {
+    x: u8
+}
+
+#[usdt::provider]
+mod my_provider {
+    use super::Expected;
+    fn my_probe(_: Expected) {}
+}
+
+fn main() {
+    my_provider_my_probe!(|| Different { x: 0 });
+}

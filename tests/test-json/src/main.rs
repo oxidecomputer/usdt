@@ -39,13 +39,14 @@ impl Serialize for NotJsonSerializable {
 #[usdt::provider]
 mod test_json {
     use super::{NotJsonSerializable, ProbeArg};
-    fn good(_: ProbeArg) {}
-    fn bad(_: NotJsonSerializable) {}
+    fn good(_: &ProbeArg) {}
+    fn bad(_: &NotJsonSerializable) {}
 }
 
 fn main() {
     usdt::register_probes().unwrap();
-    test_json_good!(|| ProbeArg::default());
+    let arg = ProbeArg::default();
+    test_json_good!(|| &arg);
 }
 
 #[cfg(test)]
