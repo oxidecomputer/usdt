@@ -19,7 +19,7 @@ pub fn compile_provider_source(
             let mod_name = module_ident_for_provider(&provider);
             quote! {
                 #[macro_use]
-                pub(crate) #mod_name {
+                pub(crate) mod #mod_name {
                     #tokens
                 }
             }
