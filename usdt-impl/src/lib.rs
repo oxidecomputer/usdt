@@ -191,7 +191,7 @@ pub struct Provider {
 }
 
 impl Provider {
-    /// Return teh representation of this provider in D source code.
+    /// Return the representation of this provider in D source code.
     pub fn to_d_source(&self) -> String {
         let probes = self
             .probes
