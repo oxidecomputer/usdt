@@ -176,7 +176,7 @@ and a probe definition:
 ```rust
 #[usdt::provider]
 mod my_provider {
-    use super::Arg;
+    use crate::Arg;
     fn my_probe(_: &Arg) {}
 }
 ```

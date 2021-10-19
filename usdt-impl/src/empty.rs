@@ -1,9 +1,9 @@
-use std::convert::TryFrom;
-
-use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
-
 use crate::common;
+use crate::module_ident_for_provider;
+use crate::{Probe, Provider};
+use proc_macro2::TokenStream;
+use quote::quote;
+use std::convert::TryFrom;
 
 pub fn compile_provider_source(
     source: &str,
@@ -12,8 +12,18 @@ pub fn compile_provider_source(
     let dfile = dtrace_parser::File::try_from(source)?;
     let providers = dfile
         .providers()
-        .iter()
-        .map(|provider| compile_provider(provider, config))
+        .into_iter()
+        .map(|provider| {
+            let provider = Provider::from(provider);
+            let tokens = compile_provider(&provider, config);
+            let mod_name = module_ident_for_provider(&provider);
+            quote! {
+                #[macro_use]
+                pub(crate) mod #mod_name {
+                    #tokens
+                }
+            }
+        })
         .collect::<Vec<_>>();
     Ok(quote! {
         #(#providers)*
@@ -21,21 +31,18 @@ pub fn compile_provider_source(
 }
 
 pub fn compile_provider_from_definition(
-    provider: &dtrace_parser::Provider,
+    provider: &Provider,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     compile_provider(provider, config)
 }
 
-fn compile_provider(
-    provider: &dtrace_parser::Provider,
-    config: &crate::CompileProvidersConfig,
-) -> TokenStream {
-    let mod_name = format_ident!("__usdt_private_{}", provider.name());
+fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig) -> TokenStream {
+    let mod_name = module_ident_for_provider(&provider);
     let probe_impls = provider
-        .probes()
+        .probes
         .iter()
-        .map(|probe| compile_probe(probe, provider.name(), config))
+        .map(|probe| compile_probe(&provider, probe, config))
         .collect::<Vec<_>>();
     quote! {
         #[macro_use]
@@ -46,16 +53,16 @@ fn compile_provider(
 }
 
 fn compile_probe(
-    probe: &dtrace_parser::Probe,
-    provider_name: &str,
+    provider: &Provider,
+    probe: &Probe,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     let impl_block = quote! { let _ = || ($args_lambda); };
     common::build_probe_macro(
         config,
-        provider_name,
-        probe.name(),
-        probe.types(),
+        provider,
+        &probe.name,
+        &probe.types,
         quote! {},
         impl_block,
     )

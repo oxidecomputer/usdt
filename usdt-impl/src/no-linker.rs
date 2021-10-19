@@ -3,10 +3,10 @@
 // Copyright 2021 Oxide Computer Company
 
 use crate::record::{process_section, PROBE_REC_VERSION};
-use crate::{common, DataType};
+use crate::{common, module_ident_for_provider, DataType, Probe, Provider};
 use dof::{serialize_section, Section};
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use std::convert::TryFrom;
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
@@ -18,7 +18,17 @@ pub fn compile_provider_source(
     let providers = dfile
         .providers()
         .iter()
-        .map(|provider| compile_provider(provider, &config))
+        .map(|provider| {
+            let provider = Provider::from(provider);
+            let tokens = compile_provider(&provider, &config);
+            let mod_name = module_ident_for_provider(&provider);
+            quote! {
+                #[macro_use]
+                pub(crate) mod #mod_name {
+                    #tokens
+                }
+            }
+        })
         .collect::<Vec<_>>();
     Ok(quote! {
         #(#providers)*
@@ -26,21 +36,18 @@ pub fn compile_provider_source(
 }
 
 pub fn compile_provider_from_definition(
-    provider: &dtrace_parser::Provider,
+    provider: &Provider,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     compile_provider(provider, config)
 }
 
-fn compile_provider(
-    provider: &dtrace_parser::Provider,
-    config: &crate::CompileProvidersConfig,
-) -> TokenStream {
-    let mod_name = format_ident!("__usdt_private_{}", provider.name());
+fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig) -> TokenStream {
+    let mod_name = module_ident_for_provider(&provider);
     let probe_impls = provider
-        .probes()
+        .probes
         .iter()
-        .map(|probe| compile_probe(probe, provider.name(), config))
+        .map(|probe| compile_probe(provider, probe, config))
         .collect::<Vec<_>>();
     quote! {
         #[macro_use]
@@ -51,13 +58,13 @@ fn compile_provider(
 }
 
 fn compile_probe(
-    probe: &dtrace_parser::Probe,
-    provider_name: &str,
+    provider: &Provider,
+    probe: &Probe,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let (unpacked_args, in_regs) = common::construct_probe_args(probe.types());
-    let is_enabled_rec = asm_rec(provider_name, probe.name(), None);
-    let probe_rec = asm_rec(provider_name, probe.name(), Some(probe.types()));
+    let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
+    let is_enabled_rec = asm_rec(&provider.name, &probe.name, None);
+    let probe_rec = asm_rec(&provider.name, &probe.name, Some(&probe.types));
     let pre_macro_block = TokenStream::new();
     let impl_block = quote! {
         {
@@ -86,9 +93,9 @@ fn compile_probe(
     };
     common::build_probe_macro(
         config,
-        provider_name,
-        probe.name(),
-        probe.types(),
+        provider,
+        &probe.name,
+        &probe.types,
         pre_macro_block,
         impl_block,
     )
@@ -237,7 +244,10 @@ mod tests {
     fn test_asm_rec() {
         let provider = "provider";
         let probe = "probe";
-        let types = [DataType::U8, DataType::String];
+        let types = [
+            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(dtrace_parser::DataType::String),
+        ];
         let record = asm_rec(provider, probe, Some(&types));
         let mut lines = record.lines();
         println!("{}", record);

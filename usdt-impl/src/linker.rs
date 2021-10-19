@@ -1,14 +1,13 @@
+use crate::module_ident_for_provider;
+use crate::{common, DataType, Provider};
+use proc_macro2::{Ident, TokenStream};
+use quote::{format_ident, quote};
 use std::{
     collections::BTreeMap,
     convert::TryFrom,
     io::Write,
     process::{Command, Stdio},
 };
-
-use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote};
-
-use crate::{common, DataType};
 
 /// On systems with linker support for the compile-time construction of DTrace
 /// USDT probes we can lean heavily on those mechanisms. Rather than interpretting
@@ -72,8 +71,18 @@ pub fn compile_provider_source(
     let provider_info = extract_providers(&header);
     let providers = dfile
         .providers()
-        .iter()
-        .map(|provider| compile_provider(provider, &provider_info[provider.name()], config))
+        .into_iter()
+        .map(|provider| {
+            let provider = Provider::from(provider);
+            let tokens = compile_provider(&provider, &provider_info[&provider.name], config);
+            let mod_name = module_ident_for_provider(&provider);
+            quote! {
+                #[macro_use]
+                pub(crate) mod #mod_name {
+                    #tokens
+                }
+            }
+        })
         .collect::<Vec<_>>();
     Ok(quote! {
         #(#providers)*
@@ -81,34 +90,34 @@ pub fn compile_provider_source(
 }
 
 pub fn compile_provider_from_definition(
-    provider: &dtrace_parser::Provider,
+    provider: &Provider,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     // Unwrap safety: The type signature confirms that `provider` is valid.
     let header = build_header_from_provider(&provider.to_d_source()).unwrap();
     let provider_info = extract_providers(&header);
-    let provider_tokens = compile_provider(provider, &provider_info[provider.name()], config);
+    let provider_tokens = compile_provider(provider, &provider_info[&provider.name], config);
     quote! {
         #provider_tokens
     }
 }
 
 fn compile_provider(
-    provider: &dtrace_parser::Provider,
+    provider: &Provider,
     provider_info: &ProviderInfo,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let mod_name = format_ident!("__usdt_private_{}", provider.name());
+    let mod_name = module_ident_for_provider(&provider);
     let mut probe_impls = Vec::new();
-    for probe in provider.probes().iter() {
+    for probe in provider.probes.iter() {
         probe_impls.push(compile_probe(
             &mod_name,
-            provider.name(),
-            probe.name(),
+            provider,
+            &probe.name,
             config,
-            &provider_info.is_enabled[probe.name()],
-            &provider_info.probes[probe.name()],
-            &probe.types(),
+            &provider_info.is_enabled[&probe.name],
+            &provider_info.probes[&probe.name],
+            &probe.types,
         ));
     }
     let stability = &provider_info.stability;
@@ -135,17 +144,18 @@ fn compile_provider(
 
 fn compile_probe(
     mod_name: &Ident,
-    provider_name: &str,
+    provider: &Provider,
     probe_name: &str,
     config: &crate::CompileProvidersConfig,
     is_enabled: &str,
     probe: &str,
     types: &[DataType],
 ) -> TokenStream {
-    let is_enabled_fn = format_ident!("{}_{}_enabled", provider_name, probe_name);
-    let probe_fn = format_ident!("{}_{}", provider_name, probe_name);
+    let is_enabled_fn = format_ident!("{}_{}_enabled", &provider.name, probe_name);
+    let probe_fn = format_ident!("{}_{}", &provider.name, probe_name);
     let ffi_param_list = types.iter().map(|typ| {
-        syn::parse_str::<syn::FnArg>(&format!("_: {}", typ.to_rust_ffi_type())).unwrap()
+        let ty = typ.to_rust_ffi_type();
+        syn::parse2::<syn::FnArg>(quote! { _: #ty }).unwrap()
     });
     let (unpacked_args, in_regs) = common::construct_probe_args(types);
 
@@ -174,15 +184,15 @@ fn compile_probe(
 
     let impl_block = quote! {
         unsafe {
-            if $crate::#mod_name::#is_enabled_fn() != 0 {
+            if $crate::#mod_name::#mod_name::#is_enabled_fn() != 0 {
                 #unpacked_args
                 asm!(
                     ".reference {typedefs}",
                     #call_instruction,
                     ".reference {stability}",
-                    typedefs = sym $crate::#mod_name::#typedef_fn,
-                    probe_fn = sym $crate::#mod_name::#probe_fn,
-                    stability = sym $crate::#mod_name::#stability_fn,
+                    typedefs = sym $crate::#mod_name::#mod_name::#typedef_fn,
+                    probe_fn = sym $crate::#mod_name::#mod_name::#probe_fn,
+                    stability = sym $crate::#mod_name::#mod_name::#stability_fn,
                     #in_regs
                     options(nomem, nostack, preserves_flags)
                 );
@@ -192,7 +202,7 @@ fn compile_probe(
 
     common::build_probe_macro(
         config,
-        provider_name,
+        provider,
         probe_name,
         types,
         pre_macro_block,
@@ -324,6 +334,7 @@ pub fn register_probes() -> Result<(), crate::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Probe;
 
     #[test]
     fn test_is_stability_line() {
@@ -370,15 +381,23 @@ mod tests {
     #[test]
     fn test_compile_probe() {
         let provider_name = "foo";
-        let mod_name = format!("__usdt_private_{}", provider_name);
-        let mod_ident = format_ident!("__usdt_private_{}", provider_name);
         let probe_name = "bar";
         let is_enabled = "__dtrace_isenabled$foo$bar$xxx";
         let probe = "__dtrace_probe$foo$bar$xxx";
         let types = vec![];
+        let provider = Provider {
+            name: provider_name.to_string(),
+            probes: vec![Probe {
+                name: probe_name.to_string(),
+                types: types.clone(),
+            }],
+            use_statements: vec![],
+        };
+        let mod_ident = format_ident!("__usdt_private_{}", provider_name);
+        let mod_name = format!("{}", mod_ident);
         let tokens = compile_probe(
             &mod_ident,
-            provider_name,
+            &provider,
             probe_name,
             &crate::CompileProvidersConfig::default(),
             is_enabled,
@@ -406,17 +425,17 @@ mod tests {
             "call {probe_fn}",
             "\".reference {stability}",
             &format!(
-                "typedefs = sym $ crate :: {mod_name} :: typedefs",
+                "typedefs = sym $ crate :: {mod_name} :: {mod_name} :: typedefs",
                 mod_name = mod_name,
             ),
             &format!(
-                "probe_fn = sym $ crate :: {mod_name} :: {provider_name}_{probe_name}",
+                "probe_fn = sym $ crate :: {mod_name} :: {mod_name} :: {provider_name}_{probe_name}",
                 mod_name = mod_name,
                 provider_name = provider_name,
                 probe_name = probe_name
             ),
             &format!(
-                "stability = sym $ crate :: {mod_name} :: stability",
+                "stability = sym $ crate :: {mod_name} :: {mod_name} :: stability",
                 mod_name = mod_name
             ),
         ];

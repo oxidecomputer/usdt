@@ -55,8 +55,6 @@ pub enum DataType {
     I32,
     I64,
     String,
-    /// Any type `T: serde::Serialize`, with the original type name stored as a string.
-    Serializable(String),
 }
 
 impl TryFrom<&Pair<'_, Rule>> for DataType {
@@ -112,7 +110,6 @@ impl DataType {
             DataType::I32 => "int32_t",
             DataType::I64 => "int64_t",
             DataType::String => "char*",
-            DataType::Serializable(_) => "char*",
         }
         .into()
     }
@@ -129,7 +126,6 @@ impl DataType {
             DataType::I32 => "::std::os::raw::c_int",
             DataType::I64 => "::std::os::raw::c_longlong",
             DataType::String => "*const ::std::os::raw::c_char",
-            DataType::Serializable(_) => "*const ::std::os::raw::c_char",
         }
         .into()
     }
@@ -146,7 +142,6 @@ impl DataType {
             DataType::I32 => "i32",
             DataType::I64 => "i64",
             DataType::String => "&str",
-            DataType::Serializable(ref name) => name.as_str(),
         }
         .into()
     }
@@ -157,29 +152,6 @@ impl DataType {
 pub struct Probe {
     pub name: String,
     pub types: Vec<DataType>,
-}
-
-impl Probe {
-    /// Return the name of this probe.
-    pub fn name(&self) -> &String {
-        &self.name
-    }
-
-    /// Return the list of data types in this probe's signature.
-    pub fn types(&self) -> &Vec<DataType> {
-        &self.types
-    }
-
-    /// Return the representation of this probe in D source.
-    pub fn to_d_source(&self) -> String {
-        let types = self
-            .types
-            .iter()
-            .map(|typ| typ.to_c_type())
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("probe {name}({types});", name = self.name, types = types)
-    }
 }
 
 impl TryFrom<&Pair<'_, Rule>> for Probe {
@@ -237,33 +209,6 @@ impl TryFrom<&Pairs<'_, Rule>> for Probe {
 pub struct Provider {
     pub name: String,
     pub probes: Vec<Probe>,
-}
-
-impl Provider {
-    /// Return the name of this provider
-    pub fn name(&self) -> &String {
-        &self.name
-    }
-
-    /// Return the list of probes this provider defines.
-    pub fn probes(&self) -> &Vec<Probe> {
-        &self.probes
-    }
-
-    /// Return the representation of this provider in D source.
-    pub fn to_d_source(&self) -> String {
-        let probes = self
-            .probes
-            .iter()
-            .map(|probe| format!("\t{}", probe.to_d_source()))
-            .collect::<Vec<_>>()
-            .join("\n");
-        format!(
-            "provider {provider_name} {{\n{probes}\n}};",
-            provider_name = self.name,
-            probes = probes
-        )
-    }
 }
 
 impl TryFrom<&Pair<'_, Rule>> for Provider {
@@ -327,8 +272,8 @@ impl TryFrom<&Pair<'_, Rule>> for File {
         for item in pair.clone().into_inner() {
             if item.as_rule() == Rule::PROVIDER {
                 let provider = Provider::try_from(&item)?;
-                for probe in provider.probes() {
-                    let name = (provider.name().clone(), probe.name().clone());
+                for probe in provider.probes.iter() {
+                    let name = (provider.name.clone(), probe.name.clone());
                     if names.contains(&name) {
                         return Err(DTraceError::DuplicateProbeName(name));
                     }
@@ -374,17 +319,6 @@ impl File {
     /// Return the list of providers this file defines.
     pub fn providers(&self) -> &Vec<Provider> {
         &self.providers
-    }
-
-    /// Return the representation of this `File` in D source.
-    pub fn to_d_source(&self) -> String {
-        let providers = self
-            .providers
-            .iter()
-            .map(|provider| provider.to_d_source())
-            .collect::<Vec<_>>()
-            .join("\n");
-        format!("{}", providers)
     }
 }
 
@@ -575,10 +509,10 @@ mod tests {
         let (_, probe) = probe_data;
         let probe = Probe::try_from(&DTraceParser::parse(Rule::PROBE, &probe).unwrap())
             .expect("Could not parse probe tokens");
-        assert_eq!(probe.name(), "baz");
+        assert_eq!(probe.name, "baz");
         assert_eq!(
-            probe.types(),
-            &vec![DataType::String, DataType::U16, DataType::U8]
+            probe.types,
+            &[DataType::String, DataType::U16, DataType::U8]
         );
     }
 
@@ -598,9 +532,9 @@ mod tests {
                 .into_inner(),
         );
         let provider = provider.unwrap();
-        assert_eq!(provider.name(), provider_name);
-        assert_eq!(provider.probes().len(), 1);
-        assert_eq!(provider.probes()[0].name(), "baz");
+        assert_eq!(provider.name, provider_name);
+        assert_eq!(provider.probes.len(), 1);
+        assert_eq!(provider.probes[0].name, "baz");
     }
 
     #[test]
@@ -618,20 +552,13 @@ mod tests {
             };
             "#;
         let file = File::try_from(&DTraceParser::parse(Rule::FILE, defn).unwrap()).unwrap();
-        assert_eq!(file.providers().len(), 2);
-        assert_eq!(file.providers()[0].name(), "foo");
-        assert_eq!(file.providers()[1].probes()[1].name(), "baz");
+        assert_eq!(file.providers.len(), 2);
+        assert_eq!(file.providers[0].name, "foo");
+        assert_eq!(file.providers[1].probes[1].name, "baz");
 
         let file2 = File::try_from(defn).unwrap();
         assert_eq!(file, file2);
 
         assert!(File::try_from("this is not a D file").is_err());
-    }
-
-    #[test]
-    fn test_to_d_source() {
-        let as_str = "provider my_provider {\n\tprobe foo(int8_t, char*);\n};";
-        let file = File::try_from(as_str).unwrap();
-        assert_eq!(file.to_d_source(), as_str);
     }
 }

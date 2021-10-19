@@ -1,5 +1,4 @@
-//! Test that passing a type that is serializable, but not the same concrete type as the probe
-//! signature, fails compilation.
+//! Test that we can't name types into the provider module using a relative import
 
 // Copyright 2021 Oxide Computer Company
 
@@ -10,14 +9,9 @@ struct Expected {
     x: u8
 }
 
-#[derive(serde::Serialize)]
-struct Different {
-    x: u8
-}
-
 #[usdt::provider]
 mod my_provider {
-    use crate::Expected;
+    use super::Expected;
     fn my_probe(_: Expected) {}
 }
 

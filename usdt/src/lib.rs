@@ -94,7 +94,7 @@
 //! // module's body generates a probe macro.
 //! #[usdt::provider]
 //! mod test {
-//!     use super::Arg;
+//!     use crate::Arg;
 //!     fn start(x: u8) {}
 //!     fn stop(arg: &Arg) {}
 //! }
