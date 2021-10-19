@@ -5,6 +5,6 @@ error[E0308]: mismatched types
    | ^^^^^^^^^^^^^^^^^ expected struct `Expected`, found struct `Different`
 ...
 25 |     my_provider_my_probe!(|| Different { x: 0 });
-   |     --------------------------------------------- in this macro invocation
+   |     -------------------------------------------- in this macro invocation
    |
    = note: this error originates in the macro `my_provider_my_probe` (in Nightly builds, run with -Z macro-backtrace for more info)
