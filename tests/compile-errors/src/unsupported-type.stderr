@@ -22,7 +22,7 @@ Unsupported type, the following are supported:
  --> $DIR/unsupported-type.rs:3:1
   |
 3 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/unsupported-type.d");
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: this error originates in the macro `usdt::dtrace_provider` (in Nightly builds, run with -Z macro-backtrace for more info)
 
