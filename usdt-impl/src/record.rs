@@ -164,6 +164,19 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     }
 }
 
+// Limit a string to the DTrace-imposed maxima. Note that this ensures a null-terminated C string
+// result, i.e., the actula string is of length `limit - 1`.
+// See dtrace.h
+const MAX_PROVIDER_NAME_LEN: usize = 64;
+const MAX_PROBE_NAME_LEN: usize = 64;
+const MAX_FUNC_NAME_LEN: usize = 128;
+const MAX_ARG_TYPE_LEN: usize = 128;
+fn limit_string_length<S: AsRef<str>>(s: S, limit: usize) -> String {
+    let s = s.as_ref();
+    let limit = s.len().min(limit - 1);
+    s[..limit].to_string()
+}
+
 // Process a single record from the custom linker section.
 fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) -> Result<(), crate::Error> {
     // Skip over the length which was already read.
@@ -186,32 +199,31 @@ fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) -> Result
     let args = {
         let mut args = Vec::with_capacity(n_args);
         for _ in 0..n_args {
-            args.push(String::from(data.read_cstr()));
+            args.push(limit_string_length(data.read_cstr(), MAX_ARG_TYPE_LEN));
         }
         args
     };
 
     let funcname = match addr_to_info(address).0 {
-        Some(s) => s,
+        Some(s) => limit_string_length(s, MAX_FUNC_NAME_LEN),
         None => format!("?{:#x}", address),
     };
 
-    let provider = providers.entry(provname.to_string()).or_insert(Provider {
-        name: provname.to_string(),
+    let provname = limit_string_length(provname, MAX_PROVIDER_NAME_LEN);
+    let provider = providers.entry(provname.clone()).or_insert(Provider {
+        name: provname,
         probes: BTreeMap::new(),
     });
 
-    let probe = provider
-        .probes
-        .entry(probename.to_string())
-        .or_insert(Probe {
-            name: probename.to_string(),
-            function: funcname,
-            address: address,
-            offsets: vec![],
-            enabled_offsets: vec![],
-            arguments: vec![],
-        });
+    let probename = limit_string_length(probename, MAX_PROBE_NAME_LEN);
+    let probe = provider.probes.entry(probename.clone()).or_insert(Probe {
+        name: probename,
+        function: funcname,
+        address: address,
+        offsets: vec![],
+        enabled_offsets: vec![],
+        arguments: vec![],
+    });
     probe.arguments = args;
 
     // We expect to get records in address order for a given probe; our offsets
@@ -252,6 +264,7 @@ mod test {
     use super::process_rec;
     use super::process_section;
     use super::PROBE_REC_VERSION;
+    use super::{MAX_PROBE_NAME_LEN, MAX_PROVIDER_NAME_LEN};
 
     #[test]
     fn test_process_rec() {
@@ -282,6 +295,43 @@ mod test {
             .unwrap();
 
         assert_eq!(probe.name, "probe");
+        assert_eq!(probe.address, 0x1234);
+    }
+
+    #[test]
+    fn test_process_rec_long_names() {
+        let mut rec = Vec::<u8>::new();
+
+        // write a dummy length
+        let long_name: String = std::iter::repeat("p").take(130).collect();
+        rec.write_u32::<NativeEndian>(0).unwrap();
+        rec.write_u8(PROBE_REC_VERSION).unwrap();
+        rec.write_u8(0).unwrap();
+        rec.write_u16::<NativeEndian>(0).unwrap();
+        rec.write_u64::<NativeEndian>(0x1234).unwrap();
+        rec.write_cstr(&long_name);
+        rec.write_cstr(&long_name);
+        // fix the length field
+        let len = rec.len();
+        (&mut rec[0..])
+            .write_u32::<NativeEndian>(len as u32)
+            .unwrap();
+
+        let mut providers = BTreeMap::new();
+        process_rec(&mut providers, rec.as_slice()).unwrap();
+
+        let expected_provider_name = &long_name[..MAX_PROVIDER_NAME_LEN - 1];
+        let expected_probe_name = &long_name[..MAX_PROBE_NAME_LEN - 1];
+
+        assert!(providers.get(&long_name).is_none());
+        let probe = providers
+            .get(expected_provider_name)
+            .unwrap()
+            .probes
+            .get(expected_probe_name)
+            .unwrap();
+
+        assert_eq!(probe.name, expected_probe_name);
         assert_eq!(probe.address, 0x1234);
     }
 
