@@ -60,7 +60,7 @@ pub enum Error {
     #[error("Failed to call DTrace subprocess")]
     DTraceError,
     /// Error converting input to JSON
-    #[error("Failed to convert to JSON")]
+    #[error(transparent)]
     Json(#[from] serde_json::Error),
 }
 
