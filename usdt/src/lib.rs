@@ -299,3 +299,11 @@ impl Builder {
 pub fn register_probes() -> Result<(), Error> {
     usdt_impl::register_probes().map_err(Error::from)
 }
+
+/// Serialize the input as JSON.
+pub fn to_json<T>(x: &T) -> Result<String, Error>
+where
+    T: ?Sized + ::serde::Serialize,
+{
+    ::usdt_impl::to_json(x)
+}

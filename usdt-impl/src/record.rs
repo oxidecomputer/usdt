@@ -36,16 +36,11 @@ pub fn extract_probe_records<P: AsRef<Path>>(file: P) -> Result<Option<Section>,
                 .section_headers
                 .iter()
                 .filter_map(|header| {
-                    if let Some(result) = object.shdr_strtab.get(header.sh_name) {
-                        match result {
-                            Err(_) => Some(Err(crate::Error::InvalidFile)),
-                            Ok(name) => {
-                                if name == "set_dtrace_probes" {
-                                    Some(Ok(header))
-                                } else {
-                                    None
-                                }
-                            }
+                    if let Some(name) = object.shdr_strtab.get_at(header.sh_name) {
+                        if name == "set_dtrace_probes" {
+                            Some(header)
+                        } else {
+                            None
                         }
                     } else {
                         None
@@ -53,31 +48,24 @@ pub fn extract_probe_records<P: AsRef<Path>>(file: P) -> Result<Option<Section>,
                 })
                 .next()
             {
-                let section = section?;
                 let start = section.sh_offset as usize;
                 let end = start + (section.sh_size as usize);
                 process_section(&data[start..end])
             } else {
                 // Failed to look up the section directly, iterate over the symbols.
                 let mut bounds = object.syms.iter().filter_map(|symbol| {
-                    if let Some(result) = object.strtab.get(symbol.st_name) {
-                        match result {
-                            Err(_) => Some(Err(crate::Error::InvalidFile)),
-                            Ok(name) => {
-                                if name == "__start_set_dtrace_probes"
-                                    || name == "__stop_set_dtrace_probes"
-                                {
-                                    Some(Ok(symbol))
-                                } else {
-                                    None
-                                }
-                            }
+                    if let Some(name) = object.strtab.get_at(symbol.st_name) {
+                        if name == "__start_set_dtrace_probes" || name == "__stop_set_dtrace_probes"
+                        {
+                            Some(symbol)
+                        } else {
+                            None
                         }
                     } else {
                         None
                     }
                 });
-                if let (Some(Ok(start)), Some(Ok(stop))) = (bounds.next(), bounds.next()) {
+                if let (Some(start), Some(stop)) = (bounds.next(), bounds.next()) {
                     let (start, stop) = (start.st_value as usize, stop.st_value as usize);
                     process_section(&data[start..stop])
                 } else {
@@ -165,9 +153,13 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
 }
 
 // Limit a string to the DTrace-imposed maxima. Note that this ensures a null-terminated C string
-// result, i.e., the actula string is of length `limit - 1`.
-// See dtrace.h
-const MAX_PROVIDER_NAME_LEN: usize = 64;
+// result, i.e., the actual string is of length `limit - 1`.
+// See dtrace.h,
+//
+// DTrace appends the PID to the provider name. The exact size is platform dependent, but use the
+// largest known value of 999,999 on illumos. MacOS and the BSDs are 32-99K. We take the log to get
+// the number of digits.
+const MAX_PROVIDER_NAME_LEN: usize = 64 - 6;
 const MAX_PROBE_NAME_LEN: usize = 64;
 const MAX_FUNC_NAME_LEN: usize = 128;
 const MAX_ARG_TYPE_LEN: usize = 128;
