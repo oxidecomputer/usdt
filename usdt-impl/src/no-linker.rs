@@ -103,17 +103,9 @@ fn compile_probe(
 
 fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error> {
     extern "C" {
-        #[cfg_attr(
-            target_os = "macos",
-            link_name = "\x01section$start$__DATA$__dtrace_probes"
-        )]
-        #[cfg_attr(not(target_os = "macos"), link_name = "__start_set_dtrace_probes")]
+        #[link_name = "__start_set_dtrace_probes"]
         static dtrace_probes_start: usize;
-        #[cfg_attr(
-            target_os = "macos",
-            link_name = "\x01section$end$__DATA$__dtrace_probes"
-        )]
-        #[cfg_attr(not(target_os = "macos"), link_name = "__stop_set_dtrace_probes")]
+        #[link_name = "__stop_set_dtrace_probes"]
         static dtrace_probes_stop: usize;
     }
 
@@ -135,11 +127,7 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
 
 // Construct the ASM record for a probe. If `types` is `None`, then is is an is-enabled probe.
 fn asm_rec(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
-    let section_ident = if cfg!(target_os = "macos") {
-        r#"__DATA,__dtrace_probes,regular,no_dead_strip"#
-    } else {
-        r#"set_dtrace_probes,"a","progbits""#
-    };
+    let section_ident = r#"set_dtrace_probes,"a","progbits""#;
     let is_enabled = types.is_none();
     let n_args = types.map_or(0, |typ| typ.len());
     let arguments = types.map_or_else(String::new, |types| {

@@ -59,6 +59,9 @@ pub enum Error {
     /// Error related to calling out to DTrace itself
     #[error("Failed to call DTrace subprocess")]
     DTraceError,
+    /// Error converting input to JSON
+    #[error("Failed to convert to JSON")]
+    Json(#[from] serde_json::Error),
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -221,6 +224,13 @@ impl From<&dtrace_parser::Provider> for Provider {
     fn from(p: &dtrace_parser::Provider) -> Self {
         Self::from(p.clone())
     }
+}
+
+pub fn to_json<T>(x: &T) -> Result<String, Error>
+where
+    T: ?Sized + ::serde::Serialize,
+{
+    ::serde_json::to_string(x).map_err(Error::from)
 }
 
 #[cfg(test)]

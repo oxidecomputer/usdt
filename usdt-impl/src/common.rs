@@ -164,7 +164,7 @@ fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenSt
             // and "err".
             quote! {
                 [
-                    match serde_json::to_string(&#input) {
+                    match ::usdt::to_json(&#input) {
                         Ok(json) => format!("{{\"ok\": {}}}", json),
                         Err(e) => format!("{{\"err\": \"{}\"}}", e.to_string()),
                     }.as_bytes(),
