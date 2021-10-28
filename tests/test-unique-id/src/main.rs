@@ -38,7 +38,6 @@ mod tests {
         assert_eq!(result, id.as_u64());
 
         // Actually verify that the same value is received by DTrace.
-        thread::sleep(Duration::from_millis(100));
         let sudo = if cfg!(target_os = "illumos") {
             "pfexec"
         } else {
@@ -46,7 +45,6 @@ mod tests {
         };
         let mut dtrace = Exec::cmd(sudo)
             .arg("/usr/sbin/dtrace")
-            .arg("-Z")
             .arg("-q")
             .arg("-n")
             .arg(r#"with_ids*:::waypoint_from_thread { printf("%d\n", arg0); exit(0); }"#)
