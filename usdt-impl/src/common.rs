@@ -35,7 +35,10 @@ pub fn generate_type_check(
                 let arg = typ.to_rust_type();
                 quote! { _: #arg }
             }
-            DataType::Native(dtrace_parser::DataType::String) => {
+            DataType::Native {
+                ty: dtrace_parser::DataType::String,
+                ..
+            } => {
                 has_strings = true;
                 quote! { _: S }
             }
@@ -173,13 +176,24 @@ fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenSt
             },
             quote! { .as_ptr() as i64 },
         ),
-        DataType::Native(dtrace_parser::DataType::String) => (
+        DataType::Native {
+            ty: dtrace_parser::DataType::String,
+            ..
+        } => (
             quote! {
                 [(#input.as_ref() as &str).as_bytes(), &[0_u8]].concat()
             },
             quote! { .as_ptr() as i64 },
         ),
-        _ => (quote! { (#input as i64) }, quote! {}),
+        DataType::Native { is_ref, .. } => {
+            let maybe_deref = if *is_ref {
+                quote! { * }
+            } else {
+                quote! {}
+            };
+            (quote! { (#maybe_deref #input as i64) }, quote! {})
+        }
+        DataType::UniqueId { .. } => (quote! { #input.as_u64() as i64 }, quote! {}),
     }
 }
 
@@ -241,13 +255,19 @@ mod tests {
         let provider = "provider";
         let probe = "probe";
         let types = &[
-            DataType::Native(dtrace_parser::DataType::U8),
-            DataType::Native(dtrace_parser::DataType::I64),
+            DataType::Native {
+                ty: dtrace_parser::DataType::U8,
+                is_ref: false,
+            },
+            DataType::Native {
+                ty: dtrace_parser::DataType::I64,
+                is_ref: true,
+            },
         ];
         let expected = quote! {
             {
                 #![allow(unused_imports)]
-                fn __usdt_private_provider_probe_type_check(_: u8, _: i64) { }
+                fn __usdt_private_provider_probe_type_check(_: u8, _: &i64) { }
                 let _ = || {
                     let args = $args_lambda();
                     __usdt_private_provider_probe_type_check(args.0, args.1);
@@ -263,8 +283,14 @@ mod tests {
         let provider = "provider";
         let probe = "probe";
         let types = &[
-            DataType::Native(dtrace_parser::DataType::U8),
-            DataType::Native(dtrace_parser::DataType::String),
+            DataType::Native {
+                ty: dtrace_parser::DataType::U8,
+                is_ref: false,
+            },
+            DataType::Native {
+                ty: dtrace_parser::DataType::String,
+                is_ref: true,
+            },
             DataType::Serializable(syn::parse_str("MyType").unwrap()),
         ];
         let use_statements = vec![syn::parse2(quote! { use my_module::MyType; }).unwrap()];
@@ -286,8 +312,14 @@ mod tests {
     #[test]
     fn test_construct_probe_args() {
         let types = &[
-            DataType::Native(dtrace_parser::DataType::U8),
-            DataType::Native(dtrace_parser::DataType::String),
+            DataType::Native {
+                ty: dtrace_parser::DataType::U8,
+                is_ref: false,
+            },
+            DataType::Native {
+                ty: dtrace_parser::DataType::String,
+                is_ref: false,
+            },
         ];
         let registers = &["rdi", "rsi"];
         let (args, regs) = construct_probe_args(types);
@@ -319,14 +351,20 @@ mod tests {
     fn test_asm_type_convert() {
         use std::str::FromStr;
         let (out, post) = asm_type_convert(
-            &DataType::Native(dtrace_parser::DataType::U8),
+            &DataType::Native {
+                ty: dtrace_parser::DataType::U8,
+                is_ref: false,
+            },
             TokenStream::from_str("foo").unwrap(),
         );
         assert_eq!(out.to_string(), quote! {(foo as i64)}.to_string());
         assert_eq!(post.to_string(), quote! {}.to_string());
 
         let (out, post) = asm_type_convert(
-            &DataType::Native(dtrace_parser::DataType::String),
+            &DataType::Native {
+                ty: dtrace_parser::DataType::String,
+                is_ref: false,
+            },
             TokenStream::from_str("foo").unwrap(),
         );
         assert_eq!(
