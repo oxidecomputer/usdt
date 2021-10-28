@@ -80,8 +80,6 @@ mod tests {
             panic!("DTrace didn't exit within timeout of {:?}", TIMEOUT);
         }
         let (stdout, stderr) = comm.read_string().expect("Failed to read DTrace output");
-        println!("{:#?}", stdout);
-        println!("{:#?}", stderr);
         let stdout = stdout.unwrap_or_else(|| String::from("<EMPTY>"));
         let stderr = stderr.unwrap_or_else(|| String::from("<EMPTY>"));
         let actual_id: u64 = stdout.trim().parse().expect(&format!(
