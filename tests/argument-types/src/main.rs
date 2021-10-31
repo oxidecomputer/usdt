@@ -105,4 +105,6 @@ fn main() {
     refs_serializable_as_value!(|| &arg);
     refs_serializable_as_reference!(|| crate::Arg::default());
     refs_serializable_as_reference!(|| &arg);
+
+    refs_serializable_as_reference!(|| arg);
 }

@@ -14,6 +14,7 @@ pub fn generate_type_check(
     types: &[DataType],
 ) -> TokenStream {
     // If the probe has zero arguments, verify that the result of calling the closure is `()`
+    // Note that there's no need to clone the closure here, since () is Copy.
     if types.is_empty() {
         return quote! {
             let __usdt_private_args_lambda = $args_lambda;
@@ -78,7 +79,7 @@ pub fn generate_type_check(
         })
         .collect::<Vec<_>>();
 
-    let preamble = unpack_argument_lambda(&types);
+    let preamble = unpack_argument_lambda(&types, /* clone = */ true);
 
     let type_check_function =
         format_ident!("__usdt_private_{}_{}_type_check", provider_name, probe_name);
@@ -141,7 +142,7 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
             (destructured_arg, register_arg)
         })
         .unzip();
-    let preamble = unpack_argument_lambda(types);
+    let preamble = unpack_argument_lambda(types, /* clone = */ false);
     let unpacked_args = quote! {
         #preamble
         #(#unpacked_args)*
@@ -150,14 +151,19 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
     (unpacked_args, in_regs)
 }
 
-fn unpack_argument_lambda(types: &[DataType]) -> TokenStream {
+fn unpack_argument_lambda(types: &[DataType], clone: bool) -> TokenStream {
+    let maybe_clone = if clone {
+        quote! { .clone() }
+    } else {
+        quote! {}
+    };
     match types.len() {
         // Don't bother with arguments if there are none.
-        0 => quote! { __usdt_private_args_lambda(); },
+        0 => quote! { __usdt_private_args_lambda #maybe_clone (); },
         // Wrap a single argument in a tuple.
-        1 => quote! { let args = (__usdt_private_args_lambda(),); },
+        1 => quote! { let args = (__usdt_private_args_lambda #maybe_clone (),); },
         // General case.
-        _ => quote! { let args = __usdt_private_args_lambda(); },
+        _ => quote! { let args = __usdt_private_args_lambda #maybe_clone (); },
     }
 }
 
@@ -266,7 +272,7 @@ mod tests {
                 _: impl ::std::borrow::Borrow<i64>
             ) { }
             let _ = || {
-                let args = __usdt_private_args_lambda();
+                let args = __usdt_private_args_lambda.clone()();
                 __usdt_private_provider_probe_type_check(args.0, args.1);
             };
         };
@@ -285,7 +291,7 @@ mod tests {
             #[allow(unused_imports)]
             fn __usdt_private_provider_probe_type_check(_: impl AsRef<str>) { }
             let _ = || {
-                let args = (__usdt_private_args_lambda(),);
+                let args = (__usdt_private_args_lambda.clone()(),);
                 __usdt_private_provider_probe_type_check(args.0);
             };
         };
@@ -304,7 +310,7 @@ mod tests {
             #[allow(unused_imports)]
             fn __usdt_private_provider_probe_type_check(_: impl AsRef<[u8]>) { }
             let _ = || {
-                let args = (__usdt_private_args_lambda(),);
+                let args = (__usdt_private_args_lambda.clone()(),);
                 __usdt_private_provider_probe_type_check(args.0);
             };
         };
@@ -324,7 +330,7 @@ mod tests {
             use my_module::MyType;
             fn __usdt_private_provider_probe_type_check(_: impl ::std::borrow::Borrow<MyType>) { }
             let _ = || {
-                let args = (__usdt_private_args_lambda(),);
+                let args = (__usdt_private_args_lambda.clone()(),);
                 __usdt_private_provider_probe_type_check(args.0);
             };
         };
