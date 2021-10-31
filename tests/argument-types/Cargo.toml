@@ -1,0 +1,9 @@
+[package]
+name = "argument-types"
+version = "0.1.0"
+authors = ["Benjamin Naecker <ben@oxidecomputer.com>"]
+edition = "2018"
+
+[dependencies]
+usdt = { path = "../../usdt" }
+serde = "1"

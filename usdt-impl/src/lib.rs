@@ -119,13 +119,8 @@ pub fn compile_provider(
 /// A data type supported by the `usdt` crate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
-    Native {
-        ty: dtrace_parser::DataType,
-        is_ref: bool,
-    },
-    UniqueId {
-        is_ref: bool,
-    },
+    Native(dtrace_parser::DataType),
+    UniqueId,
     Serializable(syn::Type),
 }
 
@@ -133,8 +128,8 @@ impl DataType {
     /// Convert a data type to its C type representation as a string.
     pub fn to_c_type(&self) -> String {
         match self {
-            DataType::Native { ty, .. } => ty.to_c_type(),
-            DataType::UniqueId { .. } => String::from("uint64_t"),
+            DataType::Native(ty) => ty.to_c_type(),
+            DataType::UniqueId => String::from("uint64_t"),
             DataType::Serializable(_) => String::from("char*"),
         }
     }
@@ -142,8 +137,8 @@ impl DataType {
     /// Return the Rust FFI type representation of this data type.
     pub fn to_rust_ffi_type(&self) -> syn::Type {
         match self {
-            DataType::Native { ty, .. } => syn::parse_str(&ty.to_rust_ffi_type()).unwrap(),
-            DataType::UniqueId { .. } => syn::parse_str("::std::os::raw::c_ulonglong").unwrap(),
+            DataType::Native(ty) => syn::parse_str(&ty.to_rust_ffi_type()).unwrap(),
+            DataType::UniqueId => syn::parse_str("::std::os::raw::c_ulonglong").unwrap(),
             DataType::Serializable(_) => syn::parse_str("*const ::std::os::raw::c_char").unwrap(),
         }
     }
@@ -151,17 +146,8 @@ impl DataType {
     /// Return the native Rust type representation of this data type.
     pub fn to_rust_type(&self) -> syn::Type {
         match self {
-            DataType::Native { ty, is_ref } => syn::parse_str(&format!(
-                "{}{}",
-                if *is_ref { "&" } else { "" },
-                ty.to_rust_type()
-            ))
-            .unwrap(),
-            DataType::UniqueId { is_ref } => syn::parse_str(&format!(
-                "{}::usdt::UniqueId",
-                if *is_ref { "&" } else { "" }
-            ))
-            .unwrap(),
+            DataType::Native(ty) => syn::parse_str(&ty.to_rust_type()).unwrap(),
+            DataType::UniqueId => syn::parse_str("::usdt::UniqueId").unwrap(),
             DataType::Serializable(ref inner) => inner.clone(),
         }
     }
@@ -169,7 +155,7 @@ impl DataType {
 
 impl From<dtrace_parser::DataType> for DataType {
     fn from(ty: dtrace_parser::DataType) -> Self {
-        DataType::Native { ty, is_ref: false }
+        DataType::Native(ty)
     }
 }
 
@@ -428,10 +414,7 @@ mod test {
     fn test_probe_to_d_source() {
         let probe = Probe {
             name: String::from("my_probe"),
-            types: vec![DataType::Native {
-                ty: dtrace_parser::DataType::U8,
-                is_ref: false,
-            }],
+            types: vec![DataType::Native(dtrace_parser::DataType::U8)],
         };
         assert_eq!(probe.to_d_source(), "probe my_probe(uint8_t);");
     }
@@ -440,10 +423,7 @@ mod test {
     fn test_provider_to_d_source() {
         let probe = Probe {
             name: String::from("my_probe"),
-            types: vec![DataType::Native {
-                ty: dtrace_parser::DataType::U8,
-                is_ref: false,
-            }],
+            types: vec![DataType::Native(dtrace_parser::DataType::U8)],
         };
         let provider = Provider {
             name: String::from("my_provider"),
@@ -458,40 +438,16 @@ mod test {
 
     #[test]
     fn test_data_type() {
-        let ty = DataType::Native {
-            ty: dtrace_parser::DataType::U8,
-            is_ref: false,
-        };
+        let ty = DataType::Native(dtrace_parser::DataType::U8);
         assert_eq!(ty.to_rust_type(), syn::parse_str("u8").unwrap());
 
-        let ty = DataType::Native {
-            ty: dtrace_parser::DataType::U8,
-            is_ref: true,
-        };
-        assert_eq!(ty.to_rust_type(), syn::parse_str("&u8").unwrap());
-
-        let ty = DataType::Native {
-            ty: dtrace_parser::DataType::String,
-            is_ref: false,
-        };
+        let ty = DataType::Native(dtrace_parser::DataType::String);
         assert_eq!(ty.to_rust_type(), syn::parse_str("&str").unwrap());
 
-        let ty = DataType::Native {
-            ty: dtrace_parser::DataType::String,
-            is_ref: true,
-        };
-        assert_eq!(ty.to_rust_type(), syn::parse_str("&&str").unwrap());
-
-        let ty = DataType::UniqueId { is_ref: false };
+        let ty = DataType::UniqueId;
         assert_eq!(
             ty.to_rust_type(),
             syn::parse_str("::usdt::UniqueId").unwrap()
-        );
-
-        let ty = DataType::UniqueId { is_ref: true };
-        assert_eq!(
-            ty.to_rust_type(),
-            syn::parse_str("&::usdt::UniqueId").unwrap()
         );
     }
 

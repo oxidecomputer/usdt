@@ -165,9 +165,9 @@ fn parse_probe_argument(
                 })?
                 .ident;
             if is_simple_type(last_ident) {
-                Ok((None, data_type_from_path(&path.path, false)))
+                Ok((None, data_type_from_path(&path.path)))
             } else if last_ident == "UniqueId" {
-                Ok((None, DataType::UniqueId { is_ref: false }))
+                Ok((None, DataType::UniqueId))
             } else {
                 let check_fn = build_serializable_check_function(item, fn_index, arg_index);
                 Ok((Some(check_fn), DataType::Serializable(item.clone())))
@@ -175,12 +175,8 @@ fn parse_probe_argument(
         }
         syn::Type::Reference(ref reference) => {
             match parse_probe_argument(&*reference.elem, fn_index, arg_index)? {
-                (None, DataType::UniqueId { .. }) => {
-                    Ok((None, DataType::UniqueId { is_ref: true }))
-                }
-                (None, DataType::Native { ty, .. }) => {
-                    Ok((None, DataType::Native { ty, is_ref: true }))
-                }
+                (None, DataType::UniqueId) => Ok((None, DataType::UniqueId)),
+                (None, DataType::Native(ty)) => Ok((None, DataType::Native(ty))),
                 _ => Ok((
                     Some(build_serializable_check_function(item, fn_index, arg_index)),
                     DataType::Serializable(item.clone()),
@@ -244,52 +240,25 @@ fn is_simple_type(ident: &syn::Ident) -> bool {
 }
 
 // Return the `dtrace_parser::DataType` corresponding to the given `path`
-fn data_type_from_path(path: &syn::Path, is_ref: bool) -> DataType {
+fn data_type_from_path(path: &syn::Path) -> DataType {
     if path.is_ident("u8") {
-        DataType::Native {
-            ty: dtrace_parser::DataType::U8,
-            is_ref,
-        }
+        DataType::Native(dtrace_parser::DataType::U8)
     } else if path.is_ident("u16") {
-        DataType::Native {
-            ty: dtrace_parser::DataType::U16,
-            is_ref,
-        }
+        DataType::Native(dtrace_parser::DataType::U16)
     } else if path.is_ident("u32") {
-        DataType::Native {
-            ty: dtrace_parser::DataType::U32,
-            is_ref,
-        }
+        DataType::Native(dtrace_parser::DataType::U32)
     } else if path.is_ident("u64") {
-        DataType::Native {
-            ty: dtrace_parser::DataType::U64,
-            is_ref,
-        }
+        DataType::Native(dtrace_parser::DataType::U64)
     } else if path.is_ident("i8") {
-        DataType::Native {
-            ty: dtrace_parser::DataType::I8,
-            is_ref,
-        }
+        DataType::Native(dtrace_parser::DataType::I8)
     } else if path.is_ident("i16") {
-        DataType::Native {
-            ty: dtrace_parser::DataType::I16,
-            is_ref,
-        }
+        DataType::Native(dtrace_parser::DataType::I16)
     } else if path.is_ident("i32") {
-        DataType::Native {
-            ty: dtrace_parser::DataType::I32,
-            is_ref,
-        }
+        DataType::Native(dtrace_parser::DataType::I32)
     } else if path.is_ident("i64") {
-        DataType::Native {
-            ty: dtrace_parser::DataType::I64,
-            is_ref,
-        }
+        DataType::Native(dtrace_parser::DataType::I64)
     } else if path.is_ident("String") || path.is_ident("str") {
-        DataType::Native {
-            ty: dtrace_parser::DataType::String,
-            is_ref,
-        }
+        DataType::Native(dtrace_parser::DataType::String)
     } else {
         unreachable!("Tried to parse a non-path data type");
     }
@@ -338,60 +307,47 @@ mod tests {
     #[test]
     fn test_data_type_from_path() {
         assert_eq!(
-            data_type_from_path(&syn::parse_str("u8").unwrap(), false),
-            DataType::Native {
-                ty: dtrace_parser::DataType::U8,
-                is_ref: false
-            },
+            data_type_from_path(&syn::parse_str("u8").unwrap()),
+            DataType::Native(dtrace_parser::DataType::U8),
         );
         assert_eq!(
-            data_type_from_path(&syn::parse_str("String").unwrap(), false),
-            DataType::Native {
-                ty: dtrace_parser::DataType::String,
-                is_ref: false
-            },
+            data_type_from_path(&syn::parse_str("String").unwrap()),
+            DataType::Native(dtrace_parser::DataType::String),
         );
         assert_eq!(
-            data_type_from_path(&syn::parse_str("String").unwrap(), true),
-            DataType::Native {
-                ty: dtrace_parser::DataType::String,
-                is_ref: true
-            },
+            data_type_from_path(&syn::parse_str("String").unwrap()),
+            DataType::Native(dtrace_parser::DataType::String),
         );
     }
 
     #[test]
     #[should_panic]
     fn test_data_type_from_path_panics() {
-        data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap(), false);
+        data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap());
     }
 
     #[rstest]
-    #[case("u8", dtrace_parser::DataType::U8, false)]
-    #[case("&u8", dtrace_parser::DataType::U8, true)]
-    #[case("&str", dtrace_parser::DataType::String, true)]
-    #[case("String", dtrace_parser::DataType::String, false)]
-    #[case("&&str", dtrace_parser::DataType::String, true)]
-    #[case("&String", dtrace_parser::DataType::String, true)]
-    fn test_parse_probe_argument_native(
-        #[case] name: &str,
-        #[case] ty: dtrace_parser::DataType,
-        #[case] is_ref: bool,
-    ) {
+    #[case("u8", dtrace_parser::DataType::U8)]
+    #[case("&u8", dtrace_parser::DataType::U8)]
+    #[case("&str", dtrace_parser::DataType::String)]
+    #[case("String", dtrace_parser::DataType::String)]
+    #[case("&&str", dtrace_parser::DataType::String)]
+    #[case("&String", dtrace_parser::DataType::String)]
+    fn test_parse_probe_argument_native(#[case] name: &str, #[case] ty: dtrace_parser::DataType) {
         let arg = syn::parse_str(name).unwrap();
         let out = parse_probe_argument(&arg, 0, 0).unwrap();
         assert!(out.0.is_none());
-        assert_eq!(out.1, DataType::Native { ty, is_ref });
+        assert_eq!(out.1, DataType::Native(ty));
     }
 
     #[rstest]
-    #[case("usdt::UniqueId", false)]
-    #[case("&usdt::UniqueId", true)]
-    fn test_parse_probe_argument_span(#[case] arg: &str, #[case] is_ref: bool) {
+    #[case("usdt::UniqueId")]
+    #[case("&usdt::UniqueId")]
+    fn test_parse_probe_argument_span(#[case] arg: &str) {
         let ty = syn::parse_str(arg).unwrap();
         let out = parse_probe_argument(&ty, 0, 0).unwrap();
         assert!(out.0.is_none());
-        assert_eq!(out.1, DataType::UniqueId { is_ref });
+        assert_eq!(out.1, DataType::UniqueId)
     }
 
     #[rstest]

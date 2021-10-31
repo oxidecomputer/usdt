@@ -16,35 +16,56 @@ pub fn generate_type_check(
     // If the probe has zero arguments, verify that the result of calling the closure is `()`
     if types.is_empty() {
         return quote! {
-            {
-                let _ = || {
-                    let _: () = $args_lambda();
-                };
-            }
+            let __usdt_private_args_lambda = $args_lambda;
+            let _ = || {
+                let _: () = __usdt_private_args_lambda();
+            };
         };
     }
 
     // For one or more arguments, verify that we can unpack the closure into a tuple of type
-    // `(arg0, arg1, ...)` and those items can be passed to a function with the same signature as
-    // the probe, i.e., `fn(type0, type1, ...)`.
-    let mut has_strings = false;
+    // `(arg0, arg1, ...)`. We verify that we can pass those arguments to a type-check function
+    // that is _similar to_, but not exactly the probe function signature. In particular, we try to
+    // support passing things by value or reference, and take some form of reference to that thing.
+    // The mapping is generally:
+    //
+    // T or &T -> Borrow<T>
+    // Strings -> AsRef<str>
+    // [T; N] or &[T] -> AsRef<[T]>
     let type_check_args = types
         .iter()
         .map(|typ| match typ {
-            DataType::Serializable(_) => {
-                let arg = typ.to_rust_type();
-                quote! { _: #arg }
+            DataType::Serializable(ty) => {
+                match ty {
+                    syn::Type::Reference(reference) => {
+                        if let Some(elem) = shared_slice_elem_type(reference) {
+                            quote! { _: impl AsRef<[#elem]> }
+                        } else {
+                            let elem = &*reference.elem;
+                            quote! { _: impl ::std::borrow::Borrow<#elem> }
+                        }
+                    }
+                    syn::Type::Slice(slice) => {
+                        let elem = &*slice.elem;
+                        quote! { _: impl AsRef<[#elem]> }
+                    }
+                    syn::Type::Array(array) => {
+                        let elem = &*array.elem;
+                        quote! { _: impl AsRef<[#elem]> }
+                    }
+                    syn::Type::Path(_) => {
+                        quote! { _: impl ::std::borrow::Borrow<#ty> }
+                    }
+                    _ => {
+                        // Any other type must be specified exactly as given in the probe parameter
+                        quote! { _: #ty }
+                    }
+                }
             }
-            DataType::Native {
-                ty: dtrace_parser::DataType::String,
-                ..
-            } => {
-                has_strings = true;
-                quote! { _: S }
-            }
+            DataType::Native(dtrace_parser::DataType::String) => quote! { _: impl AsRef<str> },
             _ => {
                 let arg = typ.to_rust_type();
-                quote! { _: #arg }
+                quote! { _: impl ::std::borrow::Borrow<#arg> }
             }
         })
         .collect::<Vec<_>>();
@@ -59,41 +80,25 @@ pub fn generate_type_check(
 
     let preamble = unpack_argument_lambda(&types);
 
-    // NOTE: We currently are a bit loose with string types. In particular, a probe function
-    // defined with an argument of type `String` or `&str` map to the same `DataType` variant. The
-    // argument closure can actually be called with a _different_ type, as long as that type
-    // implements `AsRef<str>`. For example, a probe defined like:
-    //
-    // ```rust
-    // #[usdt::provider]
-    // mod provider {
-    //      fn probe(_: String) {}
-    // }
-    // ```
-    //
-    // Can be called like:
-    //
-    // ```rust
-    // provider_probe!(|| "This is a `&'static str`, not a `String`");
-    // ```
-    let generics = if has_strings {
-        quote! { <S: AsRef<str>> }
-    } else {
-        quote! {}
-    };
-
     let type_check_function =
         format_ident!("__usdt_private_{}_{}_type_check", provider_name, probe_name);
     quote! {
-        {
-            #![allow(unused_imports)]
-            #(#use_statements)*
-            fn #type_check_function #generics (#(#type_check_args),*) { }
-            let _ = || {
-                #preamble
-                #type_check_function(#(#expanded_lambda_args),*);
-            };
-        }
+        let __usdt_private_args_lambda = $args_lambda;
+        #[allow(unused_imports)]
+        #(#use_statements)*
+        fn #type_check_function (#(#type_check_args),*) { }
+        let _ = || {
+            #preamble
+            #type_check_function(#(#expanded_lambda_args),*);
+        };
+    }
+}
+
+fn shared_slice_elem_type(reference: &syn::TypeReference) -> Option<&syn::Type> {
+    if let syn::Type::Slice(slice) = &*reference.elem {
+        Some(&*slice.elem)
+    } else {
+        None
     }
 }
 
@@ -148,11 +153,11 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
 fn unpack_argument_lambda(types: &[DataType]) -> TokenStream {
     match types.len() {
         // Don't bother with arguments if there are none.
-        0 => quote! { $args_lambda(); },
+        0 => quote! { __usdt_private_args_lambda(); },
         // Wrap a single argument in a tuple.
-        1 => quote! { let args = ($args_lambda(),); },
+        1 => quote! { let args = (__usdt_private_args_lambda(),); },
         // General case.
-        _ => quote! { let args = $args_lambda(); },
+        _ => quote! { let args = __usdt_private_args_lambda(); },
     }
 }
 
@@ -176,24 +181,20 @@ fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenSt
             },
             quote! { .as_ptr() as i64 },
         ),
-        DataType::Native {
-            ty: dtrace_parser::DataType::String,
-            ..
-        } => (
+        DataType::Native(dtrace_parser::DataType::String) => (
             quote! {
                 [(#input.as_ref() as &str).as_bytes(), &[0_u8]].concat()
             },
             quote! { .as_ptr() as i64 },
         ),
-        DataType::Native { is_ref, .. } => {
-            let maybe_deref = if *is_ref {
-                quote! { * }
-            } else {
-                quote! {}
-            };
-            (quote! { (#maybe_deref #input as i64) }, quote! {})
+        DataType::Native(_) => {
+            let ty = typ.to_rust_type();
+            (
+                quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input) as i64) },
+                quote! {},
+            )
         }
-        DataType::UniqueId { .. } => (quote! { #input.as_u64() as i64 }, quote! {}),
+        DataType::UniqueId => (quote! { #input.as_u64() as i64 }, quote! {}),
     }
 }
 
@@ -240,70 +241,92 @@ mod tests {
     fn test_generate_type_check_empty() {
         let types = &[];
         let expected = quote! {
-            {
-                let _ = || {
-                    let _: () = $args_lambda();
-                };
-            }
+            let __usdt_private_args_lambda = $args_lambda;
+            let _ = || {
+                let _: () = __usdt_private_args_lambda();
+            };
         };
         let block = generate_type_check("", &[], "", types);
         assert_eq!(block.to_string(), expected.to_string());
     }
 
     #[test]
-    fn test_generate_type_check_simple() {
+    fn test_generate_type_check_native() {
         let provider = "provider";
         let probe = "probe";
         let types = &[
-            DataType::Native {
-                ty: dtrace_parser::DataType::U8,
-                is_ref: false,
-            },
-            DataType::Native {
-                ty: dtrace_parser::DataType::I64,
-                is_ref: true,
-            },
+            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(dtrace_parser::DataType::I64),
         ];
         let expected = quote! {
-            {
-                #![allow(unused_imports)]
-                fn __usdt_private_provider_probe_type_check(_: u8, _: &i64) { }
-                let _ = || {
-                    let args = $args_lambda();
-                    __usdt_private_provider_probe_type_check(args.0, args.1);
-                };
-            }
+            let __usdt_private_args_lambda = $args_lambda;
+            #[allow(unused_imports)]
+            fn __usdt_private_provider_probe_type_check(
+                _: impl ::std::borrow::Borrow<u8>,
+                _: impl ::std::borrow::Borrow<i64>
+            ) { }
+            let _ = || {
+                let args = __usdt_private_args_lambda();
+                __usdt_private_provider_probe_type_check(args.0, args.1);
+            };
         };
         let block = generate_type_check(provider, &[], probe, types);
         assert_eq!(block.to_string(), expected.to_string());
     }
 
     #[test]
-    fn test_generate_type_check_with_generics() {
+    fn test_generate_type_check_with_string() {
         let provider = "provider";
         let probe = "probe";
-        let types = &[
-            DataType::Native {
-                ty: dtrace_parser::DataType::U8,
-                is_ref: false,
-            },
-            DataType::Native {
-                ty: dtrace_parser::DataType::String,
-                is_ref: true,
-            },
-            DataType::Serializable(syn::parse_str("MyType").unwrap()),
-        ];
+        let types = &[DataType::Native(dtrace_parser::DataType::String)];
+        let use_statements = vec![];
+        let expected = quote! {
+            let __usdt_private_args_lambda = $args_lambda;
+            #[allow(unused_imports)]
+            fn __usdt_private_provider_probe_type_check(_: impl AsRef<str>) { }
+            let _ = || {
+                let args = (__usdt_private_args_lambda(),);
+                __usdt_private_provider_probe_type_check(args.0);
+            };
+        };
+        let block = generate_type_check(provider, &use_statements, probe, types);
+        assert_eq!(block.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn test_generate_type_check_with_shared_slice() {
+        let provider = "provider";
+        let probe = "probe";
+        let types = &[DataType::Serializable(syn::parse_str("&[u8]").unwrap())];
+        let use_statements = vec![];
+        let expected = quote! {
+            let __usdt_private_args_lambda = $args_lambda;
+            #[allow(unused_imports)]
+            fn __usdt_private_provider_probe_type_check(_: impl AsRef<[u8]>) { }
+            let _ = || {
+                let args = (__usdt_private_args_lambda(),);
+                __usdt_private_provider_probe_type_check(args.0);
+            };
+        };
+        let block = generate_type_check(provider, &use_statements, probe, types);
+        assert_eq!(block.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn test_generate_type_check_with_custom_type() {
+        let provider = "provider";
+        let probe = "probe";
+        let types = &[DataType::Serializable(syn::parse_str("MyType").unwrap())];
         let use_statements = vec![syn::parse2(quote! { use my_module::MyType; }).unwrap()];
         let expected = quote! {
-            {
-                #![allow(unused_imports)]
-                use my_module::MyType;
-                fn __usdt_private_provider_probe_type_check<S: AsRef<str>>(_: u8, _: S, _: MyType) { }
-                let _ = || {
-                    let args = $args_lambda();
-                    __usdt_private_provider_probe_type_check(args.0, args.1, args.2);
-                };
-            }
+            let __usdt_private_args_lambda = $args_lambda;
+            #[allow(unused_imports)]
+            use my_module::MyType;
+            fn __usdt_private_provider_probe_type_check(_: impl ::std::borrow::Borrow<MyType>) { }
+            let _ = || {
+                let args = (__usdt_private_args_lambda(),);
+                __usdt_private_provider_probe_type_check(args.0);
+            };
         };
         let block = generate_type_check(provider, &use_statements, probe, types);
         assert_eq!(block.to_string(), expected.to_string());
@@ -312,29 +335,17 @@ mod tests {
     #[test]
     fn test_construct_probe_args() {
         let types = &[
-            DataType::Native {
-                ty: dtrace_parser::DataType::U8,
-                is_ref: false,
-            },
-            DataType::Native {
-                ty: dtrace_parser::DataType::String,
-                is_ref: false,
-            },
+            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(dtrace_parser::DataType::String),
         ];
         let registers = &["rdi", "rsi"];
         let (args, regs) = construct_probe_args(types);
-        for (i, arg) in args
-            .to_string()
-            .split(';')
-            .skip(1)
-            .take(types.len())
-            .enumerate()
-        {
-            let arg = arg.replace(" ", "");
-            let expected = format!("letarg_{}={}(args.{}", i, if i > 0 { "[" } else { "" }, i);
-            println!("{}\n\n{}", arg, expected);
-            assert!(arg.starts_with(&expected));
-        }
+        let expected = quote! {
+            let args = __usdt_private_args_lambda();
+            let arg_0 = (*<_ as ::std::borrow::Borrow<u8>>::borrow(&args.0) as i64);
+            let arg_1 = [(args.1.as_ref() as &str).as_bytes(), &[0_u8]].concat();
+        };
+        assert_eq!(args.to_string(), expected.to_string());
 
         for (i, (expected, actual)) in registers
             .iter()
@@ -351,20 +362,17 @@ mod tests {
     fn test_asm_type_convert() {
         use std::str::FromStr;
         let (out, post) = asm_type_convert(
-            &DataType::Native {
-                ty: dtrace_parser::DataType::U8,
-                is_ref: false,
-            },
+            &DataType::Native(dtrace_parser::DataType::U8),
             TokenStream::from_str("foo").unwrap(),
         );
-        assert_eq!(out.to_string(), quote! {(foo as i64)}.to_string());
+        assert_eq!(
+            out.to_string(),
+            quote! {(*<_ as ::std::borrow::Borrow<u8>>::borrow(&foo) as i64)}.to_string()
+        );
         assert_eq!(post.to_string(), quote! {}.to_string());
 
         let (out, post) = asm_type_convert(
-            &DataType::Native {
-                ty: dtrace_parser::DataType::String,
-                is_ref: false,
-            },
+            &DataType::Native(dtrace_parser::DataType::String),
             TokenStream::from_str("foo").unwrap(),
         );
         assert_eq!(
