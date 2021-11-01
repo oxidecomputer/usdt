@@ -183,7 +183,7 @@
 //! The library should clearly document that it defines and uses USDT probes, and that this
 //! function should be called by an application. Alternatively, library developers may call this
 //! function during some initialization routines required by their library. There is no harm in
-//! calling this method twice.
+//! calling this method multiple times, even in concurrent situations.
 //!
 //! Unique IDs
 //! ----------
@@ -312,6 +312,13 @@ impl Builder {
 /// This function collects the probes defined in an application, and forwards them to the DTrace
 /// kernel module. This _must_ be done for the probes to be visible via the `dtrace(1)` tool. See
 /// [probe_test_macro] for a detailed example.
+///
+/// Notes
+/// -----
+///
+/// This function registers all probes in a process's binary image, regardless of which crate
+/// actually defines the probes. It's also safe to call this function multiple times, even in
+/// concurrent situations. Probes will be registered at most once.
 ///
 /// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
 pub fn register_probes() -> Result<(), Error> {
