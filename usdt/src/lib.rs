@@ -233,7 +233,9 @@ use std::{env, fs};
 pub use usdt_attr_macro::provider;
 #[cfg(any(feature = "des"))]
 pub use usdt_impl::record;
-pub use usdt_impl::Error;
+#[doc(hidden)]
+pub use usdt_impl::to_json;
+pub use usdt_impl::{Error, UniqueId};
 pub use usdt_macro::dtrace_provider;
 
 /// A simple struct used to build DTrace probes into Rust code in a build.rs script.
@@ -298,12 +300,4 @@ impl Builder {
 /// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
 pub fn register_probes() -> Result<(), Error> {
     usdt_impl::register_probes().map_err(Error::from)
-}
-
-/// Serialize the input as JSON.
-pub fn to_json<T>(x: &T) -> Result<String, Error>
-where
-    T: ?Sized + ::serde::Serialize,
-{
-    ::usdt_impl::to_json(x)
 }

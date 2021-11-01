@@ -1,4 +1,9 @@
+//! Main implementation crate for the USDT package.
+
+// Copyright 2021 Oxide Computer Company
+
 use serde::Deserialize;
+use std::cell::RefCell;
 use thiserror::Error;
 
 #[cfg(all(
@@ -114,7 +119,13 @@ pub fn compile_provider(
 /// A data type supported by the `usdt` crate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
-    Native(dtrace_parser::DataType),
+    Native {
+        ty: dtrace_parser::DataType,
+        is_ref: bool,
+    },
+    UniqueId {
+        is_ref: bool,
+    },
     Serializable(syn::Type),
 }
 
@@ -122,7 +133,8 @@ impl DataType {
     /// Convert a data type to its C type representation as a string.
     pub fn to_c_type(&self) -> String {
         match self {
-            DataType::Native(ref inner) => inner.to_c_type(),
+            DataType::Native { ty, .. } => ty.to_c_type(),
+            DataType::UniqueId { .. } => String::from("uint64_t"),
             DataType::Serializable(_) => String::from("char*"),
         }
     }
@@ -130,7 +142,8 @@ impl DataType {
     /// Return the Rust FFI type representation of this data type.
     pub fn to_rust_ffi_type(&self) -> syn::Type {
         match self {
-            DataType::Native(ref inner) => syn::parse_str(&inner.to_rust_ffi_type()).unwrap(),
+            DataType::Native { ty, .. } => syn::parse_str(&ty.to_rust_ffi_type()).unwrap(),
+            DataType::UniqueId { .. } => syn::parse_str("::std::os::raw::c_ulonglong").unwrap(),
             DataType::Serializable(_) => syn::parse_str("*const ::std::os::raw::c_char").unwrap(),
         }
     }
@@ -138,15 +151,25 @@ impl DataType {
     /// Return the native Rust type representation of this data type.
     pub fn to_rust_type(&self) -> syn::Type {
         match self {
-            DataType::Native(ref inner) => syn::parse_str(&inner.to_rust_type()).unwrap(),
+            DataType::Native { ty, is_ref } => syn::parse_str(&format!(
+                "{}{}",
+                if *is_ref { "&" } else { "" },
+                ty.to_rust_type()
+            ))
+            .unwrap(),
+            DataType::UniqueId { is_ref } => syn::parse_str(&format!(
+                "{}::usdt::UniqueId",
+                if *is_ref { "&" } else { "" }
+            ))
+            .unwrap(),
             DataType::Serializable(ref inner) => inner.clone(),
         }
     }
 }
 
 impl From<dtrace_parser::DataType> for DataType {
-    fn from(t: dtrace_parser::DataType) -> Self {
-        DataType::Native(t)
+    fn from(ty: dtrace_parser::DataType) -> Self {
+        DataType::Native { ty, is_ref: false }
     }
 }
 
@@ -226,11 +249,175 @@ impl From<&dtrace_parser::Provider> for Provider {
     }
 }
 
+/// Convert a serializable type into a JSON string, if possible.
+///
+/// NOTE: This is essentially a re-export of the `serde_json::to_string` function, used to avoid
+/// foisting an explicity dependency on that crate in user's `Cargo.toml`.
 pub fn to_json<T>(x: &T) -> Result<String, Error>
 where
     T: ?Sized + ::serde::Serialize,
 {
     ::serde_json::to_string(x).map_err(Error::from)
+}
+
+thread_local! {
+    static CURRENT_ID: RefCell<u32> = RefCell::new(0);
+    static THREAD_ID: RefCell<usize> = RefCell::new(thread_id::get());
+}
+
+/// A unique identifier that can be used to correlate multiple USDT probes together.
+///
+/// It's a common pattern in DTrace scripts to correlate multiple probes. For example, one can time
+/// system calls by storing a timestamp on the `syscall:::entry` probe and then computing the
+/// elapsed time in the `syscall:::return` probe. This requires some way to "match up" these two
+/// probes, to ensure that the elapsed time is correctly attributed to a single system call. Doing
+/// so requires an identifier. User code may already have an ID appopriate for this use case, but
+/// the `UniqueId` type may be used when one is not already available. These unique IDs can be used
+/// to correlate multiple probes occurring in a section or span of user code.
+///
+/// A probe function may accept a `UniqueId`, which appears in a D as a `u64`. The value is
+/// guaranteed to be unique, even if multiple threads run the same traced section of code. (See the
+/// [notes] for caveats.) The value may be shared between threads by calling `clone()` on a
+/// constructed span -- in this case, the cloned object shares the same value, so that a traced
+/// span running in multiple threads (or asynchronous tasks) shares the same identifier.
+///
+/// A `UniqueId` is very cheap to construct. The internal value is "materialized" in two
+/// situations:
+///
+/// - When an _enabled_ probe fires
+/// - When the value is cloned (e.g., for sharing with another thread)
+///
+/// This minimizes the disabled-probe effect, but still allows sharing a consistent ID in the case
+/// of multithreaded work.
+///
+/// Example
+/// -------
+/// ```ignore
+/// #![feature(asm)]
+/// #[usdt::provider]
+/// mod with_id {
+///     fn work_started(_: &usdt::UniqueId) {}
+///     fn halfway_there(_: &usdt::UniqueId, msg: &str) {}
+///     fn work_completed(_: &usdt::UniqueId, result: u64) {}
+/// }
+///
+/// // Constructing an ID is very cheap.
+/// let id = usdt::UniqueId::new();
+///
+/// // The ID will only be materialized if this probe is enabled.
+/// with_id_work_started!(|| &id);
+///
+/// // If the ID has been materialized above, this simply clone the internal value. If the ID has
+/// // _not_ yet been materialized, say because the `work_started` probe was not enabled, this will
+/// // do so now.
+/// let id2 = id.clone();
+/// let handle = std::thread::spawn(move || {
+///     for i in 0..10 {
+///         // Do our work.
+///         if i == 5 {
+///             with_id_halfway_there!(|| (&id2, "work is half completed"));
+///         }
+///     }
+///     10
+/// });
+///
+/// let result = handle.join().unwrap();
+/// with_id_work_completed!(|| (&id, result));
+/// ```
+///
+/// Note that this type is not `Sync`, which means we cannot accidentally share the value between
+/// threads. The only way to track the same ID in work spanning threads is to first clone the type,
+/// which materializes the internal value. For example, this will fail to compile:
+///
+/// ```compile_fail
+/// #![feature(asm)]
+/// #[usdt::provider]
+/// mod with_id {
+///     fn work_started(_: &usdt::UniqueId) {}
+///     fn halfway_there(_: &usdt::UniqueId, msg: &str) {}
+///     fn work_completed(_: &usdt::UniqueId, result: u64) {}
+/// }
+///
+/// let id = usdt::UniqueId::new();
+/// with_id_work_started!(|| &id);
+/// let handle = std::thread::spawn(move || {
+///     for i in 0..10 {
+///         // Do our work.
+///         if i == 5 {
+///             // Note that we're using `id`, not a clone as the previous example.
+///             with_id_halfway_there!(|| (&id, "work is half completed"));
+///         }
+///     }
+///     10
+/// });
+/// let result = handle.join().unwrap();
+/// with_id_work_completed!(|| (&id, result));
+/// ```
+///
+/// Notes
+/// -----
+///
+/// In any practical situation, the generated ID is unique. Its value is assigned on the basis of
+/// the thread that creates the `UniqueId` object, plus a monotonic thread-local counter. However,
+/// the counter is 32 bits, and so wraps around after about 4 billion unique values. So
+/// theoretically, multiple `UniqueId`s could manifest as the same value to DTrace, if they are
+/// exceptionally long-lived or generated very often.
+#[derive(Debug)]
+pub struct UniqueId {
+    id: RefCell<Option<u64>>,
+}
+
+impl UniqueId {
+    /// Construct a new identifier.
+    ///
+    /// A `UniqueId` is cheap to create, and is not materialized into an actual value until it's
+    /// needed, either by a probe function or during `clone`ing to share the value between threads.
+    pub const fn new() -> Self {
+        Self {
+            id: RefCell::new(None),
+        }
+    }
+
+    // Helper function to actually materialize a u64 value internally.
+    //
+    // This method assigns a value on the basis of the current thread and a monotonic counter, in
+    // the upper and lower 32-bits of a u64, respectively.
+    fn materialize(&self) {
+        // Safety: This type is not Sync, which means the current thread maintains the only
+        // reference to the contained ID. A `UniqueId` in another thread is a clone, at which
+        // point the value has been materialized as well. The `id` field of that object is a
+        // different `RefCell` -- that type is here just to enable interior mutability.
+        let mut inner = self.id.borrow_mut();
+        if inner.is_none() {
+            let id = CURRENT_ID.with(|id| {
+                let thread_id = THREAD_ID.with(|id| *id.borrow_mut() as u64);
+                let mut inner = id.borrow_mut();
+                *inner = inner.wrapping_add(1);
+                (thread_id << 32) | (*inner as u64)
+            });
+            inner.replace(id);
+        }
+    }
+
+    /// Return the internal `u64` value, materializing it if needed.
+    #[doc(hidden)]
+    pub fn as_u64(&self) -> u64 {
+        self.materialize();
+        // Safety: This is an immutable borrow, so is safe from multiple threads. The cell cannot
+        // be borrowed mutably at the same time, as that only occurs within the scope of the
+        // `materialize` method. This method can't be called on the _same_ `UniqueId` from multiple
+        // threads, because the type is not `Sync`.
+        self.id.borrow().unwrap()
+    }
+}
+
+impl Clone for UniqueId {
+    fn clone(&self) -> Self {
+        self.materialize();
+        Self {
+            id: self.id.clone(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -241,7 +428,10 @@ mod test {
     fn test_probe_to_d_source() {
         let probe = Probe {
             name: String::from("my_probe"),
-            types: vec![DataType::Native(dtrace_parser::DataType::U8)],
+            types: vec![DataType::Native {
+                ty: dtrace_parser::DataType::U8,
+                is_ref: false,
+            }],
         };
         assert_eq!(probe.to_d_source(), "probe my_probe(uint8_t);");
     }
@@ -250,7 +440,10 @@ mod test {
     fn test_provider_to_d_source() {
         let probe = Probe {
             name: String::from("my_probe"),
-            types: vec![DataType::Native(dtrace_parser::DataType::U8)],
+            types: vec![DataType::Native {
+                ty: dtrace_parser::DataType::U8,
+                is_ref: false,
+            }],
         };
         let provider = Provider {
             name: String::from("my_provider"),
@@ -261,5 +454,69 @@ mod test {
             provider.to_d_source(),
             "provider my_provider {\n\tprobe my_probe(uint8_t);\n};"
         );
+    }
+
+    #[test]
+    fn test_data_type() {
+        let ty = DataType::Native {
+            ty: dtrace_parser::DataType::U8,
+            is_ref: false,
+        };
+        assert_eq!(ty.to_rust_type(), syn::parse_str("u8").unwrap());
+
+        let ty = DataType::Native {
+            ty: dtrace_parser::DataType::U8,
+            is_ref: true,
+        };
+        assert_eq!(ty.to_rust_type(), syn::parse_str("&u8").unwrap());
+
+        let ty = DataType::Native {
+            ty: dtrace_parser::DataType::String,
+            is_ref: false,
+        };
+        assert_eq!(ty.to_rust_type(), syn::parse_str("&str").unwrap());
+
+        let ty = DataType::Native {
+            ty: dtrace_parser::DataType::String,
+            is_ref: true,
+        };
+        assert_eq!(ty.to_rust_type(), syn::parse_str("&&str").unwrap());
+
+        let ty = DataType::UniqueId { is_ref: false };
+        assert_eq!(
+            ty.to_rust_type(),
+            syn::parse_str("::usdt::UniqueId").unwrap()
+        );
+
+        let ty = DataType::UniqueId { is_ref: true };
+        assert_eq!(
+            ty.to_rust_type(),
+            syn::parse_str("&::usdt::UniqueId").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_unique_id() {
+        let id = UniqueId::new();
+        assert!(id.id.borrow().is_none());
+        let x = id.as_u64();
+        assert_eq!(x & 0xFFFF_FFFF, 1);
+        assert_eq!(id.id.borrow().unwrap(), x);
+    }
+
+    #[test]
+    fn test_unique_id_clone() {
+        let id = UniqueId::new();
+        let id2 = id.clone();
+        assert!(id.id.borrow().is_some());
+        assert!(id2.id.borrow().is_some());
+        assert_eq!(id.id.borrow().unwrap(), id2.id.borrow().unwrap());
+
+        // Verify that the actual RefCells inside the type point to different locations. This is
+        // important to check that sending a clone to a different thread will operate on a
+        // different cell, so that they can both borrow the value (either mutably or immutably)
+        // without panics.
+        assert_ne!(&(id.id) as *const _, &(id2.id) as *const _);
+        assert_ne!(id.id.as_ptr(), id2.id.as_ptr());
     }
 }

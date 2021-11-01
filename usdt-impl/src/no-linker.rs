@@ -233,8 +233,14 @@ mod tests {
         let provider = "provider";
         let probe = "probe";
         let types = [
-            DataType::Native(dtrace_parser::DataType::U8),
-            DataType::Native(dtrace_parser::DataType::String),
+            DataType::Native {
+                ty: dtrace_parser::DataType::U8,
+                is_ref: false,
+            },
+            DataType::Native {
+                ty: dtrace_parser::DataType::String,
+                is_ref: false,
+            },
         ];
         let record = asm_rec(provider, probe, Some(&types));
         let mut lines = record.lines();
