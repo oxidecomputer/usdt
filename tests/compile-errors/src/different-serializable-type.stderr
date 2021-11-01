@@ -16,3 +16,16 @@ note: required by a bound in `__usdt_private_my_provider_my_probe_type_check`
 25 |     my_provider_my_probe!(|| Different { x: 0 });
    |     -------------------------------------------- in this macro invocation
    = note: this error originates in the macro `my_provider_my_probe` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Expected: Clone` is not satisfied
+  --> src/different-serializable-type.rs:21:20
+   |
+21 |     fn my_probe(_: Expected) {}
+   |                    ^^^^^^^^ the trait `Clone` is not implemented for `Expected`
+   |
+note: required by a bound in `usdt_types_must_be_clone_and_serialize`
+  --> src/different-serializable-type.rs:18:1
+   |
+18 | #[usdt::provider]
+   | ^^^^^^^^^^^^^^^^^ required by this bound in `usdt_types_must_be_clone_and_serialize`
+   = note: this error originates in the attribute macro `usdt::provider` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -131,7 +131,7 @@ fn generate_provider_item(
     } else {
         quote! {
             const _: fn() = || {
-                fn usdt_types_must_be_serializable<T: ?Sized + ::serde::Serialize>() {}
+                fn usdt_types_must_be_clone_and_serialize<T: ?Sized + Clone + ::serde::Serialize>() {}
                 #(#check_fns)*
             };
         }
@@ -218,13 +218,16 @@ fn build_serializable_check_function<T>(ident: &T, fn_index: usize, arg_index: u
 where
     T: quote::ToTokens,
 {
-    let fn_name =
-        quote::format_ident!("usdt_types_must_be_serializable_{}_{}", fn_index, arg_index);
+    let fn_name = quote::format_ident!(
+        "usdt_types_must_be_clone_and_serialize_{}_{}",
+        fn_index,
+        arg_index
+    );
     quote! {
         fn #fn_name() {
             // #ident must be in scope here, because this function is defined in the same module as
             // the actual probe functions, and thus shares any imports the consumer wants.
-            usdt_types_must_be_serializable::<#ident>()
+            usdt_types_must_be_clone_and_serialize::<#ident>()
         }
     }
 }

@@ -106,5 +106,11 @@ fn main() {
     refs_serializable_as_reference!(|| crate::Arg::default());
     refs_serializable_as_reference!(|| &arg);
 
+    // It's also possible to capture and return local variables by value in the probe argument
+    // closure. This behaves just like any other captured variable, and so `arg` cannot be used
+    // again, unless it implements Copy.
     refs_serializable_as_reference!(|| arg);
+
+    // This line will fail to compile, indicating that `arg` is borrowed after it's been moved.
+    // println!("{:#?}", arg.x);
 }

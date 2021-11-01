@@ -110,13 +110,13 @@
 //!
 //! would print the first element of the vector `Arg::buffer`.
 //!
-//! > Important: Notice that the JSON key used in the above example to access the data inside
+//! > **Important**: Notice that the JSON key used in the above example to access the data inside
 //! DTrace is `"ok.buffer[0]"`. JSON values serialized to DTrace are always `Result` types,
 //! because the internal serialization method is _fallible_. So they are always encoded as objects
 //! like `{"ok": _}` or `{"err": "some error message"}`. In the error case, the message is
 //! created by formatting the `serde_json::error::Error` that describes why serialization failed.
 //!
-//! > Note: It's not possible to define probes in D that accept a serializable type, because the
+//! > **Note**: It's not possible to define probes in D that accept a serializable type, because the
 //! corresponding C type is just `char *`. There's currently no way to disambiguate such a type
 //! from an actual string, when generating the Rust probe macros.
 //!
@@ -150,10 +150,16 @@
 //!
 //! - `(u?)int(8|16|32|64)_t`
 //! - `char *`
-//! - `T: serde::Serialize` (Only when defining probes in Rust)
+//! - `T: Clone + serde::Serialize` (Only when defining probes in Rust)
 //!
 //! Currently, up to six (6) arguments are supported, though this limitation may be lifted in the
 //! future.
+//!
+//! > **Note**: Serializable types must implement the `Clone` trait. It's important to note that
+//! this may almost always be derived, and, more importantly, that the data in probes will _never
+//! actually be cloned_, even when probes are enabled. The trait bound `Clone` is required to
+//! implement type-checking on the probe arguments, and is just an unfortunate leakiness to the
+//! abstraction provided by this crate.
 //!
 //! Registration
 //! ------------
@@ -178,6 +184,16 @@
 //! function should be called by an application. Alternatively, library developers may call this
 //! function during some initialization routines required by their library. There is no harm in
 //! calling this method twice.
+//!
+//! Unique IDs
+//! ----------
+//!
+//! A common pattern in DTrace scripts is to use a two or more probes to understand a section or
+//! span of code. For example, the `syscall:::{entry,return}` probes can be used to time the
+//! duration of system calls. Doing this with USDT probes requires a unique identifier, so that
+//! multiple probes can be correlated with one another. The [`UniqueId`] type can be used for this
+//! purpose. It may be passed as any argument to a probe function, and is guaranteed to be unique
+//! between different invocations of the same probe. See the type's documentation for details.
 //!
 //! Notes
 //! -----
