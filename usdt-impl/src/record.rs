@@ -425,13 +425,16 @@ mod test {
         assert_eq!(probe.address, 0x1234);
     }
 
-    #[test]
-    fn test_process_section() {
+    // Write two probe records, from the same provider.
+    //
+    // The version argument is used to control the probe record version, which helps test one-time
+    // registration of probes.
+    fn make_record(version: u8) -> Vec<u8> {
         let mut data = Vec::<u8>::new();
 
         // write a dummy length for the first record
         data.write_u32::<NativeEndian>(0).unwrap();
-        data.write_u8(PROBE_REC_VERSION).unwrap();
+        data.write_u8(version).unwrap();
         data.write_u8(0).unwrap();
         data.write_u16::<NativeEndian>(0).unwrap();
         data.write_u64::<NativeEndian>(0x1234).unwrap();
@@ -443,7 +446,7 @@ mod test {
             .unwrap();
 
         data.write_u32::<NativeEndian>(0).unwrap();
-        data.write_u8(PROBE_REC_VERSION).unwrap();
+        data.write_u8(version).unwrap();
         data.write_u8(0).unwrap();
         data.write_u16::<NativeEndian>(0).unwrap();
         data.write_u64::<NativeEndian>(0x12ab).unwrap();
@@ -453,9 +456,13 @@ mod test {
         (&mut data[len..])
             .write_u32::<NativeEndian>(len2 as u32)
             .unwrap();
+        data
+    }
 
-        let section = process_section(data.as_slice()).unwrap().unwrap();
-
+    #[test]
+    fn test_process_section() {
+        let data = make_record(PROBE_REC_VERSION);
+        let section = process_section(&data).unwrap().unwrap();
         let probe = section
             .providers
             .get("provider")
@@ -467,11 +474,29 @@ mod test {
         assert_eq!(probe.name, "probe");
         assert_eq!(probe.address, 0x1234);
         assert_eq!(probe.offsets, vec![0, 0x12ab - 0x1234]);
+    }
 
+    #[test]
+    fn test_re_process_section() {
         // Ensure that re-processing the same section returns zero probes, as they should have all
         // been previously processed.
+        let data = make_record(PROBE_REC_VERSION);
+        let section = process_section(&data).unwrap().unwrap();
+        assert_eq!(section.providers.len(), 1);
+        assert_eq!(data[4], u8::MAX);
+        let section = process_section(&data).unwrap().unwrap();
+        assert_eq!(data[4], u8::MAX);
+        assert_eq!(section.providers.len(), 0);
+    }
+
+    #[test]
+    fn test_process_section_future_version() {
+        // Ensure that we _don't_ modify a future version number in a probe record, but that the
+        // probes are still skipped (since by definition we're ignoring future versions).
+        let data = make_record(PROBE_REC_VERSION + 1);
         let section = process_section(&data).unwrap().unwrap();
         assert_eq!(section.providers.len(), 0);
+        assert_eq!(data[4], PROBE_REC_VERSION + 1);
     }
 
     trait WriteCstrExt {
