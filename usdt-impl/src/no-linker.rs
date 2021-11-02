@@ -2,8 +2,8 @@
 
 // Copyright 2021 Oxide Computer Company
 
-use crate::record::{process_section, PROBE_REC_VERSION};
-use crate::{common, module_ident_for_provider, DataType, Probe, Provider};
+use crate::record::{emit_probe_record, process_section};
+use crate::{common, module_ident_for_provider, Probe, Provider};
 use dof::{serialize_section, Section};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -63,8 +63,8 @@ fn compile_probe(
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
-    let is_enabled_rec = asm_rec(&provider.name, &probe.name, None);
-    let probe_rec = asm_rec(&provider.name, &probe.name, Some(&probe.types));
+    let is_enabled_rec = emit_probe_record(&provider.name, &probe.name, None);
+    let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
     let pre_macro_block = TokenStream::new();
     let impl_block = quote! {
         {
@@ -110,12 +110,16 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
     }
 
     // Without this the illumos linker may decide to omit the symbols above that
-    // denote the start and stop addresses for this section. The macos linker
-    // doesn't seem to require this.
+    // denote the start and stop addresses for this section. Note that the variable
+    // must be mutable, otherwise this will generate a read-only section with the
+    // name `set_dtrace_probes`. The section containing the actual probe records is
+    // writable (to implement one-time registration), so an immutable variable here
+    // leads to _two_ sections, one writable and one read-only. A mutable variable
+    // here ensures this ends up in a mutable section, the same as the probe records.
     #[cfg(target_os = "illumos")]
     #[link_section = "set_dtrace_probes"]
     #[used]
-    static FORCE_LOAD: [u64; 0] = [];
+    static mut FORCE_LOAD: [u64; 0] = [];
 
     let data = unsafe {
         let start = (&dtrace_probes_start as *const usize) as usize;
@@ -123,58 +127,6 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
         std::slice::from_raw_parts(start as *const u8, stop - start)
     };
     process_section(data)
-}
-
-// Construct the ASM record for a probe. If `types` is `None`, then is is an is-enabled probe.
-fn asm_rec(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
-    let section_ident = r#"set_dtrace_probes,"a","progbits""#;
-    let is_enabled = types.is_none();
-    let n_args = types.map_or(0, |typ| typ.len());
-    let arguments = types.map_or_else(String::new, |types| {
-        types
-            .iter()
-            .map(|typ| format!(".asciz \"{}\"", typ.to_c_type()))
-            .collect::<Vec<_>>()
-            .join("\n")
-    });
-    format!(
-        r#"
-                    .pushsection {section_ident}
-                    .balign 8
-            991:
-                    .4byte 992f-991b    // length
-                    .byte {version}
-                    .byte {n_args}
-                    .2byte {flags}
-                    .8byte 990b         // address
-                    .asciz "{prov}"
-                    .asciz "{probe}"
-                    {arguments}         // null-terminated strings for each argument
-                    .balign 8
-            992:    .popsection
-                    {yeet}
-        "#,
-        section_ident = section_ident,
-        version = PROBE_REC_VERSION,
-        n_args = n_args,
-        flags = if is_enabled { 1 } else { 0 },
-        prov = prov,
-        probe = probe,
-        arguments = arguments,
-        yeet = if cfg!(target_os = "illumos") {
-            // The illumos linker may yeet our probes section into the trash under
-            // certain conditions. To counteract this, we yeet references to the
-            // probes section into another section. This causes the linker to
-            // retain the probes section.
-            r#"
-                    .pushsection yeet_dtrace_probes
-                    .8byte 991b
-                    .popsection
-                "#
-        } else {
-            ""
-        },
-    )
 }
 
 pub fn register_probes() -> Result<(), crate::Error> {
@@ -221,41 +173,5 @@ fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), 
         Err(std::io::Error::last_os_error())
     } else {
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_asm_rec() {
-        let provider = "provider";
-        let probe = "probe";
-        let types = [
-            DataType::Native(dtrace_parser::DataType::U8),
-            DataType::Native(dtrace_parser::DataType::String),
-        ];
-        let record = asm_rec(provider, probe, Some(&types));
-        let mut lines = record.lines();
-        println!("{}", record);
-        lines.next(); // empty line
-        assert!(lines.next().unwrap().find(".pushsection").is_some());
-        let mut lines = lines.skip(3);
-        assert!(lines
-            .next()
-            .unwrap()
-            .find(&format!(".byte {}", PROBE_REC_VERSION))
-            .is_some());
-        assert!(lines
-            .next()
-            .unwrap()
-            .find(&format!(".byte {}", types.len()))
-            .is_some());
-        for (typ, line) in types.iter().zip(lines.skip(4)) {
-            assert!(line
-                .find(&format!(".asciz \"{}\"", typ.to_c_type()))
-                .is_some());
-        }
     }
 }

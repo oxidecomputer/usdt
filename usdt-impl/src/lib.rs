@@ -2,6 +2,8 @@
 
 // Copyright 2021 Oxide Computer Company
 
+#![cfg_attr(feature = "asm", feature(asm))]
+
 use serde::Deserialize;
 use std::cell::RefCell;
 use thiserror::Error;

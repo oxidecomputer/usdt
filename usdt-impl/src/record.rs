@@ -1,5 +1,6 @@
 //! Implementation of construction and extraction of custom linker section records used to store
 //! probe information in an object file.
+
 // Copyright 2021 Oxide Computer Company
 
 use std::{
@@ -18,6 +19,12 @@ use libc::{c_void, Dl_info};
 #[cfg(feature = "des")]
 use goblin::Object;
 
+use crate::DataType;
+
+// Version number for probe records containing data about all probes.
+//
+// NOTE: This must have a maximum of `u8::MAX - 1`. See `read_and_update_record_version` for
+// details.
 pub(crate) const PROBE_REC_VERSION: u8 = 1;
 
 /// Extract probe records from the given file, if possible.
@@ -122,7 +129,7 @@ pub(crate) fn process_section(mut data: &[u8]) -> Result<Option<Section>, crate:
         let mut len_bytes = data;
         let len = len_bytes.read_u32::<NativeEndian>()? as usize;
         let (rec, rest) = data.split_at(len);
-        process_rec(&mut providers, &rec)?;
+        process_probe_record(&mut providers, &rec)?;
         data = rest;
     }
 
@@ -169,16 +176,52 @@ fn limit_string_length<S: AsRef<str>>(s: S, limit: usize) -> String {
     s[..limit].to_string()
 }
 
-// Process a single record from the custom linker section.
-fn process_rec(providers: &mut BTreeMap<String, Provider>, rec: &[u8]) -> Result<(), crate::Error> {
-    // Skip over the length which was already read.
-    let mut data = &rec[4..];
+// Return the probe record version, atomically updating it if the probe record will be handled.
+fn read_and_update_record_version(data: &[u8]) -> Result<u8, crate::Error> {
+    // First check if we'll be handling this record at all. We support any version number less than
+    // or equal to the crate's version.
+    if data[0] <= PROBE_REC_VERSION {
+        // Atomically exchange the record's version with our sentinel value, and return the
+        // record's version.
+        //
+        // NOTE: It's not easy to use types from `std::sync::atomic` here because we need to
+        // atomically exchange the data through a pointer. `AtomicU8::from_mut` might work, but
+        // that would require another feature flag pinning us to a nightly compiler.
+        let mut version = u8::MAX;
+        let record_version_ptr = data.as_ptr();
+        unsafe {
+            asm!(
+                "lock xchg al, [{}]",
+                in(reg) record_version_ptr,
+                inout("al") version,
+            );
+        }
+        Ok(version)
+    } else {
+        // If we're not handling this probe, just return the existing version number without
+        // modifying it. By "not handling", we mean that the version number is greater than the
+        // version supported by this crate or the sentinel value, both of which imply this probe is
+        // ignored.
+        Ok(data[0])
+    }
+}
 
-    let version = data.read_u8()?;
+// Process a single record from the custom linker section.
+fn process_probe_record(
+    providers: &mut BTreeMap<String, Provider>,
+    rec: &[u8],
+) -> Result<(), crate::Error> {
+    // First four bytes are the length, next byte is the version number.
+    let (rec, mut data) = rec.split_at(5);
+    let version = read_and_update_record_version(&rec[4..5])?;
 
     // If this record comes from a future version of the data format, we skip it
     // and hope that the author of main will *also* include a call to a more
     // recent version. Note that future versions should handle previous formats.
+    //
+    // NOTE: This version check is also used to implement one-time registration of probes. On the
+    // first pass through the probe section, the version is rewritten to `u8::MAX`, so that any
+    // future read of the section skips all previously-read records.
     if version > PROBE_REC_VERSION {
         return Ok(());
     }
@@ -247,19 +290,73 @@ impl<'a> ReadCstrExt<'a> for &'a [u8] {
     }
 }
 
+// Construct the ASM record for a probe. If `types` is `None`, then is is an is-enabled probe.
+pub(crate) fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
+    let section_ident = r#"set_dtrace_probes,"aw","progbits""#;
+    let is_enabled = types.is_none();
+    let n_args = types.map_or(0, |typ| typ.len());
+    let arguments = types.map_or_else(String::new, |types| {
+        types
+            .iter()
+            .map(|typ| format!(".asciz \"{}\"", typ.to_c_type()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
+    format!(
+        r#"
+                    .pushsection {section_ident}
+                    .balign 8
+            991:
+                    .4byte 992f-991b    // length
+                    .byte {version}
+                    .byte {n_args}
+                    .2byte {flags}
+                    .8byte 990b         // address
+                    .asciz "{prov}"
+                    .asciz "{probe}"
+                    {arguments}         // null-terminated strings for each argument
+                    .balign 8
+            992:    .popsection
+                    {yeet}
+        "#,
+        section_ident = section_ident,
+        version = PROBE_REC_VERSION,
+        n_args = n_args,
+        flags = if is_enabled { 1 } else { 0 },
+        prov = prov,
+        probe = probe,
+        arguments = arguments,
+        yeet = if cfg!(target_os = "illumos") {
+            // The illumos linker may yeet our probes section into the trash under
+            // certain conditions. To counteract this, we yeet references to the
+            // probes section into another section. This causes the linker to
+            // retain the probes section.
+            r#"
+                    .pushsection yeet_dtrace_probes
+                    .8byte 991b
+                    .popsection
+                "#
+        } else {
+            ""
+        },
+    )
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::BTreeMap;
 
     use byteorder::{NativeEndian, WriteBytesExt};
 
-    use super::process_rec;
+    use super::emit_probe_record;
+    use super::process_probe_record;
     use super::process_section;
+    use super::DataType;
     use super::PROBE_REC_VERSION;
     use super::{MAX_PROBE_NAME_LEN, MAX_PROVIDER_NAME_LEN};
 
     #[test]
-    fn test_process_rec() {
+    fn test_process_probe_record() {
         let mut rec = Vec::<u8>::new();
 
         // write a dummy length
@@ -277,7 +374,7 @@ mod test {
             .unwrap();
 
         let mut providers = BTreeMap::new();
-        process_rec(&mut providers, rec.as_slice()).unwrap();
+        process_probe_record(&mut providers, rec.as_slice()).unwrap();
 
         let probe = providers
             .get("provider")
@@ -291,7 +388,7 @@ mod test {
     }
 
     #[test]
-    fn test_process_rec_long_names() {
+    fn test_process_probe_record_long_names() {
         let mut rec = Vec::<u8>::new();
 
         // write a dummy length
@@ -310,7 +407,7 @@ mod test {
             .unwrap();
 
         let mut providers = BTreeMap::new();
-        process_rec(&mut providers, rec.as_slice()).unwrap();
+        process_probe_record(&mut providers, rec.as_slice()).unwrap();
 
         let expected_provider_name = &long_name[..MAX_PROVIDER_NAME_LEN - 1];
         let expected_probe_name = &long_name[..MAX_PROBE_NAME_LEN - 1];
@@ -327,13 +424,16 @@ mod test {
         assert_eq!(probe.address, 0x1234);
     }
 
-    #[test]
-    fn test_process_section() {
+    // Write two probe records, from the same provider.
+    //
+    // The version argument is used to control the probe record version, which helps test one-time
+    // registration of probes.
+    fn make_record(version: u8) -> Vec<u8> {
         let mut data = Vec::<u8>::new();
 
         // write a dummy length for the first record
         data.write_u32::<NativeEndian>(0).unwrap();
-        data.write_u8(PROBE_REC_VERSION).unwrap();
+        data.write_u8(version).unwrap();
         data.write_u8(0).unwrap();
         data.write_u16::<NativeEndian>(0).unwrap();
         data.write_u64::<NativeEndian>(0x1234).unwrap();
@@ -345,7 +445,7 @@ mod test {
             .unwrap();
 
         data.write_u32::<NativeEndian>(0).unwrap();
-        data.write_u8(PROBE_REC_VERSION).unwrap();
+        data.write_u8(version).unwrap();
         data.write_u8(0).unwrap();
         data.write_u16::<NativeEndian>(0).unwrap();
         data.write_u64::<NativeEndian>(0x12ab).unwrap();
@@ -355,9 +455,13 @@ mod test {
         (&mut data[len..])
             .write_u32::<NativeEndian>(len2 as u32)
             .unwrap();
+        data
+    }
 
-        let section = process_section(data.as_slice()).unwrap().unwrap();
-
+    #[test]
+    fn test_process_section() {
+        let data = make_record(PROBE_REC_VERSION);
+        let section = process_section(&data).unwrap().unwrap();
         let probe = section
             .providers
             .get("provider")
@@ -371,6 +475,29 @@ mod test {
         assert_eq!(probe.offsets, vec![0, 0x12ab - 0x1234]);
     }
 
+    #[test]
+    fn test_re_process_section() {
+        // Ensure that re-processing the same section returns zero probes, as they should have all
+        // been previously processed.
+        let data = make_record(PROBE_REC_VERSION);
+        let section = process_section(&data).unwrap().unwrap();
+        assert_eq!(section.providers.len(), 1);
+        assert_eq!(data[4], u8::MAX);
+        let section = process_section(&data).unwrap().unwrap();
+        assert_eq!(data[4], u8::MAX);
+        assert_eq!(section.providers.len(), 0);
+    }
+
+    #[test]
+    fn test_process_section_future_version() {
+        // Ensure that we _don't_ modify a future version number in a probe record, but that the
+        // probes are still skipped (since by definition we're ignoring future versions).
+        let data = make_record(PROBE_REC_VERSION + 1);
+        let section = process_section(&data).unwrap().unwrap();
+        assert_eq!(section.providers.len(), 0);
+        assert_eq!(data[4], PROBE_REC_VERSION + 1);
+    }
+
     trait WriteCstrExt {
         fn write_cstr(&mut self, s: &str);
     }
@@ -379,6 +506,37 @@ mod test {
         fn write_cstr(&mut self, s: &str) {
             self.extend_from_slice(s.as_bytes());
             self.push(0);
+        }
+    }
+
+    #[test]
+    fn test_emit_probe_record() {
+        let provider = "provider";
+        let probe = "probe";
+        let types = [
+            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(dtrace_parser::DataType::String),
+        ];
+        let record = emit_probe_record(provider, probe, Some(&types));
+        let mut lines = record.lines();
+        println!("{}", record);
+        lines.next(); // empty line
+        assert!(lines.next().unwrap().find(".pushsection").is_some());
+        let mut lines = lines.skip(3);
+        assert!(lines
+            .next()
+            .unwrap()
+            .find(&format!(".byte {}", PROBE_REC_VERSION))
+            .is_some());
+        assert!(lines
+            .next()
+            .unwrap()
+            .find(&format!(".byte {}", types.len()))
+            .is_some());
+        for (typ, line) in types.iter().zip(lines.skip(4)) {
+            assert!(line
+                .find(&format!(".asciz \"{}\"", typ.to_c_type()))
+                .is_some());
         }
     }
 }
