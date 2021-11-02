@@ -1,6 +1,6 @@
 [package]
 name = "usdt-impl"
-version = "0.1.12"
+version = "0.1.13"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
@@ -10,7 +10,7 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
 byteorder = "1"
-dtrace-parser = { path = "../dtrace-parser", version = "0.1" }
+dtrace-parser = { path = "../dtrace-parser", version = "0.1.11" }
 goblin = { version = "0.4", features = [ "elf32", "elf64" ], optional = true }
 libc = "0.2"
 proc-macro2 = "1"
@@ -22,10 +22,10 @@ thiserror = "1"
 thread-id = "4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-dof = { path = "../dof", version = "0.1", optional = true, default-features = false }
+dof = { path = "../dof", version = "0.1.5", optional = true, default-features = false }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-dof = { path = "../dof", version = "0.1", default-features = false }
+dof = { path = "../dof", version = "0.1.5", default-features = false }
 
 [features]
 asm = []
