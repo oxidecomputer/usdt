@@ -16,7 +16,7 @@ use serde::Serialize;
 /// ```
 ///
 /// to print the value of the `x` field.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Arg {
     x: u8,
     buffer: Vec<i32>,
@@ -25,7 +25,7 @@ pub struct Arg {
 /// Note that not all types are JSON serializable. The most common case is internally-tagged
 /// enums with a newtype variant, such as this type. Note that this will not break your program,
 /// but an error message will be transmitted to DTrace rather than a succesfully-converted value.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
 pub enum Whoops {
     NoBueno(u8),
