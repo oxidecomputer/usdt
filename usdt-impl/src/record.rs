@@ -188,11 +188,11 @@ fn read_and_update_record_version(data: &[u8]) -> Result<u8, crate::Error> {
         // atomically exchange the data through a pointer. `AtomicU8::from_mut` might work, but
         // that would require another feature flag pinning us to a nightly compiler.
         let mut version = u8::MAX;
-        let existing_version = data.as_ptr();
+        let record_version_ptr = data.as_ptr();
         unsafe {
             asm!(
                 "lock xchg al, [{}]",
-                in(reg) existing_version,
+                in(reg) record_version_ptr,
                 inout("al") version,
             );
         }
