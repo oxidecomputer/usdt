@@ -212,17 +212,18 @@ pub(crate) fn build_probe_macro(
     pre_macro_block: TokenStream,
     impl_block: TokenStream,
 ) -> TokenStream {
-    let macro_name = crate::format_probe(&config.format, &provider.name, probe_name);
+    let macro_path = config.macro_path(&provider.name, probe_name);
+    let macro_name = config.probe_ident(&provider.name, probe_name);
     let type_check_block =
         generate_type_check(&provider.name, &provider.use_statements, probe_name, types);
     let no_args_match = if types.is_empty() {
-        quote! { () => { #macro_name!(|| ()) }; }
+        quote! { () => { crate::#macro_path!(|| ()) }; }
     } else {
         quote! {}
     };
     quote! {
         #pre_macro_block
-        #[allow(unused)]
+        #[allow(unused_macros)]
         macro_rules! #macro_name {
             #no_args_match
             ($tree:tt) => {
@@ -235,6 +236,8 @@ pub(crate) fn build_probe_macro(
                 }
             };
         }
+        #[allow(unused_imports)]
+        pub(crate) use #macro_name;
     }
 }
 

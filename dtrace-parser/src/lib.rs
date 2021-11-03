@@ -21,6 +21,10 @@ pub enum DTraceError {
     EmptyPairsIterator,
     #[error("Provider and probe name pairs must be unique: duplicated \"{0:?}\"")]
     DuplicateProbeName((String, String)),
+    #[error("The provider name \"{0}\" is invalid")]
+    InvalidProviderName(String),
+    #[error("The probe name \"{0}\" is invalid")]
+    InvalidProbeName(String),
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error("Input is not a valid DTrace provider definition:\n{0}")]
@@ -164,11 +168,11 @@ impl TryFrom<&Pair<'_, Rule>> for Probe {
             &inner.next().expect("Expected the literal 'probe'"),
             Rule::PROBE_KEY,
         )?;
-        let name = inner
-            .next()
-            .expect("Expected a probe name")
-            .as_str()
-            .to_string();
+        let token = inner.next().expect("Expected a probe name");
+        let name = token.as_str().to_string();
+        if name == "probe" || name == "start" {
+            return Err(DTraceError::InvalidProbeName(name));
+        }
         expect_token(
             &inner.next().expect("Expected the literal '('"),
             Rule::LEFT_PAREN,
@@ -226,6 +230,9 @@ impl TryFrom<&Pair<'_, Rule>> for Provider {
             .expect("Expected a provider name")
             .as_str()
             .to_string();
+        if name == "provider" {
+            return Err(DTraceError::InvalidProviderName(name));
+        }
         expect_token(
             &inner.next().expect("Expected the literal '{'"),
             Rule::LEFT_BRACE,

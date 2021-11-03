@@ -52,13 +52,13 @@ mod test {
     use crate::Arg;
 
     /// Parameters may be given names, but these are only for documentation purposes.
-    fn start(x: u8) {}
+    fn start_work(x: u8) {}
 
     /// Parameters need not have names, and may be taken by reference...
-    fn stop(_: String, arg: &Arg) {}
+    fn stop_work(_: String, arg: &Arg) {}
 
     /// ... or by value
-    fn stop_by_value(_: String, _: Arg) {}
+    fn stop_work_by_value(_: String, _: Arg) {}
 
     /// Probes usually contain standard path types, such as `u8` or `std::net::IpAddr`. However,
     /// they may also contain slices, arrays, tuples, and references. In these cases, as in the
@@ -77,18 +77,18 @@ fn main() {
         buffer: vec![1; 12],
     };
     loop {
-        test_start!(|| arg.x);
+        test::start_work!(|| arg.x);
         std::thread::sleep(std::time::Duration::from_secs(1));
         arg.x = arg.x.wrapping_add(1);
-        test_stop!(|| { (format!("the probe has fired {}", arg.x), &arg) });
-        test_stop_by_value!(|| {
+        test::stop_work!(|| { (format!("the probe has fired {}", arg.x), &arg) });
+        test::stop_work_by_value!(|| {
             let new_arg = Arg {
                 x: arg.x,
                 buffer: vec![arg.x.into()],
             };
             (format!("the probe has fired {}", arg.x), new_arg)
         });
-        test_arg_as_tuple!(|| (arg.x, &arg.buffer[..]));
-        test_not_json_serializable!(|| Whoops::NoBueno(0));
+        test::arg_as_tuple!(|| (arg.x, &arg.buffer[..]));
+        test::not_json_serializable!(|| Whoops::NoBueno(0));
     }
 }

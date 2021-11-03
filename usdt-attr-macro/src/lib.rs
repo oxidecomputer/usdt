@@ -3,6 +3,7 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
+use serde_tokenstream::from_tokenstream;
 use syn::spanned::Spanned;
 use usdt_impl::{CompileProvidersConfig, DataType, Probe, Provider};
 
@@ -13,40 +14,12 @@ pub fn provider(
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     let attr = TokenStream::from(attr);
-    let config = if attr.is_empty() {
-        CompileProvidersConfig { format: None }
-    } else {
-        let maybe_format = syn::parse2::<syn::MetaNameValue>(attr.clone());
-        if maybe_format.is_err() {
-            return syn::Error::new(
-                attr.span(),
-                "Only the `format` attribute is currently supported",
-            )
-            .to_compile_error()
-            .into();
-        }
-        let format = maybe_format.unwrap();
-        if *format.path.get_ident().as_ref().unwrap() != "format" {
-            return syn::Error::new(
-                format.span(),
-                "Only the `format` attribute is currently supported",
-            )
-            .to_compile_error()
-            .into();
-        }
-        if let syn::Lit::Str(ref s) = format.lit {
-            CompileProvidersConfig {
-                format: Some(s.value()),
-            }
-        } else {
-            return syn::Error::new(format.lit.span(), "A literal string is required")
-                .to_compile_error()
-                .into();
-        }
-    };
-    generate_provider_item(TokenStream::from(item), &config)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
+    match from_tokenstream::<CompileProvidersConfig>(&attr) {
+        Ok(config) => generate_provider_item(TokenStream::from(item), &config)
+            .unwrap_or_else(|e| e.to_compile_error())
+            .into(),
+        Err(e) => e.to_compile_error().into(),
+    }
 }
 
 // Generate the actual provider implementation, include the type-checks and probe macros.
@@ -54,7 +27,7 @@ fn generate_provider_item(
     item: TokenStream,
     config: &CompileProvidersConfig,
 ) -> Result<TokenStream, syn::Error> {
-    let mut mod_ = syn::parse2::<syn::ItemMod>(item)?;
+    let mod_ = syn::parse2::<syn::ItemMod>(item)?;
     if mod_.ident == "provider" {
         return Err(syn::Error::new(
             mod_.ident.span(),
@@ -75,12 +48,7 @@ fn generate_provider_item(
     for (fn_index, item) in content.iter().enumerate() {
         match item {
             syn::Item::Fn(ref func) => {
-                if func.sig.ident == "probe" {
-                    return Err(syn::Error::new(
-                        func.sig.ident.span(),
-                        "Probe functions may not be named \"probe\"",
-                    ));
-                }
+                check_probe_name(&func.sig.ident)?;
                 let signature = check_probe_function_signature(&func.sig)?;
                 let mut item_check_fns = Vec::new();
                 let mut item_types = Vec::new();
@@ -123,7 +91,7 @@ fn generate_provider_item(
     let provider = Provider {
         name: mod_.ident.to_string(),
         probes,
-        use_statements,
+        use_statements: use_statements.clone(),
     };
     let compiled = usdt_impl::compile_provider(&provider, &config);
     let type_checks = if check_fns.is_empty() {
@@ -131,22 +99,30 @@ fn generate_provider_item(
     } else {
         quote! {
             const _: fn() = || {
+                #(#use_statements)*
                 fn usdt_types_must_be_clone_and_serialize<T: ?Sized + Clone + ::serde::Serialize>() {}
                 #(#check_fns)*
             };
         }
     };
-    let mut content = mod_.content.as_ref().unwrap().1.clone();
-    content.push(syn::parse2(type_checks).unwrap());
-    content.push(syn::parse2(compiled).unwrap());
-    mod_.content = Some((mod_.content.as_ref().unwrap().0, content));
-    mod_.ident = quote::format_ident!("__usdt_private_{}", mod_.ident);
     Ok(quote! {
-        #[macro_use]
-        #[allow(unused_variables)]
-        #[allow(dead_code)]
-        #mod_
+        #type_checks
+        #compiled
     })
+}
+
+fn check_probe_name(ident: &syn::Ident) -> syn::Result<()> {
+    let check = |name| {
+        if ident == name {
+            Err(syn::Error::new(
+                ident.span(),
+                format!("Probe functions may not be named \"{}\"", name),
+            ))
+        } else {
+            Ok(())
+        }
+    };
+    check("probe").and(check("start"))
 }
 
 fn parse_probe_argument(

@@ -14,7 +14,6 @@ members = [
 	"tests/fake-lib",
 	"tests/test-json",
 	"tests/test-unique-id",
-	"tests/namespace-conflict",
 	"tests/zero-arg-probe",
 	"usdt",
 	"usdt-attr-macro",

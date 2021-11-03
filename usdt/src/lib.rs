@@ -24,9 +24,9 @@
 //! Users define a provider, with one or more _probe_ functions in the D language. For example:
 //!
 //! ```d
-//! provider test {
-//!     probe start(uint8_t);
-//!     probe stop(char*, uint8_t);
+//! provider my_provider {
+//!     probe start_work(uint8_t);
+//!     probe start_work(char*, uint8_t);
 //! };
 //! ```
 //!
@@ -54,10 +54,14 @@
 //!
 //! ```ignore
 //! let x: u8 = 0;
-//! test_start!(|| x);
+//! my_provider::start_work!(|| x);
 //! ```
 //!
-//! Note that `test_start!` is called with a closure which returns the arguments, rather than the
+//! We can see that the macros are defined in a module named by the provider, with one macro for
+//! each probe, with the same name. See [below](#configurable-names) for how this naming may be
+//! configured.
+//!
+//! Note that `start_work!` is called with a closure which returns the arguments, rather than the
 //! actual arguments themselves. See [below](#probe-arguments) for details. Additionally, as the
 //! probes are exposed as _macros_, they should be included in the crate root, before any other
 //! module or item which references them.
@@ -121,6 +125,17 @@
 //! from an actual string, when generating the Rust probe macros.
 //!
 //! See the [probe_test_attr] example for a complete example implementing probes in Rust.
+//!
+//! ## Configurable names
+//!
+//! When using the attribute macro or build.rs versions of the code-generator, the paths at which
+//! the probe macros are available can be configured. For example, the attribute macro accepts
+//! `probe_path` and `probe_name` arguments, which are string literals. These give the module path
+//! and macro name, respectively, of the resulting probe. For example, an attribute like
+//! `#[usdt::provider(probe_path = "foo::{provider}", probe_name = "probe_{probe}")` will result in
+//! probe macros like `foo::{provider}::probe_{probe}`, where the keys `{provider}` and `{probe}`
+//! will be interpolated with the actual provider and probe names. So given a provider `bar` and `
+//! probe `baz`, the macro would be, in full: `foo::bar::probe_baz!`.
 //!
 //! Examples
 //! --------
@@ -283,11 +298,25 @@ impl Builder {
         self
     }
 
-    /// Set the format for generated probe macros. The provided format may include
-    /// the tokens {provider} and {probe} which will be substituted with the names
-    /// of the provider and probe. The default format is "{provider}_{probe}"
-    pub fn format(mut self, format: &str) -> Self {
-        self.config.format = Some(format.to_string());
+    /// Set the format for the name of generated probe macros.
+    ///
+    /// The provided format may include the tokens `{provider}` and `{probe}`, which will be
+    /// substituted with the names of the provider and probe. The default is `"{probe}"`.
+    pub fn probe_name(mut self, format: &str) -> Self {
+        self.config.probe_name = Some(format.to_string());
+        self
+    }
+
+    /// Set the module path of the generated probe macros.
+    ///
+    /// The generated macros can be emitted within zero or more nested modules, to support
+    /// namespacing. This sets the full list of those generated modules, and defaults to
+    /// `"{provider}"`.
+    ///
+    /// For example, given the string `"some::mod::{provider}"`, for a provider named `foo`, the
+    /// generated probe macros will be available as `some::mod::provider::{probe}`.
+    pub fn probe_path(mut self, format: &str) -> Self {
+        self.config.probe_path = Some(format.to_string());
         self
     }
 

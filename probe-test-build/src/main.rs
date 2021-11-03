@@ -18,14 +18,14 @@ fn main() {
     register_probes().unwrap();
 
     loop {
-        // Call the "start" probe which accepts a u8.
-        test_start!(|| (counter));
+        // Call the "start_work" probe which accepts a u8.
+        test::start_work!(|| (counter));
 
         // Do some work.
         sleep(duration);
 
-        // Call the "stop" probe, which accepts a string, u8, and string.
-        test_stop!(|| (
+        // Call the "stop_work" probe, which accepts a string, u8, and string.
+        test::stop_work!(|| (
             format!("the probe has fired {}", counter),
             counter,
             format!("{:x}", counter)

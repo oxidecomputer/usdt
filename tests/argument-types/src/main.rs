@@ -53,22 +53,22 @@ fn main() {
 
     // Probe macros internally take a _reference_ to the data whenever possible. This means probes
     // that accept a type by value...
-    refs_u8_as_value!(|| 0);
+    refs::u8_as_value!(|| 0);
 
     // ... may also take that type by reference.
-    refs_u8_as_value!(|| &0);
+    refs::u8_as_value!(|| &0);
 
     // And vice-versa: a probe accepting a parameter by reference may take it by value as well.
-    refs_u8_as_reference!(|| 0);
-    refs_u8_as_reference!(|| &0);
+    refs::u8_as_reference!(|| 0);
+    refs::u8_as_reference!(|| &0);
 
     // This is true for string types as well. Probes accepting a string type may be called with
     // anything that implements `AsRef<str>`, which includes `&str`, owned `String`s, and
     // `&String` as well.
-    refs_string_as_value!(|| "&'static str");
-    refs_string_as_value!(|| String::from("owned"));
-    refs_string_as_reference!(|| "&'static str");
-    refs_string_as_reference!(|| String::from("owned"));
+    refs::string_as_value!(|| "&'static str");
+    refs::string_as_value!(|| String::from("owned"));
+    refs::string_as_reference!(|| "&'static str");
+    refs::string_as_reference!(|| String::from("owned"));
 
     // Vectors are supported as well. In this case, the probe argument behaves the way it might in
     // a "normal" function -- with a signature like `fn foo(_: Vec<T>)`, one can pass a `Vec<T>`.
@@ -78,19 +78,19 @@ fn main() {
     let x = vec![0, 1, 2];
 
     // Call with an actual slice ...
-    refs_slice!(|| &x[..]);
+    refs::slice!(|| &x[..]);
 
     // .. Or the vector itself, just like any function `fn(&[T])`.
-    refs_slice!(|| &x);
+    refs::slice!(|| &x);
 
     // Arrays may also be passed to something expecting a slice.
     let arr: [u8; 4] = [0, 1, 2, 3];
-    refs_slice!(|| &arr[..2]);
-    refs_array!(|| arr);
-    refs_array!(|| &arr);
+    refs::slice!(|| &arr[..2]);
+    refs::array!(|| arr);
+    refs::array!(|| &arr);
 
     // Tuples may be passed in by value.
-    refs_tuple!(|| ((0, &x[..])));
+    refs::tuple!(|| ((0, &x[..])));
 
     // Serializable types may be passed by value or reference, to a probe expecting either a value
     // or a reference. Note, however, that the normal lifetime rules apply: you can't return a
@@ -98,18 +98,18 @@ fn main() {
     // _not_ work:
     //
     // ```
-    // refs_serializable_as_reference!(|| &crate::Arg::default());
+    // refs::serializable_as_reference!(|| &crate::Arg::default());
     // ```
     let arg = crate::Arg::default();
-    refs_serializable_as_value!(|| crate::Arg::default());
-    refs_serializable_as_value!(|| &arg);
-    refs_serializable_as_reference!(|| crate::Arg::default());
-    refs_serializable_as_reference!(|| &arg);
+    refs::serializable_as_value!(|| crate::Arg::default());
+    refs::serializable_as_value!(|| &arg);
+    refs::serializable_as_reference!(|| crate::Arg::default());
+    refs::serializable_as_reference!(|| &arg);
 
     // It's also possible to capture and return local variables by value in the probe argument
     // closure. This behaves just like any other captured variable, and so `arg` cannot be used
     // again, unless it implements Copy.
-    refs_serializable_as_reference!(|| arg);
+    refs::serializable_as_reference!(|| arg);
 
     // This line will fail to compile, indicating that `arg` is borrowed after it's been moved.
     // println!("{:#?}", arg.x);
