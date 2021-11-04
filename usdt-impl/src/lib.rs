@@ -111,6 +111,11 @@ impl CompileProvidersConfig {
             .collect()
     }
 
+    pub fn provider_module(&self, provider_name: &str) -> proc_macro2::TokenStream {
+        let mods = self.provider_modules(provider_name).into_iter().rev();
+        quote::quote! { #(#mods)::* }
+    }
+
     /// Return the full path of a probe macro.
     pub fn macro_path(&self, provider_name: &str, probe_name: &str) -> proc_macro2::TokenStream {
         let ident = self.probe_ident(provider_name, probe_name);

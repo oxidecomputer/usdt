@@ -55,7 +55,7 @@
 // Copyright 2021 Oxide Computer Company
 
 use crate::{common, wrap_probes_in_modules, DataType, Provider};
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::{
     collections::BTreeMap,
@@ -106,7 +106,6 @@ fn compile_provider(
     let mut probe_impls = Vec::new();
     for probe in provider.probes.iter() {
         probe_impls.push(compile_probe(
-            &mod_name,
             provider,
             &probe.name,
             config,
@@ -136,7 +135,6 @@ fn compile_provider(
 }
 
 fn compile_probe(
-    mod_name: &Ident,
     provider: &Provider,
     probe_name: &str,
     config: &crate::CompileProvidersConfig,
@@ -144,8 +142,10 @@ fn compile_probe(
     probe: &str,
     types: &[DataType],
 ) -> TokenStream {
+    let mod_name = config.provider_module(&provider.name);
     let is_enabled_fn = format_ident!("{}_{}_enabled", &provider.name, probe_name);
-    let probe_fn = format_ident!("{}_{}", &provider.name, probe_name);
+    let probe_fn = config.probe_ident(&provider.name, probe_name);
+    let extern_probe_fn = format_ident!("__{}", probe_fn);
     let ffi_param_list = types.iter().map(|typ| {
         let ty = typ.to_rust_ffi_type();
         syn::parse2::<syn::FnArg>(quote! { _: #ty }).unwrap()
@@ -164,28 +164,33 @@ fn compile_probe(
             pub(crate) fn #is_enabled_fn() -> i32;
             #[allow(unused)]
             #[link_name = #probe]
-            pub(crate) fn #probe_fn(#(#ffi_param_list),*);
+            pub(crate) fn #extern_probe_fn(#(#ffi_param_list),*);
         }
     };
 
     #[cfg(target_arch = "x86_64")]
-    let call_instruction = quote! { "call {probe_fn}" };
+    let call_instruction = quote! { "call {extern_probe_fn}" };
     #[cfg(target_arch = "aarch64")]
-    let call_instruction = quote! { "bl {probe_fn}" };
+    let call_instruction = quote! { "bl {extern_probe_fn}" };
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     compile_error!("USDT only supports x86_64 and AArch64 architectures");
 
+    let mod_name = if mod_name.is_empty() {
+        quote! {}
+    } else {
+        quote! { #mod_name:: }
+    };
     let impl_block = quote! {
         unsafe {
-            if $crate::#mod_name::#mod_name::#is_enabled_fn() != 0 {
+            if $crate:: #mod_name #is_enabled_fn() != 0 {
                 #unpacked_args
                 asm!(
                     ".reference {typedefs}",
                     #call_instruction,
                     ".reference {stability}",
-                    typedefs = sym $crate::#mod_name::#mod_name::#typedef_fn,
-                    probe_fn = sym $crate::#mod_name::#mod_name::#probe_fn,
-                    stability = sym $crate::#mod_name::#mod_name::#stability_fn,
+                    typedefs = sym $crate:: #mod_name #typedef_fn,
+                    extern_probe_fn = sym $crate:: #mod_name #extern_probe_fn,
+                    stability = sym $crate:: #mod_name #stability_fn,
                     #in_regs
                     options(nomem, nostack, preserves_flags)
                 );
@@ -375,6 +380,7 @@ mod tests {
     fn test_compile_probe() {
         let provider_name = "foo";
         let probe_name = "bar";
+        let extern_probe_name = "__bar";
         let is_enabled = "__dtrace_isenabled$foo$bar$xxx";
         let probe = "__dtrace_probe$foo$bar$xxx";
         let types = vec![];
@@ -386,10 +392,7 @@ mod tests {
             }],
             use_statements: vec![],
         };
-        let mod_ident = format_ident!("__usdt_private_{}", provider_name);
-        let mod_name = format!("{}", mod_ident);
         let tokens = compile_probe(
-            &mod_ident,
             &provider,
             probe_name,
             &crate::CompileProvidersConfig::default(),
@@ -415,21 +418,20 @@ mod tests {
 
         let needles = &[
             "asm ! (\".reference {typedefs}\"",
-            "call {probe_fn}",
+            "call {extern_probe_fn}",
             "\".reference {stability}",
             &format!(
-                "typedefs = sym $ crate :: {mod_name} :: {mod_name} :: typedefs",
-                mod_name = mod_name,
+                "typedefs = sym $ crate :: {provider_name} :: typedefs",
+                provider_name = provider_name
             ),
             &format!(
-                "probe_fn = sym $ crate :: {mod_name} :: {mod_name} :: {provider_name}_{probe_name}",
-                mod_name = mod_name,
+                "probe_fn = sym $ crate :: {provider_name} :: {extern_probe_name}",
                 provider_name = provider_name,
-                probe_name = probe_name
+                extern_probe_name = extern_probe_name
             ),
             &format!(
-                "stability = sym $ crate :: {mod_name} :: {mod_name} :: stability",
-                mod_name = mod_name
+                "stability = sym $ crate :: {provider_name} :: stability",
+                provider_name = provider_name
             ),
         ];
         for needle in needles.iter() {

@@ -37,7 +37,6 @@ pub fn compile_provider_from_definition(
 }
 
 fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig) -> TokenStream {
-    let mod_name = module_ident_for_provider(&provider);
     let probe_impls = provider
         .probes
         .iter()
