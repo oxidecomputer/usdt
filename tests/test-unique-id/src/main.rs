@@ -15,6 +15,7 @@ fn main() {}
 
 #[cfg(test)]
 mod tests {
+    use super::with_ids;
     use std::thread;
     use std::time::Duration;
     use subprocess::Exec;
@@ -24,17 +25,17 @@ mod tests {
     fn test_unique_ids() {
         usdt::register_probes().unwrap();
         let id = UniqueId::new();
-        with_ids_start_work!(|| &id);
+        with_ids::start_work!(|| &id);
         let id2 = id.clone();
         let thr = thread::spawn(move || {
             for _ in 0..10 {
-                with_ids_waypoint_from_thread!(|| (&id2, "we're in a thread"));
+                with_ids::waypoint_from_thread!(|| (&id2, "we're in a thread"));
                 thread::sleep(Duration::from_millis(10));
             }
             id2.as_u64()
         });
         let result = thr.join().unwrap();
-        with_ids_work_finished!(|| (&id, result));
+        with_ids::work_finished!(|| (&id, result));
         assert_eq!(result, id.as_u64());
 
         // Actually verify that the same value is received by DTrace.
@@ -57,7 +58,7 @@ mod tests {
         let id = UniqueId::new();
         let id2 = id.clone();
         let thr = thread::spawn(move || {
-            with_ids_waypoint_from_thread!(|| (&id2, "we're in a thread"));
+            with_ids::waypoint_from_thread!(|| (&id2, "we're in a thread"));
         });
         thr.join().unwrap();
 

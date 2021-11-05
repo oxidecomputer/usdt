@@ -1,5 +1,11 @@
+//! The empty implementation of the USDT crate.
+//!
+//! Used when the `asm` feature is disabled, or on platforms without DTrace.
+
+// Copyright 2021 Oxide Computer Company
+
 use crate::common;
-use crate::module_ident_for_provider;
+use crate::wrap_probes_in_modules;
 use crate::{Probe, Provider};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -15,14 +21,7 @@ pub fn compile_provider_source(
         .into_iter()
         .map(|provider| {
             let provider = Provider::from(provider);
-            let tokens = compile_provider(&provider, config);
-            let mod_name = module_ident_for_provider(&provider);
-            quote! {
-                #[macro_use]
-                pub(crate) mod #mod_name {
-                    #tokens
-                }
-            }
+            compile_provider(&provider, config)
         })
         .collect::<Vec<_>>();
     Ok(quote! {
@@ -38,18 +37,12 @@ pub fn compile_provider_from_definition(
 }
 
 fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig) -> TokenStream {
-    let mod_name = module_ident_for_provider(&provider);
     let probe_impls = provider
         .probes
         .iter()
         .map(|probe| compile_probe(&provider, probe, config))
         .collect::<Vec<_>>();
-    quote! {
-        #[macro_use]
-        pub(crate) mod #mod_name {
-            #(#probe_impls)*
-        }
-    }
+    wrap_probes_in_modules(config, provider, quote! { #(#probe_impls)* })
 }
 
 fn compile_probe(

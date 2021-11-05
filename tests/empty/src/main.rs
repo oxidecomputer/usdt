@@ -9,10 +9,10 @@ fn main() {
     register_probes().unwrap();
 
     let counter: u8 = 0;
-    stuff_start!(|| (counter));
-    stuff_stop!(|| ("the probe has fired", counter));
-    stuff_noargs!(|| ());
-    stuff_noargs!();
+    stuff::start_work!(|| (counter));
+    stuff::stop_work!(|| ("the probe has fired", counter));
+    stuff::noargs!(|| ());
+    stuff::noargs!();
 }
 
 #[cfg(test)]

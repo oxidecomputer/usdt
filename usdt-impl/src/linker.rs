@@ -1,6 +1,61 @@
-use crate::module_ident_for_provider;
-use crate::{common, DataType, Provider};
-use proc_macro2::{Ident, TokenStream};
+//! USDT implementation on platforms with linker support (macOS).
+//!
+//! On systems with linker support for the compile-time construction of DTrace
+//! USDT probes we can lean heavily on those mechanisms. Rather than interpreting
+//! the provider file ourselves, we invoke the system's `dtrace -h` to generate a C
+//! header file. That header file contains the linker directives that convey
+//! information from the provider definition such as types and stability. We parse
+//! that header file and generate code that effectively reproduces in Rust the
+//! equivalent of what we would see in C.
+//!
+//! For example, the header file might contain code like this:
+//! ```ignore
+//! #define FOO_STABILITY "___dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"
+//! #define FOO_TYPEDEFS "___dtrace_typedefs$foo$v2"
+//!
+//! #if !defined(DTRACE_PROBES_DISABLED) || !DTRACE_PROBES_DISABLED
+//!
+//! #define	FOO_BAR() \
+//! do { \
+//! 	__asm__ volatile(".reference " FOO_TYPEDEFS); \
+//! 	__dtrace_probe$foo$bar$v1(); \
+//! 	__asm__ volatile(".reference " FOO_STABILITY); \
+//! } while (0)
+//! ```
+//!
+//! In rust, we'll want the probe site to look something like this:
+//! ```ignore
+//! #![feature(asm)]
+//! extern "C" {
+//!     #[link_name = "__dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"]
+//!     fn stability();
+//!     #[link_name = "__dtrace_probe$foo$bar$v1"]
+//!     fn probe();
+//!     #[link_name = "__dtrace_typedefs$foo$v2"]
+//!     fn typedefs();
+//!
+//! }
+//! unsafe {
+//!     asm!(".reference {}", sym typedefs);
+//!     probe();
+//!     asm!(".reference {}", sym stability);
+//! }
+//! ```
+//! There are a few things to note above:
+//! 1. We cannot simply generate code with the symbol name embedded in the asm!
+//!    block e.g. `asm!(".reference __dtrace_typedefs$foo$v2")`. The asm! macro
+//!    removes '$' characters yielding the incorrect symbol.
+//! 2. The header file stability and typedefs contain three '_'s whereas the
+//!    Rust code has just two. The `sym <symbol_name>` apparently prepends an
+//!    extra underscore in this case.
+//! 3. The probe needs to be a function type (because we call it), but the types
+//!    of the `stability` and `typedefs` symbols could be anything--we just need
+//!    a symbol name we can reference for the asm! macro that won't get garbled.
+
+// Copyright 2021 Oxide Computer Company
+
+use crate::{common, wrap_probes_in_modules, DataType, Provider};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::{
     collections::BTreeMap,
@@ -8,58 +63,6 @@ use std::{
     io::Write,
     process::{Command, Stdio},
 };
-
-/// On systems with linker support for the compile-time construction of DTrace
-/// USDT probes we can lean heavily on those mechanisms. Rather than interpretting
-/// the provider file ourselves, we invoke the system's `dtrace -h` to generate a C
-/// header file. That header file contains the linker directives that convey
-/// information from the provider definition such as types and stability. We parse
-/// that header file and generate code that effectively reproduces in Rust the
-/// equivalent of what we would see in C.
-///
-/// For example, the header file might contain code like this:
-/// ```ignore
-/// #define FOO_STABILITY "___dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"
-/// #define FOO_TYPEDEFS "___dtrace_typedefs$foo$v2"
-///
-/// #if !defined(DTRACE_PROBES_DISABLED) || !DTRACE_PROBES_DISABLED
-///
-/// #define	FOO_BAR() \
-/// do { \
-/// 	__asm__ volatile(".reference " FOO_TYPEDEFS); \
-/// 	__dtrace_probe$foo$bar$v1(); \
-/// 	__asm__ volatile(".reference " FOO_STABILITY); \
-/// } while (0)
-/// ```
-///
-/// In rust, we'll want the probe site to look something like this:
-/// ```ignore
-/// #![feature(asm)]
-/// extern "C" {
-///     #[link_name = "__dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"]
-///     fn stability();
-///     #[link_name = "__dtrace_probe$foo$bar$v1"]
-///     fn probe();
-///     #[link_name = "__dtrace_typedefs$foo$v2"]
-///     fn typedefs();
-///
-/// }
-/// unsafe {
-///     asm!(".reference {}", sym typedefs);
-///     probe();
-///     asm!(".reference {}", sym stability);
-/// }
-/// ```
-/// There are a few things to note above:
-/// 1. We cannot simply generate code with the symbol name embedded in the asm!
-///    block e.g. `asm!(".reference __dtrace_typedefs$foo$v2")`. The asm! macro
-///    removes '$' characters yielding the incorrect symbol.(
-/// 2. The header file stability and typedefs contain three '_'s whereas the
-///    rust code has just two. The `sym <symbol_name>` apparently prepends an
-///    extra underscore in this case.
-/// 3. The probe needs to be a function type (because we call it), but the types
-///    of the `stability` and `typedefs` symbols could be anything--we just need
-///    a symbol name we can reference for the asm! macro that won't get garbled.
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_provider_source(
@@ -74,14 +77,7 @@ pub fn compile_provider_source(
         .into_iter()
         .map(|provider| {
             let provider = Provider::from(provider);
-            let tokens = compile_provider(&provider, &provider_info[&provider.name], config);
-            let mod_name = module_ident_for_provider(&provider);
-            quote! {
-                #[macro_use]
-                pub(crate) mod #mod_name {
-                    #tokens
-                }
-            }
+            compile_provider(&provider, &provider_info[&provider.name], config)
         })
         .collect::<Vec<_>>();
     Ok(quote! {
@@ -107,11 +103,9 @@ fn compile_provider(
     provider_info: &ProviderInfo,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let mod_name = module_ident_for_provider(&provider);
     let mut probe_impls = Vec::new();
     for probe in provider.probes.iter() {
         probe_impls.push(compile_probe(
-            &mod_name,
             provider,
             &probe.name,
             config,
@@ -122,28 +116,25 @@ fn compile_provider(
     }
     let stability = &provider_info.stability;
     let typedefs = &provider_info.typedefs;
-    quote! {
-        #[macro_use]
-        pub(crate) mod #mod_name {
-            extern "C" {
-                // These are dummy symbols, which we declare so that we can name them inside the
-                // probe macro via a valid Rust path, e.g., `$crate::#mod_name::stability`.
-                // The macOS linker will actually define these symbols, which are required to
-                // generate valid DOF.
-                #[allow(unused)]
-                #[link_name = #stability]
-                pub(crate) fn stability();
-                #[allow(unused)]
-                #[link_name = #typedefs]
-                pub(crate) fn typedefs();
-            }
-            #(#probe_impls)*
+    let tokens = quote! {
+        extern "C" {
+            // These are dummy symbols, which we declare so that we can name them inside the
+            // probe macro via a valid Rust path, e.g., `$crate::#mod_name::stability`.
+            // The macOS linker will actually define these symbols, which are required to
+            // generate valid DOF.
+            #[allow(unused)]
+            #[link_name = #stability]
+            pub(crate) fn stability();
+            #[allow(unused)]
+            #[link_name = #typedefs]
+            pub(crate) fn typedefs();
         }
-    }
+        #(#probe_impls)*
+    };
+    wrap_probes_in_modules(config, provider, tokens)
 }
 
 fn compile_probe(
-    mod_name: &Ident,
     provider: &Provider,
     probe_name: &str,
     config: &crate::CompileProvidersConfig,
@@ -151,8 +142,10 @@ fn compile_probe(
     probe: &str,
     types: &[DataType],
 ) -> TokenStream {
+    let mod_name = config.provider_module(&provider.name);
     let is_enabled_fn = format_ident!("{}_{}_enabled", &provider.name, probe_name);
-    let probe_fn = format_ident!("{}_{}", &provider.name, probe_name);
+    let probe_fn = config.probe_ident(&provider.name, probe_name);
+    let extern_probe_fn = format_ident!("__{}", probe_fn);
     let ffi_param_list = types.iter().map(|typ| {
         let ty = typ.to_rust_ffi_type();
         syn::parse2::<syn::FnArg>(quote! { _: #ty }).unwrap()
@@ -171,28 +164,33 @@ fn compile_probe(
             pub(crate) fn #is_enabled_fn() -> i32;
             #[allow(unused)]
             #[link_name = #probe]
-            pub(crate) fn #probe_fn(#(#ffi_param_list),*);
+            pub(crate) fn #extern_probe_fn(#(#ffi_param_list),*);
         }
     };
 
     #[cfg(target_arch = "x86_64")]
-    let call_instruction = quote! { "call {probe_fn}" };
+    let call_instruction = quote! { "call {extern_probe_fn}" };
     #[cfg(target_arch = "aarch64")]
-    let call_instruction = quote! { "bl {probe_fn}" };
+    let call_instruction = quote! { "bl {extern_probe_fn}" };
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     compile_error!("USDT only supports x86_64 and AArch64 architectures");
 
+    let mod_name = if mod_name.is_empty() {
+        quote! {}
+    } else {
+        quote! { #mod_name:: }
+    };
     let impl_block = quote! {
         unsafe {
-            if $crate::#mod_name::#mod_name::#is_enabled_fn() != 0 {
+            if $crate:: #mod_name #is_enabled_fn() != 0 {
                 #unpacked_args
                 asm!(
                     ".reference {typedefs}",
                     #call_instruction,
                     ".reference {stability}",
-                    typedefs = sym $crate::#mod_name::#mod_name::#typedef_fn,
-                    probe_fn = sym $crate::#mod_name::#mod_name::#probe_fn,
-                    stability = sym $crate::#mod_name::#mod_name::#stability_fn,
+                    typedefs = sym $crate:: #mod_name #typedef_fn,
+                    extern_probe_fn = sym $crate:: #mod_name #extern_probe_fn,
+                    stability = sym $crate:: #mod_name #stability_fn,
                     #in_regs
                     options(nomem, nostack, preserves_flags)
                 );
@@ -382,6 +380,7 @@ mod tests {
     fn test_compile_probe() {
         let provider_name = "foo";
         let probe_name = "bar";
+        let extern_probe_name = "__bar";
         let is_enabled = "__dtrace_isenabled$foo$bar$xxx";
         let probe = "__dtrace_probe$foo$bar$xxx";
         let types = vec![];
@@ -393,10 +392,7 @@ mod tests {
             }],
             use_statements: vec![],
         };
-        let mod_ident = format_ident!("__usdt_private_{}", provider_name);
-        let mod_name = format!("{}", mod_ident);
         let tokens = compile_probe(
-            &mod_ident,
             &provider,
             probe_name,
             &crate::CompileProvidersConfig::default(),
@@ -422,21 +418,20 @@ mod tests {
 
         let needles = &[
             "asm ! (\".reference {typedefs}\"",
-            "call {probe_fn}",
+            "call {extern_probe_fn}",
             "\".reference {stability}",
             &format!(
-                "typedefs = sym $ crate :: {mod_name} :: {mod_name} :: typedefs",
-                mod_name = mod_name,
+                "typedefs = sym $ crate :: {provider_name} :: typedefs",
+                provider_name = provider_name
             ),
             &format!(
-                "probe_fn = sym $ crate :: {mod_name} :: {mod_name} :: {provider_name}_{probe_name}",
-                mod_name = mod_name,
+                "probe_fn = sym $ crate :: {provider_name} :: {extern_probe_name}",
                 provider_name = provider_name,
-                probe_name = probe_name
+                extern_probe_name = extern_probe_name
             ),
             &format!(
-                "stability = sym $ crate :: {mod_name} :: {mod_name} :: stability",
-                mod_name = mod_name
+                "stability = sym $ crate :: {provider_name} :: stability",
+                provider_name = provider_name
             ),
         ];
         for needle in needles.iter() {

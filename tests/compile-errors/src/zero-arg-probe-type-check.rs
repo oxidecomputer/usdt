@@ -10,5 +10,5 @@ mod my_provider {
 }
 
 fn main() {
-    my_provider_my_probe!(|| "This should fail");
+    my_provider::my_probe!(|| "This should fail");
 }

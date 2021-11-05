@@ -1,5 +1,5 @@
 error[E0308]: mismatched types
-  --> $DIR/zero-arg-probe-type-check.rs:7:1
+  --> src/zero-arg-probe-type-check.rs:7:1
    |
 7  | #[usdt::provider]
    | ^^^^^^^^^^^^^^^^^
@@ -7,7 +7,7 @@ error[E0308]: mismatched types
    | expected `()`, found `&str`
    | expected due to this
 ...
-13 |     my_provider_my_probe!(|| "This should fail");
-   |     -------------------------------------------- in this macro invocation
+13 |     my_provider::my_probe!(|| "This should fail");
+   |     --------------------------------------------- in this macro invocation
    |
-   = note: this error originates in the macro `my_provider_my_probe` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the macro `my_provider::my_probe` (in Nightly builds, run with -Z macro-backtrace for more info)

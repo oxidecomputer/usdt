@@ -10,13 +10,13 @@ use usdt::register_probes;
 include!(concat!(env!("OUT_DIR"), "/test.rs"));
 
 fn main() {
-    doesit_work!(|| (0, "something"));
+    doesit::work!(|| (0, "something"));
 }
 
 #[allow(dead_code)]
 fn run_test(rx: std::sync::mpsc::Receiver<()>) {
     register_probes().unwrap();
-    doesit_work!(|| (0, "something"));
+    doesit::work!(|| (0, "something"));
     let _ = rx.recv();
 }
 

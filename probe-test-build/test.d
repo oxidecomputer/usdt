@@ -1,4 +1,4 @@
 provider test {
-	probe start(uint8_t);
-	probe stop(char*, uint8_t, char*);
+	probe start_work(uint8_t);
+	probe stop_work(char*, uint8_t, char*);
 };

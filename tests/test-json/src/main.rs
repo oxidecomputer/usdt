@@ -46,7 +46,7 @@ mod test_json {
 fn main() {
     usdt::register_probes().unwrap();
     let arg = ProbeArg::default();
-    test_json_good!(|| &arg);
+    test_json::good!(|| &arg);
 }
 
 #[cfg(test)]
@@ -80,7 +80,7 @@ mod tests {
 
         // Fire the good probe until the main thread signals us to continue.
         let data = ProbeArg::default();
-        test_json_good!(|| &data);
+        test_json::good!(|| &data);
         println!("Test runner awaiting notification");
         let _ = recv.recv().unwrap();
 
@@ -88,7 +88,7 @@ mod tests {
         sleep(SLEEP_DURATION);
         println!("Test runner firing second probe");
         let data = NotJsonSerializable::default();
-        test_json_bad!(|| &data);
+        test_json::bad!(|| &data);
     }
 
     #[test]

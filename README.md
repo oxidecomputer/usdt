@@ -33,9 +33,9 @@ build-time code generation.
 The starting point is a D script, called `"test.d"`. It looks like:
 
 ```d
-provider test {
-	probe start(uint8_t);
-	probe stop(char*, uint8_t);
+provider my_provider {
+	probe start_work(uint8_t);
+	probe stop_work(char*, uint8_t);
 };
 ```
 
@@ -82,14 +82,14 @@ fn main() {
     register_probes().unwrap();
 
     loop {
-        // Call the "start" probe which accepts a u8.
-        test_start!(|| (counter));
+        // Call the "start_work" probe which accepts a u8.
+        my_provider::start_work!(|| (counter));
 
         // Do some work.
         sleep(duration);
 
-        // Call the "stop" probe, which accepts a &str and a u8.
-        test_stop!(|| ("the probe has fired", counter));
+        // Call the "stop_work" probe, which accepts a &str and a u8.
+        my_provider::stop_work!(|| ("the probe has fired", counter));
 
         counter = counter.wrapping_add(1);
     }
@@ -98,8 +98,8 @@ fn main() {
 
 Note that the `#![feature(asm)]` attribute is required. One can also see that the Rust code
 is included directly using the `include!` macro. The probe definitions are converted into Rust
-macros, named by the provider and probe. In our case, the first probe is converted into a macro
-`test_start!`.
+macros, in a module named by the provider, and with macro named by the probe. In our case, the
+the first probe is converted into a macro `my_provider::start_work!`.
 
 > IMPORTANT: It's important to note that the application _must_ call `usdt::register_probes()`
 in order to actually register the probe points with DTrace. Failing to do this will not impact
@@ -116,10 +116,10 @@ $ cargo +nightly run --features asm
 And in another terminal, list the matching probes with:
 
 ```bash
-$ sudo dtrace -l -n test*:::
+$ sudo dtrace -l -n my_provider*:::
    ID   PROVIDER            MODULE                          FUNCTION NAME
- 2865  test14314  probe-test-build _ZN16probe_test_build4main17h906db832bb52ab01E [probe_test_build::main::h906db832bb52ab01] start
- 2866  test14314  probe-test-build _ZN16probe_test_build4main17h906db832bb52ab01E [probe_test_build::main::h906db832bb52ab01] stop
+ 2865  test14314  probe-test-build _ZN16probe_test_build4main17h906db832bb52ab01E [probe_test_build::main::h906db832bb52ab01] start_work
+ 2866  test14314  probe-test-build _ZN16probe_test_build4main17h906db832bb52ab01E [probe_test_build::main::h906db832bb52ab01] stop_work
  ```
 
 ## Probe arguments

@@ -22,5 +22,5 @@ mod my_provider {
 }
 
 fn main() {
-    my_provider_my_probe!(|| Different { x: 0 });
+    my_provider::my_probe!(|| Different { x: 0 });
 }

@@ -8,8 +8,8 @@ include!(concat!(env!("OUT_DIR"), "/test.rs"));
 fn main() {
     register_probes().unwrap();
 
-    test_here__i__am!(|| ());
-    test_here__i__am!();
+    zero::here__i__am!(|| ());
+    zero::here__i__am!();
 }
 
 #[cfg(test)]

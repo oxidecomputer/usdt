@@ -73,27 +73,76 @@ pub enum Error {
 
 #[derive(Default, Debug, Deserialize)]
 pub struct CompileProvidersConfig {
-    pub format: Option<String>,
+    pub probe_path: Option<String>,
+    pub probe_name: Option<String>,
 }
 
-fn format_probe(
-    format: &Option<String>,
-    provider_name: &str,
-    probe_name: &str,
-) -> proc_macro2::Ident {
-    if let Some(fmt) = format {
-        quote::format_ident!(
-            "{}",
+impl CompileProvidersConfig {
+    /// Return the formatted name of a probe.
+    pub fn format_probe(&self, provider_name: &str, probe_name: &str) -> String {
+        if let Some(fmt) = &self.probe_name {
             fmt.replace("{provider}", provider_name)
                 .replace("{probe}", probe_name)
+        } else {
+            String::from(probe_name)
+        }
+    }
+
+    /// Return the formatted name of the probe as an identifier.
+    pub fn probe_ident(&self, provider_name: &str, probe_name: &str) -> proc_macro2::Ident {
+        quote::format_ident!("{}", self.format_probe(provider_name, probe_name))
+    }
+
+    /// Return the full formatted path of the provider.
+    pub fn format_path(&self, provider_name: &str) -> String {
+        if let Some(fmt) = &self.probe_path {
+            fmt.replace("{provider}", provider_name)
+        } else {
+            String::from(provider_name)
+        }
+    }
+
+    /// Return the formatted module names for a provider, as a list of identifiers.
+    pub fn provider_modules(&self, provider_name: &str) -> Vec<proc_macro2::Ident> {
+        self.format_path(provider_name)
+            .split("::")
+            .filter(|name| !name.is_empty())
+            .map(|name| quote::format_ident!("{}", name))
+            .collect()
+    }
+
+    pub fn provider_module(&self, provider_name: &str) -> proc_macro2::TokenStream {
+        let mods = self.provider_modules(provider_name).into_iter().rev();
+        quote::quote! { #(#mods)::* }
+    }
+
+    /// Return the full path of a probe macro.
+    pub fn macro_path(&self, provider_name: &str, probe_name: &str) -> proc_macro2::TokenStream {
+        let ident = self.probe_ident(provider_name, probe_name);
+        self.provider_modules(provider_name).into_iter().rev().fold(
+            quote::quote! { #ident },
+            |current, module| quote::quote! { #module :: #current },
         )
-    } else {
-        quote::format_ident!("{}_{}", provider_name, probe_name)
     }
 }
 
-fn module_ident_for_provider(provider: &Provider) -> syn::Ident {
-    quote::format_ident!("__usdt_private_{}", provider.name)
+/// Generate a possibly-nested list of modules, containing the given probe macros.
+fn wrap_probes_in_modules(
+    config: &CompileProvidersConfig,
+    provider: &Provider,
+    macros: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    config
+        .provider_modules(&provider.name)
+        .into_iter()
+        .rev()
+        .fold(macros, |inner, module| {
+            quote::quote! {
+                pub(crate) mod #module {
+                    #inner
+                }
+            }
+        })
 }
 
 // Compile DTrace provider source code into Rust.
@@ -476,5 +525,37 @@ mod test {
         // without panics.
         assert_ne!(&(id.id) as *const _, &(id2.id) as *const _);
         assert_ne!(id.id.as_ptr(), id2.id.as_ptr());
+    }
+
+    #[test]
+    fn test_compile_providers_config() {
+        let config = CompileProvidersConfig {
+            probe_path: Some(String::from("a::{provider}::b")),
+            probe_name: Some(String::from("probe_{probe}")),
+        };
+        assert_eq!(config.format_probe("prov", "prob"), "probe_prob");
+        assert_eq!(config.format_path("prov"), "a::prov::b");
+        assert_eq!(
+            config.macro_path("prov", "prob").to_string(),
+            quote::quote! { a::prov::b::probe_prob }.to_string()
+        );
+
+        let config = CompileProvidersConfig {
+            probe_path: None,
+            probe_name: None,
+        };
+        assert_eq!(
+            config.macro_path("prov", "prob").to_string(),
+            quote::quote! { prov::prob }.to_string()
+        );
+
+        let config = CompileProvidersConfig {
+            probe_path: Some(String::new()),
+            probe_name: None,
+        };
+        assert_eq!(
+            config.macro_path("prov", "prob").to_string(),
+            quote::quote! { prob }.to_string()
+        );
     }
 }

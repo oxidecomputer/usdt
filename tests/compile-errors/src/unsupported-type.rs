@@ -4,5 +4,5 @@ usdt::dtrace_provider!("../../../tests/compile-errors/providers/unsupported-type
 
 fn main() {
     let bad: u8 = 0;
-    unsupported_bad!(|| (bad));
+    unsupported::bad!(|| (bad));
 }
