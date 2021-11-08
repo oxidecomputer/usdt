@@ -2,6 +2,7 @@
 //! serializable data type.
 // Copyright 2021 Oxide Computer Company
 
+#![cfg_attr(target_os = "macos", feature(asm_sym))]
 #![feature(asm)]
 
 use serde::Serialize;

@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 usdt = { path = "../usdt", default-features = false }
 serde = "1"
+rustversion = "1"
 
 [features]
 default = ["asm"]

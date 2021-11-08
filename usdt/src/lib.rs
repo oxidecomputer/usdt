@@ -42,11 +42,12 @@
 //!
 //! ```ignore
 //! #![feature(asm)]
+//! #![cfg_attr(target_os = "macos", feature(asm_sym))]
 //! usdt::dtrace_provider!("test.d");
 //! ```
 //!
 //! This procedural macro will generate a Rust macro for each probe defined in the provider. Note
-//! that including the `asm` feature is required; see [the notes](#notes) for a discussion. The
+//! that including the `asm` features are required; see [the notes](#notes) for a discussion. The
 //! `feature` directive and the invocation of `dtrace_provider` **should both be at the crate
 //! root**, i.e., `src/lib.rs` or `src/main.rs`.
 //!
@@ -210,8 +211,8 @@
 //! purpose. It may be passed as any argument to a probe function, and is guaranteed to be unique
 //! between different invocations of the same probe. See the type's documentation for details.
 //!
-//! Notes
-//! -----
+//! Feature flags
+//! -------------
 //!
 //! The USDT crate relies on inline assembly to hook into DTrace. Unfortunatley this feature is
 //! unstable, and requires explicitly opting in with `#![feature(asm)]` as well as running with a
@@ -228,6 +229,35 @@
 //! ```
 //!
 //! The `asm` feature is a default of the `usdt` crate.
+//!
+//! ### Rust toolchain versions and the `asm_sym` flag
+//!
+//! The toolchain story is unfortunately more complicated than this. As of Rust 1.58.0-nightly
+//! (2021-10-29), the `asm` feature has been broken out into several more fine-grained features, to
+//! more quickly allow stabilization of the core inline assembly components. The result is that
+//! this crate requires the `asm_sym` feature on macOS target platforms.
+//!
+//! Unfortunately, because of the way the features were added (see [this pull
+//! request][asm-sym-feature-pr]), this version of Rust nightly is a Rubicon: the `usdt` crate, and
+//! crates using it, _cannot be built with compilers both before and after this version._
+//! Specifically, it's not possible to write the set of feature flags that would allow code to be
+//! compiled with a nightly toolchain before and after this version. If we _include_ the
+//! `feature(asm_sym)` directive with a toolchain of 1.57 or earlier, the compiler will generate an
+//! error because that feature isn't known for those versions. If we _omit_ the directive, it will
+//! compile with previous toolchains, but a newer one will generate an error because the feature
+//! flag is required for opting into the functionality used in the `usdt` crate's implementation on
+//! macOS.
+//!
+//! There's no great solution here. If you're developing an application, i.e., something that
+//! you're sure can be built with a specific toolchain such as with a `rust-toolchain` file, you
+//! can write the correct feature attribute for that toolchain version.
+//!
+//! If you're building a library, things are more complicated, because you don't know what
+//! toolchain a consuming application will choose to use. It's not possible to use a `build.rs`
+//! file or other code-generation mechanism, because inner attributes must generally be written
+//! directly at the top of the crate's root source file. A mechanism that _expands_ to the right
+//! tokens is not sufficient. The only real approach is to specify which versions of the toolchain
+//! are supported by your library in the documentation, as we've done here.
 //!
 //! Selecting the no-op implementation
 //! ----------------------------------
@@ -256,6 +286,10 @@
 //! [probe_test_build]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-build
 //! [probe_test_attr]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-attr
 //! [serde]: https://serde.rs
+//! [asm-features]: https://github.com/rust-lang/rust/pull/90348
+//! [rust-version-crate]: https://github.com/dtolnay/rustversion
+//! [asm-sym-feature-pr]: https://github.com/rust-lang/rust/pull/90348
+
 // Copyright 2021 Oxide Computer Company
 
 use std::path::{Path, PathBuf};
