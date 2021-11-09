@@ -1,5 +1,6 @@
 //! An example using the `usdt` crate, generating the probes via a build script.
 #![feature(asm)]
+#![cfg_attr(target_os = "macos", feature(asm_sym))]
 
 use std::thread::sleep;
 use std::time::Duration;
