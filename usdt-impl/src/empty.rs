@@ -50,7 +50,7 @@ fn compile_probe(
     probe: &Probe,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let impl_block = quote! { let _ = || ($args_lambda); };
+    let impl_block = quote! { let _ = || (__usdt_private_args_lambda()) ; };
     common::build_probe_macro(
         config,
         provider,
