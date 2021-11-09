@@ -25,7 +25,7 @@
 //!
 //! In rust, we'll want the probe site to look something like this:
 //! ```ignore
-//! #![feature(asm)]
+//! #![feature(asm, asm_sym)]
 //! extern "C" {
 //!     #[link_name = "__dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"]
 //!     fn stability();

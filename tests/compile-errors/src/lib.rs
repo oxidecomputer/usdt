@@ -1,4 +1,5 @@
 #![feature(asm)]
+#![cfg_attr(target_os = "macos", feature(asm_sym))]
 #![deny(warnings)]
 
 #[cfg(test)]
