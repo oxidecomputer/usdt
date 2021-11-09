@@ -12,8 +12,8 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.12", optional = true }
 serde = "1"
 usdt-impl = { path = "../usdt-impl", version = "0.1.14", default-features = false }
-usdt-macro = { path = "../usdt-macro", version = "0.1.15" }
-usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.1.5" }
+usdt-macro = { path = "../usdt-macro", version = "0.1.15", default-features = false }
+usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.1.5", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 dof = { path = "../dof", version = "0.1.5", optional = true, default-features = false }
@@ -23,5 +23,5 @@ dof = { path = "../dof", version = "0.1.5", default-features = false }
 
 [features]
 default = ["asm"]
-asm = ["usdt-impl/asm", "dtrace-parser"]
+asm = ["usdt-impl/asm", "usdt-macro/asm", "usdt-attr-macro/asm", "dtrace-parser"]
 des = ["usdt-impl/des", "dof/des"]

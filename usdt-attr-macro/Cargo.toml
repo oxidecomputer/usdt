@@ -18,5 +18,9 @@ syn = { version = "1", features = ["full"] }
 quote = "1"
 usdt-impl = { path = "../usdt-impl", version = "0.1.14", default-features = false }
 
+[features]
+default = ["asm"]
+asm = ["usdt-impl/asm"]
+
 [dev-dependencies]
 rstest = "0.11"
