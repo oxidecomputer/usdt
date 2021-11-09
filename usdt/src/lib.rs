@@ -135,7 +135,7 @@
 //! and macro name, respectively, of the resulting probe. For example, an attribute like
 //! `#[usdt::provider(probe_path = "foo::{provider}", probe_name = "probe_{probe}")` will result in
 //! probe macros like `foo::{provider}::probe_{probe}`, where the keys `{provider}` and `{probe}`
-//! will be interpolated with the actual provider and probe names. So given a provider `bar` and `
+//! will be interpolated with the actual provider and probe names. So given a provider `bar` and
 //! probe `baz`, the macro would be, in full: `foo::bar::probe_baz!`.
 //!
 //! Examples
