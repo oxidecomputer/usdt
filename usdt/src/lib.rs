@@ -287,7 +287,6 @@
 //! [probe_test_attr]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-attr
 //! [serde]: https://serde.rs
 //! [asm-features]: https://github.com/rust-lang/rust/pull/90348
-//! [rust-version-crate]: https://github.com/dtolnay/rustversion
 //! [asm-sym-feature-pr]: https://github.com/rust-lang/rust/pull/90348
 
 // Copyright 2021 Oxide Computer Company
