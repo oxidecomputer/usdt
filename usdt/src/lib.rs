@@ -335,21 +335,14 @@ impl Builder {
     ///
     /// The provided format may include the tokens `{provider}` and `{probe}`, which will be
     /// substituted with the names of the provider and probe. The default is `"{probe}"`.
-    pub fn probe_name(mut self, format: &str) -> Self {
-        self.config.probe_name = Some(format.to_string());
+    pub fn probe_format(mut self, format: &str) -> Self {
+        self.config.probe_format = Some(format.to_string());
         self
     }
 
-    /// Set the module path of the generated probe macros.
-    ///
-    /// The generated macros can be emitted within zero or more nested modules, to support
-    /// namespacing. This sets the full list of those generated modules, and defaults to
-    /// `"{provider}"`.
-    ///
-    /// For example, given the string `"some::mod::{provider}"`, for a provider named `foo`, the
-    /// generated probe macros will be available as `some::mod::provider::{probe}`.
-    pub fn probe_path(mut self, format: &str) -> Self {
-        self.config.probe_path = Some(format.to_string());
+    /// Set the name of the module containing the generated probe macros.
+    pub fn module(mut self, module: &str) -> Self {
+        self.config.module = Some(module.to_string());
         self
     }
 

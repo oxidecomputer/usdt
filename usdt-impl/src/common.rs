@@ -212,12 +212,12 @@ pub(crate) fn build_probe_macro(
     pre_macro_block: TokenStream,
     impl_block: TokenStream,
 ) -> TokenStream {
-    let macro_path = config.macro_path(&provider.name, probe_name);
-    let macro_name = config.probe_ident(&provider.name, probe_name);
+    let module = config.module_ident();
+    let macro_name = config.probe_ident(probe_name);
     let type_check_block =
         generate_type_check(&provider.name, &provider.use_statements, probe_name, types);
     let no_args_match = if types.is_empty() {
-        quote! { () => { crate::#macro_path!(|| ()) }; }
+        quote! { () => { crate::#module::#macro_name!(|| ()) }; }
     } else {
         quote! {}
     };

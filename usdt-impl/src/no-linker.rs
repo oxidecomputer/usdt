@@ -3,7 +3,7 @@
 // Copyright 2021 Oxide Computer Company
 
 use crate::record::{emit_probe_record, process_section};
-use crate::{common, wrap_probes_in_modules, Probe, Provider};
+use crate::{common, Probe, Provider};
 use dof::{serialize_section, Section};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -20,6 +20,16 @@ pub fn compile_provider_source(
         .iter()
         .map(|provider| {
             let provider = Provider::from(provider);
+            // Ensure that the name of the module in the config is set, either by the caller or
+            // defaulting to the provider name.
+            let config = crate::CompileProvidersConfig {
+                provider: Some(provider.name.clone()),
+                probe_format: config.probe_format.clone(),
+                module: match &config.module {
+                    None => Some(provider.name.clone()),
+                    other => other.clone(),
+                },
+            };
             compile_provider(&provider, &config)
         })
         .collect::<Vec<_>>();
@@ -41,7 +51,12 @@ fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig)
         .iter()
         .map(|probe| compile_probe(provider, probe, config))
         .collect::<Vec<_>>();
-    wrap_probes_in_modules(config, provider, quote! { #(#probe_impls)* })
+    let module = config.module_ident();
+    quote! {
+        mod #module {
+            #(#probe_impls)*
+        }
+    }
 }
 
 fn compile_probe(

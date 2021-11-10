@@ -1,0 +1,11 @@
+[package]
+name = "rename-builder"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+usdt = { path = "../../usdt" }
+serde = "1"
+
+[build-dependencies]
+usdt = { path = "../../usdt" }

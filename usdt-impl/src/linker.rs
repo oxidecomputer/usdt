@@ -54,7 +54,7 @@
 
 // Copyright 2021 Oxide Computer Company
 
-use crate::{common, wrap_probes_in_modules, DataType, Provider};
+use crate::{common, DataType, Provider};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::{
@@ -77,7 +77,17 @@ pub fn compile_provider_source(
         .into_iter()
         .map(|provider| {
             let provider = Provider::from(provider);
-            compile_provider(&provider, &provider_info[&provider.name], config)
+            // Ensure that the name of the module in the config is set, either by the caller or
+            // defaulting to the provider name.
+            let config = crate::CompileProvidersConfig {
+                provider: Some(provider.name.clone()),
+                probe_format: config.probe_format.clone(),
+                module: match &config.module {
+                    None => Some(provider.name.clone()),
+                    other => other.clone(),
+                },
+            };
+            compile_provider(&provider, &provider_info[&provider.name], &config)
         })
         .collect::<Vec<_>>();
     Ok(quote! {
@@ -131,7 +141,12 @@ fn compile_provider(
         }
         #(#probe_impls)*
     };
-    wrap_probes_in_modules(config, provider, tokens)
+    let module = config.module_ident();
+    quote! {
+        mod #module {
+            #tokens
+        }
+    }
 }
 
 fn compile_probe(
@@ -142,9 +157,8 @@ fn compile_probe(
     probe: &str,
     types: &[DataType],
 ) -> TokenStream {
-    let mod_name = config.provider_module(&provider.name);
     let is_enabled_fn = format_ident!("{}_{}_enabled", &provider.name, probe_name);
-    let probe_fn = config.probe_ident(&provider.name, probe_name);
+    let probe_fn = config.probe_ident(probe_name);
     let extern_probe_fn = format_ident!("__{}", probe_fn);
     let ffi_param_list = types.iter().map(|typ| {
         let ty = typ.to_rust_ffi_type();
@@ -175,22 +189,18 @@ fn compile_probe(
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     compile_error!("USDT only supports x86_64 and AArch64 architectures");
 
-    let mod_name = if mod_name.is_empty() {
-        quote! {}
-    } else {
-        quote! { #mod_name:: }
-    };
+    let mod_name = config.module_ident();
     let impl_block = quote! {
         unsafe {
-            if $crate:: #mod_name #is_enabled_fn() != 0 {
+            if $crate:: #mod_name :: #is_enabled_fn() != 0 {
                 #unpacked_args
                 asm!(
                     ".reference {typedefs}",
                     #call_instruction,
                     ".reference {stability}",
-                    typedefs = sym $crate:: #mod_name #typedef_fn,
-                    extern_probe_fn = sym $crate:: #mod_name #extern_probe_fn,
-                    stability = sym $crate:: #mod_name #stability_fn,
+                    typedefs = sym $crate:: #mod_name :: #typedef_fn,
+                    extern_probe_fn = sym $crate:: #mod_name :: #extern_probe_fn,
+                    stability = sym $crate:: #mod_name :: #stability_fn,
                     #in_regs
                     options(nomem, nostack, preserves_flags)
                 );
@@ -395,7 +405,10 @@ mod tests {
         let tokens = compile_probe(
             &provider,
             probe_name,
-            &crate::CompileProvidersConfig::default(),
+            &crate::CompileProvidersConfig {
+                provider: Some(provider_name.to_string()),
+                ..Default::default()
+            },
             is_enabled,
             probe,
             &types,
