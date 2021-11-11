@@ -16,7 +16,7 @@ There are three mechanisms for converting the D probe definitions into Rust.
 3. An attribute macro, `usdt::provider`.
 
 The generated code is the same in all cases, though the third provides a bit more flexibility
-than the first two. See [below][Serializable types] for more details, but briefly, the third
+than the first two. See [below](#serializable-types) for more details, but briefly, the third
 form supports probe arguments of any type that implement [`serde::Seralize`][2]. These different
 versions are shown in the crates `probe-test-{build,macro,attr}` respectively.
 
