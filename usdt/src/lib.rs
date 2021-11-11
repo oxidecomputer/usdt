@@ -129,14 +129,43 @@
 //!
 //! ## Configurable names
 //!
-//! When using the attribute macro or build.rs versions of the code-generator, the paths at which
-//! the probe macros are available can be configured. For example, the attribute macro accepts
-//! `probe_path` and `probe_name` arguments, which are string literals. These give the module path
-//! and macro name, respectively, of the resulting probe. For example, an attribute like
-//! `#[usdt::provider(probe_path = "foo::{provider}", probe_name = "probe_{probe}")` will result in
-//! probe macros like `foo::{provider}::probe_{probe}`, where the keys `{provider}` and `{probe}`
-//! will be interpolated with the actual provider and probe names. So given a provider `bar` and
-//! probe `baz`, the macro would be, in full: `foo::bar::probe_baz!`.
+//! When using the attribute macro or build.rs versions of the code-generator, the names of the
+//! provider and/or probes may be configured. Specifically, the `probe_format` argument to the
+//! attribute macro or `Builder` method sets a format string used to generate the names of the
+//! probe macros. This can be any string, and will have the keys `{provider}` and `{probe}`
+//! interpolated to the actual names of the provider and probe. As an example, consider a provider
+//! named `foo` with a probe named `bar`, and a format string of `probe_{provider}_{probe}` -- the
+//! name of the generated probe macro will be `probe_foo_bar`.
+//!
+//! In addition, when using the attribute macro version, the name of the _provider_ as seen by
+//! DTrace can be configured. This defaults to the name of the provider module. For example,
+//! consider a module like this:
+//!
+//! ```ignore
+//! #[usdt::provider(provider = "foo")]
+//! mod probes {
+//!     fn bar() {
+//! }
+//! ```
+//!
+//! The probe `bar` will appear in DTrace as `foo:::bar`, and will be accessible in Rust via the
+//! macro `probes::bar!`. Note that it's not possible to rename the probe module when using the
+//! attribute macro version.
+//!
+//! Conversely, one can change the name of the generated provider _module_ when using the builder
+//! version, but not the name of the provider as it appears to DTrace. Given a file `"test.d"` that
+//! names a provider `foo` and a probe `bar`, consider this code:
+//!
+//! ```ignore
+//! usdt::Builder::new("test.d")
+//!     .module("probes")
+//!     .build()
+//!     .unwrap();
+//! ```
+//!
+//! This probe `bar` will appear in DTrace as `foo:::bar`, but will now be accessible in Rust via
+//! the macro `probes::bar!`. Note that it's not possible to rename the provider as it appears in
+//! DTrace when using the builder version.
 //!
 //! Examples
 //! --------
@@ -335,21 +364,14 @@ impl Builder {
     ///
     /// The provided format may include the tokens `{provider}` and `{probe}`, which will be
     /// substituted with the names of the provider and probe. The default is `"{probe}"`.
-    pub fn probe_name(mut self, format: &str) -> Self {
-        self.config.probe_name = Some(format.to_string());
+    pub fn probe_format(mut self, format: &str) -> Self {
+        self.config.probe_format = Some(format.to_string());
         self
     }
 
-    /// Set the module path of the generated probe macros.
-    ///
-    /// The generated macros can be emitted within zero or more nested modules, to support
-    /// namespacing. This sets the full list of those generated modules, and defaults to
-    /// `"{provider}"`.
-    ///
-    /// For example, given the string `"some::mod::{provider}"`, for a provider named `foo`, the
-    /// generated probe macros will be available as `some::mod::provider::{probe}`.
-    pub fn probe_path(mut self, format: &str) -> Self {
-        self.config.probe_path = Some(format.to_string());
+    /// Set the name of the module containing the generated probe macros.
+    pub fn module(mut self, module: &str) -> Self {
+        self.config.module = Some(module.to_string());
         self
     }
 

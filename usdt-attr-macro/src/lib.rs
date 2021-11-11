@@ -15,9 +15,21 @@ pub fn provider(
 ) -> proc_macro::TokenStream {
     let attr = TokenStream::from(attr);
     match from_tokenstream::<CompileProvidersConfig>(&attr) {
-        Ok(config) => generate_provider_item(TokenStream::from(item), &config)
-            .unwrap_or_else(|e| e.to_compile_error())
-            .into(),
+        Ok(config) => {
+            // Renaming the module via the attribute macro isn't supported.
+            if config.module.is_some() {
+                syn::Error::new(
+                    attr.span(),
+                    "The provider module may not be renamed via the attribute macro",
+                )
+                .to_compile_error()
+                .into()
+            } else {
+                generate_provider_item(TokenStream::from(item), config)
+                    .unwrap_or_else(|e| e.to_compile_error())
+                    .into()
+            }
+        }
         Err(e) => e.to_compile_error().into(),
     }
 }
@@ -25,7 +37,7 @@ pub fn provider(
 // Generate the actual provider implementation, include the type-checks and probe macros.
 fn generate_provider_item(
     item: TokenStream,
-    config: &CompileProvidersConfig,
+    mut config: CompileProvidersConfig,
 ) -> Result<TokenStream, syn::Error> {
     let mod_ = syn::parse2::<syn::ItemMod>(item)?;
     if mod_.ident == "provider" {
@@ -88,8 +100,27 @@ fn generate_provider_item(
             }
         }
     }
+
+    // We're guaranteed that the module name in the config is None. If the user has set the
+    // provider name there, extract it. If they have _not_ set the provider name there, extract the
+    // module name. In both cases, we don't support renaming the module via this path, so the
+    // module name is passed through.
+    let name = match &config.provider {
+        Some(name) => {
+            let name = name.to_string();
+            config.module = Some(mod_.ident.to_string());
+            name
+        }
+        None => {
+            let name = mod_.ident.to_string();
+            config.provider = Some(name.clone());
+            config.module = Some(name.clone());
+            name
+        }
+    };
+
     let provider = Provider {
-        name: mod_.ident.to_string(),
+        name,
         probes,
         use_statements: use_statements.clone(),
     };
