@@ -100,8 +100,8 @@
 //! #[usdt::provider]
 //! mod test {
 //!     use crate::Arg;
-//!     fn start(x: u8) {}
-//!     fn stop(arg: &Arg) {}
+//!     fn start_work(x: u8) {}
+//!     fn stop_work(arg: &Arg) {}
 //! }
 //! ```
 //!
@@ -110,7 +110,7 @@
 //! is used to access the named key of a JSON-encoded string. For example:
 //!
 //! ```bash
-//! $ dtrace -n 'stop { printf("%s", json(copyinstr(arg0), "ok.buffer[0]")); }'
+//! $ dtrace -n 'stop_work { printf("%s", json(copyinstr(arg0), "ok.buffer[0]")); }'
 //! ```
 //!
 //! would print the first element of the vector `Arg::buffer`.
