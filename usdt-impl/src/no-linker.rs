@@ -53,7 +53,7 @@ fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig)
         .collect::<Vec<_>>();
     let module = config.module_ident();
     quote! {
-        mod #module {
+        pub(crate) mod #module {
             #(#probe_impls)*
         }
     }
@@ -67,7 +67,6 @@ fn compile_probe(
     let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
     let is_enabled_rec = emit_probe_record(&provider.name, &probe.name, None);
     let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
-    let pre_macro_block = TokenStream::new();
     let impl_block = quote! {
         {
             let mut is_enabled: u64;
@@ -93,14 +92,7 @@ fn compile_probe(
             }
         }
     };
-    common::build_probe_macro(
-        config,
-        provider,
-        &probe.name,
-        &probe.types,
-        pre_macro_block,
-        impl_block,
-    )
+    common::build_probe_macro(config, provider, &probe.name, &probe.types, impl_block)
 }
 
 fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error> {

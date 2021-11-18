@@ -209,7 +209,6 @@ pub(crate) fn build_probe_macro(
     provider: &Provider,
     probe_name: &str,
     types: &[DataType],
-    pre_macro_block: TokenStream,
     impl_block: TokenStream,
 ) -> TokenStream {
     let module = config.module_ident();
@@ -222,7 +221,6 @@ pub(crate) fn build_probe_macro(
         quote! {}
     };
     quote! {
-        #pre_macro_block
         #[allow(unused_macros)]
         macro_rules! #macro_name {
             #no_args_match

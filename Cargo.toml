@@ -12,6 +12,7 @@ members = [
 	"tests/empty",
 	"tests/fake-cmd",
 	"tests/fake-lib",
+	"tests/modules",
     "tests/rename",
     "tests/rename-builder",
 	"tests/test-json",
