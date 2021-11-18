@@ -53,7 +53,7 @@ fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig)
         .collect::<Vec<_>>();
     let module = config.module_ident();
     quote! {
-        mod #module {
+        pub(crate) mod #module {
             #(#probe_impls)*
         }
     }
@@ -65,14 +65,7 @@ fn compile_probe(
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     let impl_block = quote! { let _ = || (__usdt_private_args_lambda()) ; };
-    common::build_probe_macro(
-        config,
-        provider,
-        &probe.name,
-        &probe.types,
-        quote! {},
-        impl_block,
-    )
+    common::build_probe_macro(config, provider, &probe.name, &probe.types, impl_block)
 }
 
 pub fn register_probes() -> Result<(), crate::Error> {

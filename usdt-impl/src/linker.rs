@@ -119,32 +119,14 @@ fn compile_provider(
             provider,
             &probe.name,
             config,
-            &provider_info.is_enabled[&probe.name],
-            &provider_info.probes[&probe.name],
+            provider_info,
             &probe.types,
         ));
     }
-    let stability = &provider_info.stability;
-    let typedefs = &provider_info.typedefs;
-    let tokens = quote! {
-        extern "C" {
-            // These are dummy symbols, which we declare so that we can name them inside the
-            // probe macro via a valid Rust path, e.g., `$crate::#mod_name::stability`.
-            // The macOS linker will actually define these symbols, which are required to
-            // generate valid DOF.
-            #[allow(unused)]
-            #[link_name = #stability]
-            pub(crate) fn stability();
-            #[allow(unused)]
-            #[link_name = #typedefs]
-            pub(crate) fn typedefs();
-        }
-        #(#probe_impls)*
-    };
     let module = config.module_ident();
     quote! {
-        mod #module {
-            #tokens
+        pub(crate) mod #module {
+            #(#probe_impls)*
         }
     }
 }
@@ -153,34 +135,30 @@ fn compile_probe(
     provider: &Provider,
     probe_name: &str,
     config: &crate::CompileProvidersConfig,
-    is_enabled: &str,
-    probe: &str,
+    provider_info: &ProviderInfo,
     types: &[DataType],
 ) -> TokenStream {
+    // Retrieve the string names and the Rust identifiers used for the extern functions.
+    // These are provided by the macOS linker, but have invalid Rust identifier names, like
+    // `foo$bar`. We name them with valid Rust idents, and specify their link name as that of the
+    // function provided by the macOS linker.
+    let stability = &provider_info.stability;
+    let stability_fn = format_ident!("stability");
+    let typedefs = &provider_info.typedefs;
+    let typedef_fn = format_ident!("typedefs");
+    let is_enabled = &provider_info.is_enabled[probe_name];
     let is_enabled_fn = format_ident!("{}_{}_enabled", &provider.name, probe_name);
-    let probe_fn = config.probe_ident(probe_name);
-    let extern_probe_fn = format_ident!("__{}", probe_fn);
+
+    // The probe function is a little different. We prefix it with `__` because otherwise it has
+    // the same name as the macro itself, which leads to conflicts.
+    let probe = &provider_info.probes[probe_name];
+    let extern_probe_fn = format_ident!("__{}", config.probe_ident(probe_name));
+
     let ffi_param_list = types.iter().map(|typ| {
         let ty = typ.to_rust_ffi_type();
         syn::parse2::<syn::FnArg>(quote! { _: #ty }).unwrap()
     });
     let (unpacked_args, in_regs) = common::construct_probe_args(types);
-
-    // Create identifiers for the stability and typedef symbols, used by Apple's linker.
-    // Note that the Rust symbols these refer to are defined in the caller of this function.
-    let stability_fn = format_ident!("stability");
-    let typedef_fn = format_ident!("typedefs");
-
-    let pre_macro_block = quote! {
-        extern "C" {
-            #[allow(unused)]
-            #[link_name = #is_enabled]
-            pub(crate) fn #is_enabled_fn() -> i32;
-            #[allow(unused)]
-            #[link_name = #probe]
-            pub(crate) fn #extern_probe_fn(#(#ffi_param_list),*);
-        }
-    };
 
     #[cfg(target_arch = "x86_64")]
     let call_instruction = quote! { "call {extern_probe_fn}" };
@@ -189,18 +167,34 @@ fn compile_probe(
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     compile_error!("USDT only supports x86_64 and AArch64 architectures");
 
-    let mod_name = config.module_ident();
     let impl_block = quote! {
+        extern "C" {
+            #[allow(unused)]
+            #[link_name = #stability]
+            fn stability();
+
+            #[allow(unused)]
+            #[link_name = #typedefs]
+            fn typedefs();
+
+            #[allow(unused)]
+            #[link_name = #is_enabled]
+            fn #is_enabled_fn() -> i32;
+
+            #[allow(unused)]
+            #[link_name = #probe]
+            fn #extern_probe_fn(#(#ffi_param_list,)*);
+        }
         unsafe {
-            if $crate:: #mod_name :: #is_enabled_fn() != 0 {
+            if #is_enabled_fn() != 0 {
                 #unpacked_args
                 asm!(
                     ".reference {typedefs}",
                     #call_instruction,
                     ".reference {stability}",
-                    typedefs = sym $crate:: #mod_name :: #typedef_fn,
-                    extern_probe_fn = sym $crate:: #mod_name :: #extern_probe_fn,
-                    stability = sym $crate:: #mod_name :: #stability_fn,
+                    typedefs = sym #typedef_fn,
+                    extern_probe_fn = sym #extern_probe_fn,
+                    stability = sym #stability_fn,
                     #in_regs
                     options(nomem, nostack, preserves_flags)
                 );
@@ -208,14 +202,7 @@ fn compile_probe(
         }
     };
 
-    common::build_probe_macro(
-        config,
-        provider,
-        probe_name,
-        types,
-        pre_macro_block,
-        impl_block,
-    )
+    common::build_probe_macro(config, provider, probe_name, types, impl_block)
 }
 
 #[derive(Debug, Default, Clone)]
@@ -393,6 +380,8 @@ mod tests {
         let extern_probe_name = "__bar";
         let is_enabled = "__dtrace_isenabled$foo$bar$xxx";
         let probe = "__dtrace_probe$foo$bar$xxx";
+        let stability = "__dtrace_probe$foo$v1$1_1_1";
+        let typedefs = "__dtrace_typedefs$foo$v2";
         let types = vec![];
         let provider = Provider {
             name: provider_name.to_string(),
@@ -402,6 +391,18 @@ mod tests {
             }],
             use_statements: vec![],
         };
+
+        let mut is_enabled_map = BTreeMap::new();
+        is_enabled_map.insert(String::from(probe_name), String::from(is_enabled));
+        let mut probes_map = BTreeMap::new();
+        probes_map.insert(String::from(probe_name), String::from(probe));
+        let provider_info = ProviderInfo {
+            stability: String::from(stability),
+            typedefs: String::from(typedefs),
+            is_enabled: is_enabled_map,
+            probes: probes_map,
+        };
+
         let tokens = compile_probe(
             &provider,
             probe_name,
@@ -409,8 +410,7 @@ mod tests {
                 provider: Some(provider_name.to_string()),
                 ..Default::default()
             },
-            is_enabled,
-            probe,
+            &provider_info,
             &types,
         );
 
@@ -423,7 +423,7 @@ mod tests {
         assert!(output.find(&needle).is_some());
 
         let needle = format!(
-            "pub (crate) fn {provider_name}_{probe_name}",
+            "fn {provider_name}_{probe_name}",
             provider_name = provider_name,
             probe_name = probe_name
         );
@@ -433,19 +433,12 @@ mod tests {
             "asm ! (\".reference {typedefs}\"",
             "call {extern_probe_fn}",
             "\".reference {stability}",
+            "typedefs = sym typedefs",
             &format!(
-                "typedefs = sym $ crate :: {provider_name} :: typedefs",
-                provider_name = provider_name
-            ),
-            &format!(
-                "probe_fn = sym $ crate :: {provider_name} :: {extern_probe_name}",
-                provider_name = provider_name,
+                "probe_fn = sym {extern_probe_name}",
                 extern_probe_name = extern_probe_name
             ),
-            &format!(
-                "stability = sym $ crate :: {provider_name} :: stability",
-                provider_name = provider_name
-            ),
+            "stability = sym stability",
         ];
         for needle in needles.iter() {
             println!("{}", needle);
