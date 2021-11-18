@@ -1,6 +1,6 @@
 [package]
 name = "usdt"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
@@ -11,9 +11,9 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 [dependencies]
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.12", optional = true }
 serde = "1"
-usdt-impl = { path = "../usdt-impl", version = "0.2.0", default-features = false }
-usdt-macro = { path = "../usdt-macro", version = "0.2.0", default-features = false }
-usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.2.0", default-features = false }
+usdt-impl = { path = "../usdt-impl", version = "0.2.1", default-features = false }
+usdt-macro = { path = "../usdt-macro", version = "0.2.1", default-features = false }
+usdt-attr-macro = { path = "../usdt-attr-macro", version = "0.2.1", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 dof = { path = "../dof", version = "0.1.5", optional = true, default-features = false }
