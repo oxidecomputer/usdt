@@ -19,15 +19,15 @@ Unsupported type, the following are supported:
   - int64_t
   - &str
 
- --> src/unsupported-type.rs:4:1
-  |
-4 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/unsupported-type.d");
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: this error originates in the macro `usdt::dtrace_provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+  --> src/unsupported-type.rs:18:1
+   |
+18 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/unsupported-type.d");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `usdt::dtrace_provider` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0433]: failed to resolve: use of undeclared crate or module `unsupported`
- --> src/unsupported-type.rs:8:5
-  |
-8 |     unsupported::bad!(|| (bad));
-  |     ^^^^^^^^^^^ use of undeclared crate or module `unsupported`
+  --> src/unsupported-type.rs:22:5
+   |
+22 |     unsupported::bad!(|| (bad));
+   |     ^^^^^^^^^^^ use of undeclared crate or module `unsupported`

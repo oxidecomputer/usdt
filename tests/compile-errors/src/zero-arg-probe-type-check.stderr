@@ -1,13 +1,13 @@
 error[E0308]: mismatched types
-  --> src/zero-arg-probe-type-check.rs:8:1
+  --> src/zero-arg-probe-type-check.rs:20:1
    |
-8  | #[usdt::provider]
+20 | #[usdt::provider]
    | ^^^^^^^^^^^^^^^^^
    | |
    | expected `()`, found `&str`
    | expected due to this
 ...
-14 |     my_provider::my_probe!(|| "This should fail");
+26 |     my_provider::my_probe!(|| "This should fail");
    |     --------------------------------------------- in this macro invocation
    |
    = note: this error originates in the macro `my_provider::my_probe` (in Nightly builds, run with -Z macro-backtrace for more info)

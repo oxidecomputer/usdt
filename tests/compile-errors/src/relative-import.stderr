@@ -1,11 +1,11 @@
 error: Use-statements in USDT macros cannot contain relative imports (`super`), because the generated macros may be called from anywhere in a crate. Consider using `crate` instead.
-  --> src/relative-import.rs:15:9
+  --> src/relative-import.rs:27:9
    |
-15 |     use super::Expected;
+27 |     use super::Expected;
    |         ^^^^^^^^^^^^^^^
 
 error[E0433]: failed to resolve: use of undeclared crate or module `my_provider`
-  --> src/relative-import.rs:20:5
+  --> src/relative-import.rs:32:5
    |
-20 |     my_provider::my_probe!(|| Different { x: 0 });
+32 |     my_provider::my_probe!(|| Different { x: 0 });
    |     ^^^^^^^^^^^ use of undeclared crate or module `my_provider`
