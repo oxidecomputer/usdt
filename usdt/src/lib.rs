@@ -325,6 +325,19 @@
 //! their own re-exported feature, e.g., `#![cfg_attr(feature = "probes", feature(asm))]`, and
 //! instruct developers consuming their libraries to do the same.
 //!
+//! It's important to keep in mind how Cargo unifies features, however. Specifically, if `usdt` is
+//! a dependency of two other dependencies in a package, it's possible to end up in a confusing
+//! situation. Cargo takes the _union_ of all features in such a case. Thus if one crate is built
+//! expecting to use the no-op implementation and another is built _using_ the real, `asm`-based
+//! implementation, the latter will be chosen. This can be confusing or downright dangerous. First,
+//! the former crate will fail at compile time, because the `asm!` macro will actually be emitted,
+//! but the `#![feature(asm)]` flag will not be included. More troubling, the probes will actually
+//! exist in the resulting object file, even if the user specifically opted to not use them.
+//!
+//! To handle this, library writers should place _all_ references to `usdt`-related code behind a
+//! conditional compilation directive. This will ensure that the crate is not even used, rather
+//! than it being used with an unexpected implementation.
+//!
 //! [dtrace]: https://illumos.org/books/dtrace/preface.html#preface
 //! [dtrace-usdt]: https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt
 //! [dtrace-json]: https://sysmgr.org/blog/2012/11/29/dtrace_and_json_together_at_last/
