@@ -144,7 +144,7 @@
 //! ```ignore
 //! #[usdt::provider(provider = "foo")]
 //! mod probes {
-//!     fn bar() {
+//!     fn bar() {}
 //! }
 //! ```
 //!
@@ -166,6 +166,23 @@
 //! This probe `bar` will appear in DTrace as `foo:::bar`, but will now be accessible in Rust via
 //! the macro `probes::bar!`. Note that it's not possible to rename the provider as it appears in
 //! DTrace when using the builder version.
+//!
+//! Double-underscores
+//! ------------------
+//!
+//! It's a DTrace convention to name probes with dashes between words, rather than underscores. So
+//! the probe should be `my-probe` rather than `my_probe`. The former is not a valid Rust
+//! identifier, but can be achieved by using _two_ underscores in the provider or probe name. This
+//! crate internally translates `__` into `-` in such cases. For example, the provider:
+//!
+//! ```ignore
+//! #[usdt::provider("my__provider")]
+//! mod probes {
+//!     fn my__probe() {};
+//! }
+//! ```
+//!
+//! will result in a provider and probe name of `my-provider` and `my-probe`.
 //!
 //! Examples
 //! --------

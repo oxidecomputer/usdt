@@ -99,6 +99,7 @@ pub fn generate_type_check(
     quote! {
         let __usdt_private_args_lambda = $args_lambda;
         #[allow(unused_imports)]
+        #[allow(non_snake_case)]
         #(#use_statements)*
         fn #type_check_function (#(#type_check_args),*) { }
         let _ = || {
@@ -281,6 +282,7 @@ mod tests {
         let expected = quote! {
             let __usdt_private_args_lambda = $args_lambda;
             #[allow(unused_imports)]
+            #[allow(non_snake_case)]
             fn __usdt_private_provider_probe_type_check(
                 _: impl ::std::borrow::Borrow<u8>,
                 _: impl ::std::borrow::Borrow<i64>
@@ -303,6 +305,7 @@ mod tests {
         let expected = quote! {
             let __usdt_private_args_lambda = $args_lambda;
             #[allow(unused_imports)]
+            #[allow(non_snake_case)]
             fn __usdt_private_provider_probe_type_check(_: impl AsRef<str>) { }
             let _ = || {
                 let args = (__usdt_private_args_lambda.clone()(),);
@@ -322,6 +325,7 @@ mod tests {
         let expected = quote! {
             let __usdt_private_args_lambda = $args_lambda;
             #[allow(unused_imports)]
+            #[allow(non_snake_case)]
             fn __usdt_private_provider_probe_type_check(_: impl AsRef<[u8]>) { }
             let _ = || {
                 let args = (__usdt_private_args_lambda.clone()(),);
@@ -341,6 +345,7 @@ mod tests {
         let expected = quote! {
             let __usdt_private_args_lambda = $args_lambda;
             #[allow(unused_imports)]
+            #[allow(non_snake_case)]
             use my_module::MyType;
             fn __usdt_private_provider_probe_type_check(_: impl ::std::borrow::Borrow<MyType>) { }
             let _ = || {

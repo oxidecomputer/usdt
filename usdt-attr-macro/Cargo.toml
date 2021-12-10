@@ -1,6 +1,6 @@
 [package]
 name = "usdt-attr-macro"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Benjamin Naecker <ben@oxide.computer>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -16,7 +16,7 @@ proc-macro2 = "1"
 serde_tokenstream = "0.1"
 syn = { version = "1", features = ["full"] }
 quote = "1"
-usdt-impl = { path = "../usdt-impl", version = "0.2.1", default-features = false }
+usdt-impl = { path = "../usdt-impl", version = "0.3.0", default-features = false }
 
 [features]
 default = ["asm"]
