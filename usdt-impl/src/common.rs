@@ -99,8 +99,8 @@ pub fn generate_type_check(
     quote! {
         let __usdt_private_args_lambda = $args_lambda;
         #[allow(unused_imports)]
-        #[allow(non_snake_case)]
         #(#use_statements)*
+        #[allow(non_snake_case)]
         fn #type_check_function (#(#type_check_args),*) { }
         let _ = || {
             #preamble
@@ -345,8 +345,8 @@ mod tests {
         let expected = quote! {
             let __usdt_private_args_lambda = $args_lambda;
             #[allow(unused_imports)]
-            #[allow(non_snake_case)]
             use my_module::MyType;
+            #[allow(non_snake_case)]
             fn __usdt_private_provider_probe_type_check(_: impl ::std::borrow::Borrow<MyType>) { }
             let _ = || {
                 let args = (__usdt_private_args_lambda.clone()(),);
