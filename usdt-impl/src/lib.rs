@@ -308,7 +308,7 @@ thread_local! {
 /// -------
 /// ```ignore
 /// #![feature(asm)]
-/// #![cfg_attr(target_os = "macos, feature(asm_sym))]
+/// #![cfg_attr(target_os = "macos", feature(asm_sym))]
 /// #[usdt::provider]
 /// mod with_id {
 ///     fn work_started(_: &usdt::UniqueId) {}
@@ -346,7 +346,7 @@ thread_local! {
 ///
 /// ```compile_fail
 /// #![feature(asm)]
-/// #![cfg_attr(target_os = "macos, feature(asm_sym))]
+/// #![cfg_attr(target_os = "macos", feature(asm_sym))]
 /// #[usdt::provider]
 /// mod with_id {
 ///     fn work_started(_: &usdt::UniqueId) {}

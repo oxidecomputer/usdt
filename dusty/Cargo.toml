@@ -12,5 +12,5 @@ structopt = "0.3.21"
 
 [dependencies.usdt]
 path = "../usdt"
-version = "0.2.1"
+version = "0.3.0"
 features = ["asm", "des"]

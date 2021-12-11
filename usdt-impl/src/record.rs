@@ -336,8 +336,8 @@ pub(crate) fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataTyp
         version = PROBE_REC_VERSION,
         n_args = n_args,
         flags = if is_enabled { 1 } else { 0 },
-        prov = prov,
-        probe = probe,
+        prov = prov.replace("__", "-"),
+        probe = probe.replace("__", "-"),
         arguments = arguments,
         yeet = if cfg!(target_os = "illumos") {
             // The illumos linker may yeet our probes section into the trash under
@@ -551,5 +551,20 @@ mod test {
                 .find(&format!(".asciz \"{}\"", typ.to_c_type()))
                 .is_some());
         }
+    }
+
+    #[test]
+    fn test_emit_probe_record_dunders() {
+        let provider = "provider";
+        let probe = "my__probe";
+        let types = [
+            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(dtrace_parser::DataType::String),
+        ];
+        let record = emit_probe_record(provider, probe, Some(&types));
+        assert!(
+            record.contains("my-probe"),
+            "Expected double-underscores to be translated to a single dash"
+        );
     }
 }

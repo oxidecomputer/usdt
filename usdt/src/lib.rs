@@ -144,7 +144,7 @@
 //! ```ignore
 //! #[usdt::provider(provider = "foo")]
 //! mod probes {
-//!     fn bar() {
+//!     fn bar() {}
 //! }
 //! ```
 //!
@@ -166,6 +166,23 @@
 //! This probe `bar` will appear in DTrace as `foo:::bar`, but will now be accessible in Rust via
 //! the macro `probes::bar!`. Note that it's not possible to rename the provider as it appears in
 //! DTrace when using the builder version.
+//!
+//! Double-underscores
+//! ------------------
+//!
+//! It's a DTrace convention to name probes with dashes between words, rather than underscores. So
+//! the probe should be `my-probe` rather than `my_probe`. The former is not a valid Rust
+//! identifier, but can be achieved by using _two_ underscores in the provider or probe name. This
+//! crate internally translates `__` into `-` in such cases. For example, the provider:
+//!
+//! ```ignore
+//! #[usdt::provider("my__provider")]
+//! mod probes {
+//!     fn my__probe() {};
+//! }
+//! ```
+//!
+//! will result in a provider and probe name of `my-provider` and `my-probe`.
 //!
 //! Examples
 //! --------
@@ -307,6 +324,19 @@
 //! an actual `asm!` macro call.) So library writers should probably gate the feature directive on
 //! their own re-exported feature, e.g., `#![cfg_attr(feature = "probes", feature(asm))]`, and
 //! instruct developers consuming their libraries to do the same.
+//!
+//! It's important to keep in mind how Cargo unifies features, however. Specifically, if `usdt` is
+//! a dependency of two other dependencies in a package, it's possible to end up in a confusing
+//! situation. Cargo takes the _union_ of all features in such a case. Thus if one crate is built
+//! expecting to use the no-op implementation and another is built _using_ the real, `asm`-based
+//! implementation, the latter will be chosen. This can be confusing or downright dangerous. First,
+//! the former crate will fail at compile time, because the `asm!` macro will actually be emitted,
+//! but the `#![feature(asm)]` flag will not be included. More troubling, the probes will actually
+//! exist in the resulting object file, even if the user specifically opted to not use them.
+//!
+//! To handle this, library writers should place _all_ references to `usdt`-related code behind a
+//! conditional compilation directive. This will ensure that the crate is not even used, rather
+//! than it being used with an unexpected implementation.
 //!
 //! [dtrace]: https://illumos.org/books/dtrace/preface.html#preface
 //! [dtrace-usdt]: https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt

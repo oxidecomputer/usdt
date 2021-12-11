@@ -1,24 +1,23 @@
 error: Error building provider definition in "../../../tests/compile-errors/providers/unsupported-type.d"
 
-Input is not a valid DTrace provider definition:
- --> 2:12
-  |
-2 |     probe bad(float);␊
-  |               ^---
-  |
-  = expected RIGHT_PAREN or DATA_TYPE.
+       Input is not a valid DTrace provider definition:
+        --> 2:12
+         |
+       2 |     probe bad(float);␊
+         |               ^---
+         |
+         = expected RIGHT_PAREN or DATA_TYPE.
 
-Unsupported type, the following are supported:
-  - uint8_t
-  - uint16_t
-  - uint32_t
-  - uint64_t
-  - int8_t
-  - int16_t
-  - int32_t
-  - int64_t
-  - &str
-
+       Unsupported type, the following are supported:
+         - uint8_t
+         - uint16_t
+         - uint32_t
+         - uint64_t
+         - int8_t
+         - int16_t
+         - int32_t
+         - int64_t
+         - &str
   --> src/unsupported-type.rs:18:1
    |
 18 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/unsupported-type.d");
