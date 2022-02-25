@@ -1,7 +1,7 @@
 //! An example and compile-test showing the various ways in which probe arguments may be specified,
 //! both in the parameter list and when passing values in the probe argument closure.
 
-// Copyright 2021 Oxide Computer Company
+// Copyright 2022 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![feature(asm)]
+#![cfg_attr(not(usdt_stable_asm), feature(asm))]
 #![cfg_attr(target_os = "macos", feature(asm_sym))]
 use serde::Serialize;
 

@@ -10,3 +10,4 @@ usdt = { path = "../../usdt" }
 
 [build-dependencies]
 usdt = { path = "../../usdt" }
+version_check = "0.9.4"

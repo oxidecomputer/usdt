@@ -13,7 +13,15 @@
 // limitations under the License.
 
 use usdt::Builder;
+use version_check;
 
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+
+    if version_check::is_min_version("1.59").unwrap_or(false) {
+        println!("cargo:rustc-cfg=usdt_stable_asm");
+    }
+
+    println!("cargo:rerun-if-changed=test.d");
     Builder::new("test.d").module("still_test").build().unwrap();
 }

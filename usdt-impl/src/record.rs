@@ -1,7 +1,7 @@
 //! Implementation of construction and extraction of custom linker section records used to store
 //! probe information in an object file.
 
-// Copyright 2021 Oxide Computer Company
+// Copyright 2022 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,9 @@ use std::{
     ffi::CStr,
     ptr::{null, null_mut},
 };
+
+#[cfg(usdt_stable_asm)]
+use std::arch::asm;
 
 #[cfg(feature = "des")]
 use std::{fs, path::Path};

@@ -1,4 +1,4 @@
-// Copyright 2021 Oxide Computer Company
+// Copyright 2022 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![feature(asm)]
+#![cfg_attr(not(usdt_stable_asm), feature(asm))]
 #![cfg_attr(target_os = "macos", feature(asm_sym))]
 #![deny(warnings)]
 
@@ -27,6 +27,8 @@ mod tests {
         t.compile_fail("src/no-provider-file.rs");
         t.compile_fail("src/zero-arg-probe-type-check.rs");
         t.compile_fail("src/different-serializable-type.rs");
-        t.compile_fail("src/relative-import.rs");
+        // The results of this differ between stable and nightly toolchains.
+        // It is omitted until usdt is usable with a stable compiler on all targetted platforms.
+        // t.compile_fail("src/relative-import.rs");
     }
 }

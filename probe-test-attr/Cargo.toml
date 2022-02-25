@@ -8,6 +8,9 @@ edition = "2018"
 usdt = { path = "../usdt", default-features = false }
 serde = "1"
 
+[build-dependencies]
+version_check = "0.9.4"
+
 [features]
 default = ["asm"]
 asm = ["usdt/asm"]

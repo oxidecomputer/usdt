@@ -1,4 +1,4 @@
-// Copyright 2021 Oxide Computer Company
+// Copyright 2022 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,8 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-use usdt::Builder;
+//
 use version_check;
 
 fn main() {
@@ -21,9 +20,4 @@ fn main() {
     if version_check::is_min_version("1.59").unwrap_or(false) {
         println!("cargo:rustc-cfg=usdt_stable_asm");
     }
-
-    println!("cargo:rerun-if-changed=provider.d");
-    Builder::new("provider.d")
-        .build()
-        .expect("Failed to build provider");
 }

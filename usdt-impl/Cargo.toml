@@ -21,6 +21,9 @@ syn = { version = "1", features = ["full", "extra-traits"] }
 thiserror = "1"
 thread-id = "4"
 
+[build-dependencies]
+version_check = "0.9.4"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 dof = { path = "../dof", version = "0.1.5", optional = true, default-features = false }
 
