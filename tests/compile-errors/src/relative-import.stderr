@@ -2,7 +2,7 @@ error: Use-statements in USDT macros cannot contain relative imports (`super`), 
   --> src/relative-import.rs:27:9
    |
 27 |     use super::Expected;
-   |         ^^^^^^^^^^^^^^^
+   |         ^^^^^
 
 error[E0433]: failed to resolve: use of undeclared crate or module `my_provider`
   --> src/relative-import.rs:32:5

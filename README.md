@@ -20,10 +20,9 @@ than the first two. See [below](#serializable-types) for more details, but brief
 form supports probe arguments of any type that implement [`serde::Seralize`][2]. These different
 versions are shown in the crates `probe-test-{build,macro,attr}` respectively.
 
-> Note: This crate uses inline assembly to work its magic. As such a nightly Rust toolchain is
-required, and the functionality is hidden behind the `"asm"` feature flag. A nightly toolchain
-can be installed with `rustup toolchain install nightly`. See [the notes](#notes) for a
-discussion.
+> Note: This crate uses inline assembly to work its magic.  That feature has been stable as of Rust
+1.59.  Any project using `usdt` prior to that must build with a nightly toolchain and enable the
+`asm` feature.  See the [notes](#notes) for a discussion.
 
 ## Example
 
@@ -232,11 +231,12 @@ guarantee that probes are registered.
 
 ## Notes
 
-The `usdt` crate requires a nightly toolchain, as it relies on the currently-unstable [inline
-asm][inline-asm] feature. However, the crate contains an empty, no-op implementation, which
-generates all the same probe macros, but with empty bodies. This may be selected by passing
-the `--no-default-features` flag when building the crate, or by using `default-features = false`
-in the [`[dependencies]` table][feature-deps] of one's `Cargo.toml`.
+The `usdt` crate requires [inline asm][inline-asm], a feature only stabilized as of Rust 1.59.
+Prior to that version, a nightly toolchain was required to import the feature.  For legacy
+convenience reasons, the crate contains also an empty, no-op implementation, which generates all the
+same probe macros, but with empty bodies (thus not requiring inline asm).  This may be selected by
+passing the `--no-default-features` flag when building the crate, or by using `default-features =
+false` in the [`[dependencies]` table][feature-deps] of one's `Cargo.toml`.
 
 Library developers may use `usdt` as an optional dependency, gated by a feature, for example
 named `usdt-probes` or similar. This feature would imply the `usdt/asm` feature, but the `usdt`
@@ -253,14 +253,17 @@ usdt = { version = "*", optional = true, default-features = false }
 usdt-probes = ["usdt/asm"]
 ```
 
-This allows users to opt into probes if they're willing to accept a nightly toolchain.
+This allows users to opt into probes if they are using a suitably new toolchain, or and older
+nightly with the `asm` feature enabled on their project.
 
 ### The Rust `asm` feature
 
-Recall from the example that the `usdt` crate relies on inline `asm`, which is [not yet][asm-issue] a
-stable Rust feature. This means that the code _calling_ the generated probe macros must
-be in a module where the `asm!` macro can be used, i.e., where the `feature(asm)` configuration
-directive is applicable.
+On toolchains prior to 1.59, inline asm was [not available][asm-issue] without the feature being
+enabled.  This applies to code _calling_ the probe macros, in addition to `usdt` where they are
+implemented.  Those generated probe macros must be in a module that is either built with a >=1.59
+toolchain or where the `feature(asm)` configuration is present.  On MacOS where the linker is
+involved in USDT probe creation, the `asm_sym` feature is required, making use of a nightly
+compiler required there.
 
 #### Toolchain versions and the `asm_sym` feature
 

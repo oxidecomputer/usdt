@@ -1,6 +1,6 @@
 //! Implementation of USDT functionality on platforms without runtime linker support.
 
-// Copyright 2021 Oxide Computer Company
+// Copyright 2022 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,11 +79,16 @@ fn compile_probe(
     let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
     let is_enabled_rec = emit_probe_record(&provider.name, &probe.name, None);
     let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
+    #[cfg(usdt_stable_asm)]
+    let asm_macro = quote! { std::arch::asm };
+    #[cfg(not(usdt_stable_asm))]
+    let asm_macro = quote! { asm };
+
     let impl_block = quote! {
         {
             let mut is_enabled: u64;
             unsafe {
-                asm!(
+                #asm_macro!(
                     "990:   clr rax",
                     #is_enabled_rec,
                     out("rax") is_enabled,
@@ -94,7 +99,7 @@ fn compile_probe(
             if is_enabled != 0 {
                 #unpacked_args
                 unsafe {
-                    asm!(
+                    #asm_macro!(
                         "990:   nop",
                         #probe_rec,
                         #in_regs

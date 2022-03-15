@@ -3,7 +3,7 @@
 #: name = "illumos / build-and-test"
 #: variety = "basic"
 #: target = "helios"
-#: rust_toolchain = "nightly"
+#: rust_toolchain = "stable"
 #: output_rules = []
 #:
 

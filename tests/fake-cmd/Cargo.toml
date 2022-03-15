@@ -7,3 +7,6 @@ edition = "2018"
 
 [dependencies]
 fake-lib = { path = "../fake-lib" }
+
+[build-dependencies]
+version_check = "0.9.4"

@@ -9,3 +9,6 @@ usdt = { path = "../../usdt" }
 usdt-tests-common = { path = "../../usdt-tests-common" }
 serde = "*"
 serde_json = "*"
+
+[build-dependencies]
+version_check = "0.9.4"
