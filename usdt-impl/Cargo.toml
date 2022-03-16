@@ -1,6 +1,6 @@
 [package]
 name = "usdt-impl"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
