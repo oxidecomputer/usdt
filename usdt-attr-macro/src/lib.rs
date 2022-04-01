@@ -185,12 +185,40 @@ fn parse_probe_argument(
                 })?
                 .ident;
             if is_simple_type(last_ident) {
-                Ok((None, data_type_from_path(&path.path)))
+                Ok((None, data_type_from_path(&path.path, false)))
             } else if last_ident == "UniqueId" {
                 Ok((None, DataType::UniqueId))
             } else {
                 let check_fn = build_serializable_check_function(item, fn_index, arg_index);
                 Ok((Some(check_fn), DataType::Serializable(item.clone())))
+            }
+        }
+        syn::Type::Ptr(ref pointer) => {
+            if pointer.mutability.is_some() {
+                return Err(syn::Error::new(item.span(), "Pointer types must be const"));
+            }
+            let ty = &*pointer.elem;
+            if let syn::Type::Path(ref path) = ty {
+                let last_ident = &path
+                    .path
+                    .segments
+                    .last()
+                    .ok_or_else(|| {
+                        syn::Error::new(path.span(), "Probe arguments should resolve to path types")
+                    })?
+                    .ident;
+                if !is_integer_type(last_ident) {
+                    return Err(syn::Error::new(
+                        item.span(),
+                        "Only pointers to integer types are supported",
+                    ));
+                }
+                Ok((None, data_type_from_path(&path.path, true)))
+            } else {
+                return Err(syn::Error::new(
+                    item.span(),
+                    "Only pointers to path types are supported",
+                ));
             }
         }
         syn::Type::Reference(ref reference) => {
@@ -209,7 +237,10 @@ fn parse_probe_argument(
         }
         _ => Err(syn::Error::new(
             item.span(),
-            "Probe arguments must be path types, slices, arrays, tuples or references",
+            concat!(
+                "Probe arguments must be path types, slices, arrays, tuples, ",
+                "references, or const pointers to integers ",
+            ),
         )),
     }
 }
@@ -252,6 +283,15 @@ where
     }
 }
 
+// Return `true` if the type is an integer
+fn is_integer_type(ident: &syn::Ident) -> bool {
+    let ident = format!("{}", ident);
+    matches!(
+        ident.as_str(),
+        "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64"
+    )
+}
+
 // Return `true` if this type is "simple", a primitive type with an analog in D, i.e., _not_ a
 // type that implements `Serialize`.
 fn is_simple_type(ident: &syn::Ident) -> bool {
@@ -263,25 +303,62 @@ fn is_simple_type(ident: &syn::Ident) -> bool {
 }
 
 // Return the `dtrace_parser::DataType` corresponding to the given `path`
-fn data_type_from_path(path: &syn::Path) -> DataType {
+fn data_type_from_path(path: &syn::Path, pointer: bool) -> DataType {
+    use dtrace_parser::BitWidth;
+    use dtrace_parser::DataType as DType;
+    use dtrace_parser::Integer;
+    use dtrace_parser::Sign;
+
     if path.is_ident("u8") {
-        DataType::Native(dtrace_parser::DataType::U8)
+        DataType::Native(DType::Integer(Integer {
+            sign: Sign::Unsigned,
+            width: BitWidth::Bit8,
+            pointer,
+        }))
     } else if path.is_ident("u16") {
-        DataType::Native(dtrace_parser::DataType::U16)
+        DataType::Native(DType::Integer(Integer {
+            sign: Sign::Unsigned,
+            width: BitWidth::Bit16,
+            pointer,
+        }))
     } else if path.is_ident("u32") {
-        DataType::Native(dtrace_parser::DataType::U32)
+        DataType::Native(DType::Integer(Integer {
+            sign: Sign::Unsigned,
+            width: BitWidth::Bit32,
+            pointer,
+        }))
     } else if path.is_ident("u64") {
-        DataType::Native(dtrace_parser::DataType::U64)
+        DataType::Native(DType::Integer(Integer {
+            sign: Sign::Unsigned,
+            width: BitWidth::Bit64,
+            pointer,
+        }))
     } else if path.is_ident("i8") {
-        DataType::Native(dtrace_parser::DataType::I8)
+        DataType::Native(DType::Integer(Integer {
+            sign: Sign::Signed,
+            width: BitWidth::Bit8,
+            pointer,
+        }))
     } else if path.is_ident("i16") {
-        DataType::Native(dtrace_parser::DataType::I16)
+        DataType::Native(DType::Integer(Integer {
+            sign: Sign::Signed,
+            width: BitWidth::Bit16,
+            pointer,
+        }))
     } else if path.is_ident("i32") {
-        DataType::Native(dtrace_parser::DataType::I32)
+        DataType::Native(DType::Integer(Integer {
+            sign: Sign::Signed,
+            width: BitWidth::Bit32,
+            pointer,
+        }))
     } else if path.is_ident("i64") {
-        DataType::Native(dtrace_parser::DataType::I64)
+        DataType::Native(DType::Integer(Integer {
+            sign: Sign::Signed,
+            width: BitWidth::Bit64,
+            pointer,
+        }))
     } else if path.is_ident("String") || path.is_ident("str") {
-        DataType::Native(dtrace_parser::DataType::String)
+        DataType::Native(DType::String)
     } else {
         unreachable!("Tried to parse a non-path data type");
     }
@@ -319,6 +396,10 @@ fn check_probe_function_signature(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dtrace_parser::BitWidth;
+    use dtrace_parser::DataType as DType;
+    use dtrace_parser::Integer;
+    use dtrace_parser::Sign;
     use rstest::rstest;
 
     #[test]
@@ -330,32 +411,45 @@ mod tests {
     #[test]
     fn test_data_type_from_path() {
         assert_eq!(
-            data_type_from_path(&syn::parse_str("u8").unwrap()),
-            DataType::Native(dtrace_parser::DataType::U8),
+            data_type_from_path(&syn::parse_str("u8").unwrap(), false),
+            DataType::Native(DType::Integer(Integer {
+                sign: Sign::Unsigned,
+                width: BitWidth::Bit8,
+                pointer: false
+            })),
         );
         assert_eq!(
-            data_type_from_path(&syn::parse_str("String").unwrap()),
-            DataType::Native(dtrace_parser::DataType::String),
+            data_type_from_path(&syn::parse_str("u8").unwrap(), true),
+            DataType::Native(DType::Integer(Integer {
+                sign: Sign::Unsigned,
+                width: BitWidth::Bit8,
+                pointer: true
+            })),
         );
         assert_eq!(
-            data_type_from_path(&syn::parse_str("String").unwrap()),
-            DataType::Native(dtrace_parser::DataType::String),
+            data_type_from_path(&syn::parse_str("String").unwrap(), false),
+            DataType::Native(DType::String),
+        );
+        assert_eq!(
+            data_type_from_path(&syn::parse_str("String").unwrap(), false),
+            DataType::Native(DType::String),
         );
     }
 
     #[test]
     #[should_panic]
     fn test_data_type_from_path_panics() {
-        data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap());
+        data_type_from_path(&syn::parse_str("std::net::IpAddr").unwrap(), false);
     }
 
     #[rstest]
-    #[case("u8", dtrace_parser::DataType::U8)]
-    #[case("&u8", dtrace_parser::DataType::U8)]
-    #[case("&str", dtrace_parser::DataType::String)]
-    #[case("String", dtrace_parser::DataType::String)]
-    #[case("&&str", dtrace_parser::DataType::String)]
-    #[case("&String", dtrace_parser::DataType::String)]
+    #[case("u8", DType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8, pointer: false }))]
+    #[case("*const u8", DType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8, pointer: true }))]
+    #[case("&u8", DType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8, pointer: false }))]
+    #[case("&str", DType::String)]
+    #[case("String", DType::String)]
+    #[case("&&str", DType::String)]
+    #[case("&String", DType::String)]
     fn test_parse_probe_argument_native(#[case] name: &str, #[case] ty: dtrace_parser::DataType) {
         let arg = syn::parse_str(name).unwrap();
         let out = parse_probe_argument(&arg, 0, 0).unwrap();

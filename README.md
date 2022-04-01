@@ -39,8 +39,8 @@ provider my_provider {
 ```
 
 This script defines a single provider, `test`, with two probes, `start` and `stop`,
-with a different set of arguments. (Numeric primitive types and `&str`s are currently
-supported.)
+with a different set of arguments. (Numeric primitive types, pointers to numeric primitives,
+and `&str`s are currently supported.)
 
 This provider definition must be converted into Rust code, which can be done in a simple
 build script:

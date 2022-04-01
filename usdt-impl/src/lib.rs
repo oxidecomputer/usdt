@@ -439,21 +439,33 @@ impl Clone for UniqueId {
 #[cfg(test)]
 mod test {
     use super::*;
+    use dtrace_parser::BitWidth;
+    use dtrace_parser::DataType as DType;
+    use dtrace_parser::Integer;
+    use dtrace_parser::Sign;
 
     #[test]
     fn test_probe_to_d_source() {
         let probe = Probe {
             name: String::from("my_probe"),
-            types: vec![DataType::Native(dtrace_parser::DataType::U8)],
+            types: vec![DataType::Native(DType::Integer(Integer {
+                sign: Sign::Unsigned,
+                width: BitWidth::Bit8,
+                pointer: true,
+            }))],
         };
-        assert_eq!(probe.to_d_source(), "probe my_probe(uint8_t);");
+        assert_eq!(probe.to_d_source(), "probe my_probe(uint8_t*);");
     }
 
     #[test]
     fn test_provider_to_d_source() {
         let probe = Probe {
             name: String::from("my_probe"),
-            types: vec![DataType::Native(dtrace_parser::DataType::U8)],
+            types: vec![DataType::Native(DType::Integer(Integer {
+                sign: Sign::Unsigned,
+                width: BitWidth::Bit8,
+                pointer: false,
+            }))],
         };
         let provider = Provider {
             name: String::from("my_provider"),
@@ -468,8 +480,12 @@ mod test {
 
     #[test]
     fn test_data_type() {
-        let ty = DataType::Native(dtrace_parser::DataType::U8);
-        assert_eq!(ty.to_rust_type(), syn::parse_str("u8").unwrap());
+        let ty = DataType::Native(DType::Integer(Integer {
+            sign: Sign::Unsigned,
+            width: BitWidth::Bit8,
+            pointer: true,
+        }));
+        assert_eq!(ty.to_rust_type(), syn::parse_str("*const u8").unwrap());
 
         let ty = DataType::Native(dtrace_parser::DataType::String);
         assert_eq!(ty.to_rust_type(), syn::parse_str("&str").unwrap());

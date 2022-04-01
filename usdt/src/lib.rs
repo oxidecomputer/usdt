@@ -34,8 +34,9 @@
 //! names are intended to help understand the behavior of a program, so they should be semantically
 //! meaningful. Probes accept zero or more arguments, data that is associated with the probe event
 //! itself (timestamps, file descriptors, filesystem paths, etc.). The arguments may be specified
-//! as any of the exact bit-width integer types (e.g., `int16_t`) or strings (`char *`s). See
-//! [Data types](#data-types) for a full list of supported types.
+//! as any of the exact bit-width integer types (e.g., `int16_t`), pointers to
+//! such integers, or strings (`char *`s). See [Data types](#data-types) for a full list of
+//! supported types.
 //!
 //! Assuming the above is in a file called `"test.d"`, the probes may be compiled into Rust code
 //! with:
@@ -211,6 +212,7 @@
 //! Below is the full list of supported types.
 //!
 //! - `(u?)int(8|16|32|64)_t`
+//! - Pointers to the above integer types
 //! - `char *`
 //! - `T: Clone + serde::Serialize` (Only when defining probes in Rust)
 //!
