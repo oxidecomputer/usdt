@@ -239,7 +239,7 @@ fn parse_probe_argument(
             item.span(),
             concat!(
                 "Probe arguments must be path types, slices, arrays, tuples, ",
-                "references, or const pointers to integers ",
+                "references, or const pointers to integers",
             ),
         )),
     }

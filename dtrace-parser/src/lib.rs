@@ -158,22 +158,20 @@ impl TryFrom<&Pair<'_, Rule>> for DataType {
                     .next()
                     .expect("Expected a signed or unsigned integer or pointer to one");
                 assert!(matches!(integer.as_rule(), Rule::INTEGER));
-
                 let mut integer = integer.clone().into_inner();
-                let integer_type = integer.next().unwrap().into_inner().next().unwrap();
+                let integer_type = integer.next().unwrap();
                 let pointer = integer.next().is_some();
-
                 let sign = match integer_type.as_rule() {
                     Rule::SIGNED_INT => Sign::Signed,
                     Rule::UNSIGNED_INT => Sign::Unsigned,
-                    _ => unreachable!(),
+                    _ => unreachable!("Expected a signed or unsigned integer"),
                 };
                 let width = match integer_type.into_inner().as_str() {
                     "8" => BitWidth::Bit8,
                     "16" => BitWidth::Bit16,
                     "32" => BitWidth::Bit32,
                     "64" => BitWidth::Bit64,
-                    _ => unreachable!(),
+                    _ => unreachable!("Expected a bit width"),
                 };
                 DataType::Integer(Integer {
                     sign,
