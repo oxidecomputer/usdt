@@ -94,7 +94,6 @@ pub enum Sign {
 pub struct Integer {
     pub sign: Sign,
     pub width: BitWidth,
-    pub pointer: bool,
 }
 
 const RUST_TYPE_PREFIX: &str = "::std::os::raw::c_";
@@ -105,8 +104,7 @@ impl Integer {
             Sign::Unsigned => "u",
             _ => "",
         };
-        let star = if self.pointer { "*" } else { "" };
-        format!("{prefix}int{}_t{star}", self.width)
+        format!("{prefix}int{}_t", self.width)
     }
 
     pub fn to_rust_ffi_type(&self) -> String {
@@ -120,8 +118,7 @@ impl Integer {
             (Sign::Signed, BitWidth::Bit32) => "int",
             (Sign::Signed, BitWidth::Bit64) => "longlong",
         };
-        let star = if self.pointer { "*const " } else { "" };
-        format!("{star}{RUST_TYPE_PREFIX}{ty}")
+        format!("{RUST_TYPE_PREFIX}{ty}")
     }
 
     pub fn to_rust_type(&self) -> String {
@@ -129,8 +126,7 @@ impl Integer {
             Sign::Signed => "i",
             Sign::Unsigned => "u",
         };
-        let star = if self.pointer { "*const " } else { "" };
-        format!("{star}{prefix}{}", self.width)
+        format!("{prefix}{}", self.width)
     }
 }
 
@@ -138,7 +134,26 @@ impl Integer {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DataType {
     Integer(Integer),
+    Pointer(Integer),
     String,
+}
+
+impl From<Pair<'_, Rule>> for Integer {
+    fn from(integer_type: Pair<'_, Rule>) -> Integer {
+        let sign = match integer_type.as_rule() {
+            Rule::SIGNED_INT => Sign::Signed,
+            Rule::UNSIGNED_INT => Sign::Unsigned,
+            _ => unreachable!("Expected a signed or unsigned integer"),
+        };
+        let width = match integer_type.into_inner().as_str() {
+            "8" => BitWidth::Bit8,
+            "16" => BitWidth::Bit16,
+            "32" => BitWidth::Bit32,
+            "64" => BitWidth::Bit64,
+            _ => unreachable!("Expected a bit width"),
+        };
+        Integer { sign, width }
+    }
 }
 
 impl TryFrom<&Pair<'_, Rule>> for DataType {
@@ -153,31 +168,40 @@ impl TryFrom<&Pair<'_, Rule>> for DataType {
             .expect("Data type token is expected to contain a concrete type");
         let typ = match inner.as_rule() {
             Rule::INTEGER => {
-                let mut pairs = pair.clone().into_inner();
-                let integer = pairs
+                let integer = pair
+                    .clone()
+                    .into_inner()
                     .next()
-                    .expect("Expected a signed or unsigned integer or pointer to one");
+                    .expect("Expected a signed or unsigned integral type");
                 assert!(matches!(integer.as_rule(), Rule::INTEGER));
-                let mut integer = integer.clone().into_inner();
-                let integer_type = integer.next().unwrap();
-                let pointer = integer.next().is_some();
-                let sign = match integer_type.as_rule() {
-                    Rule::SIGNED_INT => Sign::Signed,
-                    Rule::UNSIGNED_INT => Sign::Unsigned,
-                    _ => unreachable!("Expected a signed or unsigned integer"),
-                };
-                let width = match integer_type.into_inner().as_str() {
-                    "8" => BitWidth::Bit8,
-                    "16" => BitWidth::Bit16,
-                    "32" => BitWidth::Bit32,
-                    "64" => BitWidth::Bit64,
-                    _ => unreachable!("Expected a bit width"),
-                };
-                DataType::Integer(Integer {
-                    sign,
-                    width,
-                    pointer,
-                })
+                DataType::Integer(Integer::from(
+                    integer
+                        .clone()
+                        .into_inner()
+                        .next()
+                        .expect("Expected an integral type"),
+                ))
+            }
+            Rule::INTEGER_POINTER => {
+                let pointer = pair
+                    .clone()
+                    .into_inner()
+                    .next()
+                    .expect("Expected a pointer to a signed or unsigned integral type");
+                assert!(matches!(pointer.as_rule(), Rule::INTEGER_POINTER));
+                let mut parts = pointer.clone().into_inner();
+                let integer = parts
+                    .next()
+                    .expect("Expected a signed or unsigned integral type");
+                let star = parts.next().expect("Expected a literal `*`");
+                assert_eq!(star.as_rule(), Rule::STAR);
+                DataType::Pointer(Integer::from(
+                    integer
+                        .clone()
+                        .into_inner()
+                        .next()
+                        .expect("Expected an integral type"),
+                ))
             }
             Rule::STRING => DataType::String,
             _ => unreachable!("Parsed an unexpected DATA_TYPE token"),
@@ -199,6 +223,7 @@ impl DataType {
     pub fn to_c_type(&self) -> String {
         match self {
             DataType::Integer(int) => int.to_c_type(),
+            DataType::Pointer(int) => format!("{}*", int.to_c_type()),
             DataType::String => String::from("char*"),
         }
     }
@@ -207,6 +232,7 @@ impl DataType {
     pub fn to_rust_ffi_type(&self) -> String {
         match self {
             DataType::Integer(int) => int.to_rust_ffi_type(),
+            DataType::Pointer(int) => format!("*const {}", int.to_rust_ffi_type()),
             DataType::String => format!("*const {RUST_TYPE_PREFIX}char"),
         }
     }
@@ -215,6 +241,7 @@ impl DataType {
     pub fn to_rust_type(&self) -> String {
         match self {
             DataType::Integer(int) => int.to_rust_type(),
+            DataType::Pointer(int) => format!("*const {}", int.to_rust_type()),
             DataType::String => String::from("&str"),
         }
     }
@@ -551,22 +578,22 @@ mod tests {
     #[rstest(
         defn,
         data_type,
-        case("uint8_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8, pointer: false })),
-        case("uint16_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit16, pointer: false })),
-        case("uint32_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit32, pointer: false })),
-        case("uint64_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit64, pointer: false })),
-        case("int8_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit8, pointer: false })),
-        case("int16_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit16, pointer: false })),
-        case("int32_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit32, pointer: false })),
-        case("int64_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit64, pointer: false })),
-        case("uint8_t*", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8, pointer: true })),
-        case("uint16_t*", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit16, pointer: true })),
-        case("uint32_t*", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit32, pointer: true })),
-        case("uint64_t*", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit64, pointer: true })),
-        case("int8_t*", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit8, pointer: true })),
-        case("int16_t*", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit16, pointer: true })),
-        case("int32_t*", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit32, pointer: true })),
-        case("int64_t*", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit64, pointer: true })),
+        case("uint8_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8 })),
+        case("uint16_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit16 })),
+        case("uint32_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit32 })),
+        case("uint64_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit64 })),
+        case("int8_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit8 })),
+        case("int16_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit16 })),
+        case("int32_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit32 })),
+        case("int64_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit64 })),
+        case("uint8_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8})),
+        case("uint16_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit16})),
+        case("uint32_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit32})),
+        case("uint64_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit64})),
+        case("int8_t*", DataType::Pointer(Integer { sign: Sign::Signed, width: BitWidth::Bit8})),
+        case("int16_t*", DataType::Pointer(Integer { sign: Sign::Signed, width: BitWidth::Bit16})),
+        case("int32_t*", DataType::Pointer(Integer { sign: Sign::Signed, width: BitWidth::Bit32})),
+        case("int64_t*", DataType::Pointer(Integer { sign: Sign::Signed, width: BitWidth::Bit64})),
         case("char*", DataType::String)
     )]
     fn test_data_type_enum(defn: &str, data_type: DataType) {
@@ -610,12 +637,10 @@ mod tests {
                 DataType::Integer(Integer {
                     sign: Sign::Unsigned,
                     width: BitWidth::Bit16,
-                    pointer: false
                 }),
-                DataType::Integer(Integer {
+                DataType::Pointer(Integer {
                     sign: Sign::Unsigned,
                     width: BitWidth::Bit8,
-                    pointer: true
                 }),
             ]
         );

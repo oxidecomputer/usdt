@@ -283,12 +283,10 @@ mod tests {
             DataType::Native(DType::Integer(Integer {
                 sign: Sign::Unsigned,
                 width: BitWidth::Bit8,
-                pointer: false,
             })),
             DataType::Native(DType::Integer(Integer {
                 sign: Sign::Signed,
                 width: BitWidth::Bit64,
-                pointer: false,
             })),
         ];
         let expected = quote! {
@@ -372,10 +370,9 @@ mod tests {
     #[test]
     fn test_construct_probe_args() {
         let types = &[
-            DataType::Native(DType::Integer(Integer {
+            DataType::Native(DType::Pointer(Integer {
                 sign: Sign::Unsigned,
                 width: BitWidth::Bit8,
-                pointer: true,
             })),
             DataType::Native(dtrace_parser::DataType::String),
         ];
@@ -406,7 +403,6 @@ mod tests {
             &DataType::Native(DType::Integer(Integer {
                 sign: Sign::Unsigned,
                 width: BitWidth::Bit8,
-                pointer: false,
             })),
             TokenStream::from_str("foo").unwrap(),
         );

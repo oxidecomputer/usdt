@@ -448,10 +448,9 @@ mod test {
     fn test_probe_to_d_source() {
         let probe = Probe {
             name: String::from("my_probe"),
-            types: vec![DataType::Native(DType::Integer(Integer {
+            types: vec![DataType::Native(DType::Pointer(Integer {
                 sign: Sign::Unsigned,
                 width: BitWidth::Bit8,
-                pointer: true,
             }))],
         };
         assert_eq!(probe.to_d_source(), "probe my_probe(uint8_t*);");
@@ -464,7 +463,6 @@ mod test {
             types: vec![DataType::Native(DType::Integer(Integer {
                 sign: Sign::Unsigned,
                 width: BitWidth::Bit8,
-                pointer: false,
             }))],
         };
         let provider = Provider {
@@ -480,10 +478,9 @@ mod test {
 
     #[test]
     fn test_data_type() {
-        let ty = DataType::Native(DType::Integer(Integer {
+        let ty = DataType::Native(DType::Pointer(Integer {
             sign: Sign::Unsigned,
             width: BitWidth::Bit8,
-            pointer: true,
         }));
         assert_eq!(ty.to_rust_type(), syn::parse_str("*const u8").unwrap());
 

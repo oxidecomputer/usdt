@@ -309,53 +309,51 @@ fn data_type_from_path(path: &syn::Path, pointer: bool) -> DataType {
     use dtrace_parser::Integer;
     use dtrace_parser::Sign;
 
+    let variant = if pointer {
+        DType::Pointer
+    } else {
+        DType::Integer
+    };
+
     if path.is_ident("u8") {
-        DataType::Native(DType::Integer(Integer {
+        DataType::Native(variant(Integer {
             sign: Sign::Unsigned,
             width: BitWidth::Bit8,
-            pointer,
         }))
     } else if path.is_ident("u16") {
-        DataType::Native(DType::Integer(Integer {
+        DataType::Native(variant(Integer {
             sign: Sign::Unsigned,
             width: BitWidth::Bit16,
-            pointer,
         }))
     } else if path.is_ident("u32") {
-        DataType::Native(DType::Integer(Integer {
+        DataType::Native(variant(Integer {
             sign: Sign::Unsigned,
             width: BitWidth::Bit32,
-            pointer,
         }))
     } else if path.is_ident("u64") {
-        DataType::Native(DType::Integer(Integer {
+        DataType::Native(variant(Integer {
             sign: Sign::Unsigned,
             width: BitWidth::Bit64,
-            pointer,
         }))
     } else if path.is_ident("i8") {
-        DataType::Native(DType::Integer(Integer {
+        DataType::Native(variant(Integer {
             sign: Sign::Signed,
             width: BitWidth::Bit8,
-            pointer,
         }))
     } else if path.is_ident("i16") {
-        DataType::Native(DType::Integer(Integer {
+        DataType::Native(variant(Integer {
             sign: Sign::Signed,
             width: BitWidth::Bit16,
-            pointer,
         }))
     } else if path.is_ident("i32") {
-        DataType::Native(DType::Integer(Integer {
+        DataType::Native(variant(Integer {
             sign: Sign::Signed,
             width: BitWidth::Bit32,
-            pointer,
         }))
     } else if path.is_ident("i64") {
-        DataType::Native(DType::Integer(Integer {
+        DataType::Native(variant(Integer {
             sign: Sign::Signed,
             width: BitWidth::Bit64,
-            pointer,
         }))
     } else if path.is_ident("String") || path.is_ident("str") {
         DataType::Native(DType::String)
@@ -415,15 +413,13 @@ mod tests {
             DataType::Native(DType::Integer(Integer {
                 sign: Sign::Unsigned,
                 width: BitWidth::Bit8,
-                pointer: false
             })),
         );
         assert_eq!(
             data_type_from_path(&syn::parse_str("u8").unwrap(), true),
-            DataType::Native(DType::Integer(Integer {
+            DataType::Native(DType::Pointer(Integer {
                 sign: Sign::Unsigned,
                 width: BitWidth::Bit8,
-                pointer: true
             })),
         );
         assert_eq!(
@@ -443,9 +439,9 @@ mod tests {
     }
 
     #[rstest]
-    #[case("u8", DType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8, pointer: false }))]
-    #[case("*const u8", DType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8, pointer: true }))]
-    #[case("&u8", DType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8, pointer: false }))]
+    #[case("u8", DType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8 }))]
+    #[case("*const u8", DType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8}))]
+    #[case("&u8", DType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8 }))]
     #[case("&str", DType::String)]
     #[case("String", DType::String)]
     #[case("&&str", DType::String)]

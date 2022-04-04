@@ -534,10 +534,9 @@ mod test {
         let provider = "provider";
         let probe = "probe";
         let types = [
-            DataType::Native(DType::Integer(Integer {
+            DataType::Native(DType::Pointer(Integer {
                 sign: Sign::Unsigned,
                 width: BitWidth::Bit8,
-                pointer: true,
             })),
             DataType::Native(DType::String),
         ];
@@ -569,10 +568,9 @@ mod test {
         let provider = "provider";
         let probe = "my__probe";
         let types = [
-            DataType::Native(DType::Integer(Integer {
+            DataType::Native(DType::Pointer(Integer {
                 sign: Sign::Unsigned,
                 width: BitWidth::Bit8,
-                pointer: true,
             })),
             DataType::Native(dtrace_parser::DataType::String),
         ];
