@@ -257,6 +257,10 @@ pub(crate) fn build_probe_macro(
 mod tests {
 
     use super::*;
+    use dtrace_parser::BitWidth;
+    use dtrace_parser::DataType as DType;
+    use dtrace_parser::Integer;
+    use dtrace_parser::Sign;
 
     #[test]
     fn test_generate_type_check_empty() {
@@ -276,8 +280,14 @@ mod tests {
         let provider = "provider";
         let probe = "probe";
         let types = &[
-            DataType::Native(dtrace_parser::DataType::U8),
-            DataType::Native(dtrace_parser::DataType::I64),
+            DataType::Native(DType::Integer(Integer {
+                sign: Sign::Unsigned,
+                width: BitWidth::Bit8,
+            })),
+            DataType::Native(DType::Integer(Integer {
+                sign: Sign::Signed,
+                width: BitWidth::Bit64,
+            })),
         ];
         let expected = quote! {
             let __usdt_private_args_lambda = $args_lambda;
@@ -360,14 +370,17 @@ mod tests {
     #[test]
     fn test_construct_probe_args() {
         let types = &[
-            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(DType::Pointer(Integer {
+                sign: Sign::Unsigned,
+                width: BitWidth::Bit8,
+            })),
             DataType::Native(dtrace_parser::DataType::String),
         ];
         let registers = &["rdi", "rsi"];
         let (args, regs) = construct_probe_args(types);
         let expected = quote! {
             let args = __usdt_private_args_lambda();
-            let arg_0 = (*<_ as ::std::borrow::Borrow<u8>>::borrow(&args.0) as i64);
+            let arg_0 = (*<_ as ::std::borrow::Borrow<*const u8>>::borrow(&args.0) as i64);
             let arg_1 = [(args.1.as_ref() as &str).as_bytes(), &[0_u8]].concat();
         };
         assert_eq!(args.to_string(), expected.to_string());
@@ -387,7 +400,10 @@ mod tests {
     fn test_asm_type_convert() {
         use std::str::FromStr;
         let (out, post) = asm_type_convert(
-            &DataType::Native(dtrace_parser::DataType::U8),
+            &DataType::Native(DType::Integer(Integer {
+                sign: Sign::Unsigned,
+                width: BitWidth::Bit8,
+            })),
             TokenStream::from_str("foo").unwrap(),
         );
         assert_eq!(

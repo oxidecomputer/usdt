@@ -82,6 +82,9 @@ mod test {
     /// Some types aren't JSON serializable. These will not break the program, but an error message
     /// will be seen in DTrace.
     fn not_json_serializable(_: crate::Whoops) {}
+
+    /// Constant pointers to integer types are also supported
+    fn work_with_pointer(_buffer: *const u8, _: u64) {}
 }
 
 fn main() {
@@ -90,6 +93,7 @@ fn main() {
         x: 0,
         buffer: vec![1; 12],
     };
+    let buffer = vec![2; 4];
     loop {
         test::start_work!(|| arg.x);
         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -104,5 +108,6 @@ fn main() {
         });
         test::arg_as_tuple!(|| (arg.x, &arg.buffer[..]));
         test::not_json_serializable!(|| Whoops::NoBueno(0));
+        test::work_with_pointer!(|| (buffer.as_ptr(), buffer.len() as u64));
     }
 }

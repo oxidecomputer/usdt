@@ -16,6 +16,7 @@
 
 use std::collections::HashSet;
 use std::convert::TryFrom;
+use std::fmt;
 use std::fs;
 use std::path::Path;
 
@@ -60,18 +61,99 @@ fn expect_token(pair: &Pair<'_, Rule>, rule: Rule) -> Result<(), DTraceError> {
     }
 }
 
+/// The bit-width of an integer data type
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BitWidth {
+    Bit8,
+    Bit16,
+    Bit32,
+    Bit64,
+}
+
+impl fmt::Display for BitWidth {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let w = match self {
+            BitWidth::Bit8 => "8",
+            BitWidth::Bit16 => "16",
+            BitWidth::Bit32 => "32",
+            BitWidth::Bit64 => "64",
+        };
+        write!(f, "{}", w)
+    }
+}
+
+/// The signed-ness of an integer data type
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Sign {
+    Signed,
+    Unsigned,
+}
+
+/// An integer data type
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Integer {
+    pub sign: Sign,
+    pub width: BitWidth,
+}
+
+const RUST_TYPE_PREFIX: &str = "::std::os::raw::c_";
+
+impl Integer {
+    pub fn to_c_type(&self) -> String {
+        let prefix = match self.sign {
+            Sign::Unsigned => "u",
+            _ => "",
+        };
+        format!("{prefix}int{}_t", self.width)
+    }
+
+    pub fn to_rust_ffi_type(&self) -> String {
+        let ty = match (self.sign, self.width) {
+            (Sign::Unsigned, BitWidth::Bit8) => "uchar",
+            (Sign::Unsigned, BitWidth::Bit16) => "ushort",
+            (Sign::Unsigned, BitWidth::Bit32) => "uint",
+            (Sign::Unsigned, BitWidth::Bit64) => "ulonglong",
+            (Sign::Signed, BitWidth::Bit8) => "schar",
+            (Sign::Signed, BitWidth::Bit16) => "short",
+            (Sign::Signed, BitWidth::Bit32) => "int",
+            (Sign::Signed, BitWidth::Bit64) => "longlong",
+        };
+        format!("{RUST_TYPE_PREFIX}{ty}")
+    }
+
+    pub fn to_rust_type(&self) -> String {
+        let prefix = match self.sign {
+            Sign::Signed => "i",
+            Sign::Unsigned => "u",
+        };
+        format!("{prefix}{}", self.width)
+    }
+}
+
 /// Represents the data type of a single probe argument.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DataType {
-    U8,
-    U16,
-    U32,
-    U64,
-    I8,
-    I16,
-    I32,
-    I64,
+    Integer(Integer),
+    Pointer(Integer),
     String,
+}
+
+impl From<Pair<'_, Rule>> for Integer {
+    fn from(integer_type: Pair<'_, Rule>) -> Integer {
+        let sign = match integer_type.as_rule() {
+            Rule::SIGNED_INT => Sign::Signed,
+            Rule::UNSIGNED_INT => Sign::Unsigned,
+            _ => unreachable!("Expected a signed or unsigned integer"),
+        };
+        let width = match integer_type.into_inner().as_str() {
+            "8" => BitWidth::Bit8,
+            "16" => BitWidth::Bit16,
+            "32" => BitWidth::Bit32,
+            "64" => BitWidth::Bit64,
+            _ => unreachable!("Expected a bit width"),
+        };
+        Integer { sign, width }
+    }
 }
 
 impl TryFrom<&Pair<'_, Rule>> for DataType {
@@ -85,20 +167,42 @@ impl TryFrom<&Pair<'_, Rule>> for DataType {
             .next()
             .expect("Data type token is expected to contain a concrete type");
         let typ = match inner.as_rule() {
-            Rule::UNSIGNED_INT => match inner.into_inner().as_str() {
-                "8" => DataType::U8,
-                "16" => DataType::U16,
-                "32" => DataType::U32,
-                "64" => DataType::U64,
-                _ => unreachable!(),
-            },
-            Rule::SIGNED_INT => match inner.into_inner().as_str() {
-                "8" => DataType::I8,
-                "16" => DataType::I16,
-                "32" => DataType::I32,
-                "64" => DataType::I64,
-                _ => unreachable!(),
-            },
+            Rule::INTEGER => {
+                let integer = pair
+                    .clone()
+                    .into_inner()
+                    .next()
+                    .expect("Expected a signed or unsigned integral type");
+                assert!(matches!(integer.as_rule(), Rule::INTEGER));
+                DataType::Integer(Integer::from(
+                    integer
+                        .clone()
+                        .into_inner()
+                        .next()
+                        .expect("Expected an integral type"),
+                ))
+            }
+            Rule::INTEGER_POINTER => {
+                let pointer = pair
+                    .clone()
+                    .into_inner()
+                    .next()
+                    .expect("Expected a pointer to a signed or unsigned integral type");
+                assert!(matches!(pointer.as_rule(), Rule::INTEGER_POINTER));
+                let mut parts = pointer.clone().into_inner();
+                let integer = parts
+                    .next()
+                    .expect("Expected a signed or unsigned integral type");
+                let star = parts.next().expect("Expected a literal `*`");
+                assert_eq!(star.as_rule(), Rule::STAR);
+                DataType::Pointer(Integer::from(
+                    integer
+                        .clone()
+                        .into_inner()
+                        .next()
+                        .expect("Expected an integral type"),
+                ))
+            }
             Rule::STRING => DataType::String,
             _ => unreachable!("Parsed an unexpected DATA_TYPE token"),
         };
@@ -118,49 +222,28 @@ impl DataType {
     /// Convert a type into its C type represenation as a string
     pub fn to_c_type(&self) -> String {
         match self {
-            DataType::U8 => "uint8_t",
-            DataType::U16 => "uint16_t",
-            DataType::U32 => "uint32_t",
-            DataType::U64 => "uint64_t",
-            DataType::I8 => "int8_t",
-            DataType::I16 => "int16_t",
-            DataType::I32 => "int32_t",
-            DataType::I64 => "int64_t",
-            DataType::String => "char*",
+            DataType::Integer(int) => int.to_c_type(),
+            DataType::Pointer(int) => format!("{}*", int.to_c_type()),
+            DataType::String => String::from("char*"),
         }
-        .into()
     }
 
     /// Return the Rust FFI type representation of this data type
     pub fn to_rust_ffi_type(&self) -> String {
         match self {
-            DataType::U8 => "::std::os::raw::c_uchar",
-            DataType::U16 => "::std::os::raw::c_ushort",
-            DataType::U32 => "::std::os::raw::c_uint",
-            DataType::U64 => "::std::os::raw::c_ulonglong",
-            DataType::I8 => "::std::os::raw::c_schar",
-            DataType::I16 => "::std::os::raw::c_short",
-            DataType::I32 => "::std::os::raw::c_int",
-            DataType::I64 => "::std::os::raw::c_longlong",
-            DataType::String => "*const ::std::os::raw::c_char",
+            DataType::Integer(int) => int.to_rust_ffi_type(),
+            DataType::Pointer(int) => format!("*const {}", int.to_rust_ffi_type()),
+            DataType::String => format!("*const {RUST_TYPE_PREFIX}char"),
         }
-        .into()
     }
 
     /// Return the native Rust type representation of this data type
     pub fn to_rust_type(&self) -> String {
         match self {
-            DataType::U8 => "u8",
-            DataType::U16 => "u16",
-            DataType::U32 => "u32",
-            DataType::U64 => "u64",
-            DataType::I8 => "i8",
-            DataType::I16 => "i16",
-            DataType::I32 => "i32",
-            DataType::I64 => "i64",
-            DataType::String => "&str",
+            DataType::Integer(int) => int.to_rust_type(),
+            DataType::Pointer(int) => format!("*const {}", int.to_rust_type()),
+            DataType::String => String::from("&str"),
         }
-        .into()
     }
 }
 
@@ -375,7 +458,16 @@ impl TryFrom<&str> for File {
 
 #[cfg(test)]
 mod tests {
-    use super::{DTraceParser, DataType, File, Probe, Provider, Rule, TryFrom};
+    use super::BitWidth;
+    use super::DTraceParser;
+    use super::DataType;
+    use super::File;
+    use super::Integer;
+    use super::Probe;
+    use super::Provider;
+    use super::Rule;
+    use super::Sign;
+    use super::TryFrom;
     use ::pest::Parser;
     use rstest::{fixture, rstest};
 
@@ -486,14 +578,22 @@ mod tests {
     #[rstest(
         defn,
         data_type,
-        case("uint8_t", DataType::U8),
-        case("uint16_t", DataType::U16),
-        case("uint32_t", DataType::U32),
-        case("uint64_t", DataType::U64),
-        case("int8_t", DataType::I8),
-        case("int16_t", DataType::I16),
-        case("int32_t", DataType::I32),
-        case("int64_t", DataType::I64),
+        case("uint8_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8 })),
+        case("uint16_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit16 })),
+        case("uint32_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit32 })),
+        case("uint64_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit64 })),
+        case("int8_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit8 })),
+        case("int16_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit16 })),
+        case("int32_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit32 })),
+        case("int64_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit64 })),
+        case("uint8_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8})),
+        case("uint16_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit16})),
+        case("uint32_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit32})),
+        case("uint64_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit64})),
+        case("int8_t*", DataType::Pointer(Integer { sign: Sign::Signed, width: BitWidth::Bit8})),
+        case("int16_t*", DataType::Pointer(Integer { sign: Sign::Signed, width: BitWidth::Bit16})),
+        case("int32_t*", DataType::Pointer(Integer { sign: Sign::Signed, width: BitWidth::Bit32})),
+        case("int64_t*", DataType::Pointer(Integer { sign: Sign::Signed, width: BitWidth::Bit64})),
         case("char*", DataType::String)
     )]
     fn test_data_type_enum(defn: &str, data_type: DataType) {
@@ -512,7 +612,7 @@ mod tests {
     #[fixture]
     fn probe_data() -> (String, String) {
         let provider = String::from("foo");
-        let probe = String::from("probe baz(char*, uint16_t, uint8_t);");
+        let probe = String::from("probe baz(char*, uint16_t, uint8_t*);");
         (provider, probe)
     }
 
@@ -532,7 +632,17 @@ mod tests {
         assert_eq!(probe.name, "baz");
         assert_eq!(
             probe.types,
-            &[DataType::String, DataType::U16, DataType::U8]
+            &[
+                DataType::String,
+                DataType::Integer(Integer {
+                    sign: Sign::Unsigned,
+                    width: BitWidth::Bit16,
+                }),
+                DataType::Pointer(Integer {
+                    sign: Sign::Unsigned,
+                    width: BitWidth::Bit8,
+                }),
+            ]
         );
     }
 

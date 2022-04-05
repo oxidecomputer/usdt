@@ -370,6 +370,10 @@ mod test {
     use super::DataType;
     use super::PROBE_REC_VERSION;
     use super::{MAX_PROBE_NAME_LEN, MAX_PROVIDER_NAME_LEN};
+    use dtrace_parser::BitWidth;
+    use dtrace_parser::DataType as DType;
+    use dtrace_parser::Integer;
+    use dtrace_parser::Sign;
 
     #[test]
     fn test_process_probe_record() {
@@ -530,8 +534,11 @@ mod test {
         let provider = "provider";
         let probe = "probe";
         let types = [
-            DataType::Native(dtrace_parser::DataType::U8),
-            DataType::Native(dtrace_parser::DataType::String),
+            DataType::Native(DType::Pointer(Integer {
+                sign: Sign::Unsigned,
+                width: BitWidth::Bit8,
+            })),
+            DataType::Native(DType::String),
         ];
         let record = emit_probe_record(provider, probe, Some(&types));
         let mut lines = record.lines();
@@ -561,7 +568,10 @@ mod test {
         let provider = "provider";
         let probe = "my__probe";
         let types = [
-            DataType::Native(dtrace_parser::DataType::U8),
+            DataType::Native(DType::Pointer(Integer {
+                sign: Sign::Unsigned,
+                width: BitWidth::Bit8,
+            })),
             DataType::Native(dtrace_parser::DataType::String),
         ];
         let record = emit_probe_record(provider, probe, Some(&types));

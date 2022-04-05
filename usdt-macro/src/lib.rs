@@ -68,7 +68,8 @@ use usdt_impl::compile_provider_source;
 ///
 /// Note
 /// ----
-/// The only supported types are integers of specific bit-width (e.g., `uint16_t`) and `char *`.
+/// The only supported types are integers of specific bit-width (e.g., `uint16_t`),
+/// pointers to integers, and `char *`.
 #[proc_macro]
 pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut tokens = item.into_iter().collect::<Vec<proc_macro::TokenTree>>();
