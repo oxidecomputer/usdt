@@ -10,7 +10,7 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
 byteorder = "1"
-dtrace-parser = { path = "../dtrace-parser", version = "0.1.12" }
+dtrace-parser = { path = "../dtrace-parser" }
 libc = "0.2"
 proc-macro2 = "1"
 quote = "1"
@@ -24,10 +24,10 @@ thread-id = "4"
 version_check = "0.9.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-dof = { path = "../dof", version = "0.1.5", optional = true, default-features = false }
+dof = { path = "../dof", optional = true, default-features = false }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-dof = { path = "../dof", version = "0.1.5", default-features = false }
+dof = { path = "../dof", default-features = false }
 
 [features]
 default = ["asm"]

@@ -11,12 +11,12 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 proc-macro = true
 
 [dependencies]
-dtrace-parser = { path = "../dtrace-parser", version = "0.1.12" }
+dtrace-parser = { path = "../dtrace-parser" }
 proc-macro2 = "1"
 serde_tokenstream = "0.1"
 syn = { version = "1", features = ["full"] }
 quote = "1"
-usdt-impl = { path = "../usdt-impl", version = "0.3.2", default-features = false }
+usdt-impl = { path = "../usdt-impl", default-features = false }
 
 [features]
 default = ["asm"]
