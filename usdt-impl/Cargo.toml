@@ -11,7 +11,6 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 [dependencies]
 byteorder = "1"
 dtrace-parser = { path = "../dtrace-parser", version = "0.1.12" }
-goblin = { version = "0.4", features = [ "elf32", "elf64" ], optional = true }
 libc = "0.2"
 proc-macro2 = "1"
 quote = "1"
@@ -31,6 +30,10 @@ dof = { path = "../dof", version = "0.1.5", optional = true, default-features = 
 dof = { path = "../dof", version = "0.1.5", default-features = false }
 
 [features]
-asm = []
-des = ["goblin", "dof", "dof/des"]
 default = ["asm"]
+asm = []
+# The `des` feature enables `dof` and company to be able to deserialize special
+# sections emitted in the binary which describe the probes.  Except on
+# platforms with linker integration for USDT probes (currently only MacOS),
+# that data is required in order to register the probes with the kernel.
+des = ["dof", "dof/des"]

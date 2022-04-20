@@ -368,8 +368,6 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 pub use usdt_attr_macro::provider;
-#[cfg(any(feature = "des"))]
-pub use usdt_impl::record;
 #[doc(hidden)]
 pub use usdt_impl::to_json;
 pub use usdt_impl::{Error, UniqueId};

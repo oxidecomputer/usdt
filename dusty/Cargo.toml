@@ -7,10 +7,7 @@ description = "Tool to inspect USDT probe records in object files"
 license = "Apache-2.0"
 
 [dependencies]
-dof = { path = "../dof", version = "0.1.5", features = [ "des" ] }
+dof = { path = "../dof", features = [ "des" ] }
+goblin = { version = "0.4", features = [ "elf32", "elf64" ] }
 structopt = "0.3.21"
-
-[dependencies.usdt]
-path = "../usdt"
-version = "0.3.0"
-features = ["asm", "des"]
+usdt-impl = { path = "../usdt-impl", features = ["des"] }

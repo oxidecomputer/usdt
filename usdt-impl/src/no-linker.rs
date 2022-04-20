@@ -14,12 +14,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::convert::TryFrom;
+use std::fs::OpenOptions;
+use std::os::unix::io::AsRawFd;
+
 use crate::record::{emit_probe_record, process_section};
 use crate::{common, Probe, Provider};
 use dof::{serialize_section, Section};
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::convert::TryFrom;
 
 /// Compile a DTrace provider definition into Rust tokens that implement its probes.
 pub fn compile_provider_source(
@@ -112,7 +115,7 @@ fn compile_probe(
     common::build_probe_macro(config, provider, &probe.name, &probe.types, impl_block)
 }
 
-fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error> {
+fn extract_probe_records_from_section() -> Result<Section, crate::Error> {
     extern "C" {
         #[link_name = "__start_set_dtrace_probes"]
         static dtrace_probes_start: usize;
@@ -141,34 +144,28 @@ fn extract_probe_records_from_section() -> Result<Option<Section>, crate::Error>
 }
 
 pub fn register_probes() -> Result<(), crate::Error> {
-    if let Some(ref section) = extract_probe_records_from_section()? {
-        let module_name = section
-            .providers
-            .values()
-            .next()
-            .and_then(|provider| {
-                provider.probes.values().next().and_then(|probe| {
-                    crate::record::addr_to_info(probe.address)
-                        .1
-                        .map(|path| path.rsplit('/').next().map(String::from).unwrap_or(path))
-                        .or_else(|| Some(format!("?{:#x}", probe.address)))
-                })
+    let section = extract_probe_records_from_section()?;
+    let module_name = section
+        .providers
+        .values()
+        .next()
+        .and_then(|provider| {
+            provider.probes.values().next().and_then(|probe| {
+                crate::record::addr_to_info(probe.address)
+                    .1
+                    .map(|path| path.rsplit('/').next().map(String::from).unwrap_or(path))
+                    .or_else(|| Some(format!("?{:#x}", probe.address)))
             })
-            .unwrap_or_else(|| String::from("unknown-module"));
-        let mut modname = [0; 64];
-        for (i, byte) in module_name.bytes().take(modname.len() - 1).enumerate() {
-            modname[i] = byte as i8;
-        }
-        ioctl_section(&serialize_section(&section), modname).map_err(crate::Error::from)
-    } else {
-        Ok(())
+        })
+        .unwrap_or_else(|| String::from("unknown-module"));
+    let mut modname = [0; 64];
+    for (i, byte) in module_name.bytes().take(modname.len() - 1).enumerate() {
+        modname[i] = byte as i8;
     }
+    ioctl_section(&serialize_section(&section), modname)
 }
 
-fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), std::io::Error> {
-    use std::fs::OpenOptions;
-    use std::os::unix::io::AsRawFd;
-
+fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), crate::Error> {
     let helper = dof::dof_bindings::dof_helper {
         dofhp_mod: modname,
         dofhp_addr: buf.as_ptr() as u64,
@@ -181,7 +178,7 @@ fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), 
         .write(true)
         .open("/dev/dtrace/helper")?;
     if unsafe { libc::ioctl(file.as_raw_fd(), cmd, data) } < 0 {
-        Err(std::io::Error::last_os_error())
+        Err(crate::Error::IO(std::io::Error::last_os_error()))
     } else {
         Ok(())
     }

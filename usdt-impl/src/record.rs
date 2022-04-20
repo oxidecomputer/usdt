@@ -24,15 +24,9 @@ use std::{
 #[cfg(usdt_stable_asm)]
 use std::arch::asm;
 
-#[cfg(feature = "des")]
-use std::{fs, path::Path};
-
 use byteorder::{NativeEndian, ReadBytesExt};
 use dof::{Probe, Provider, Section};
 use libc::{c_void, Dl_info};
-
-#[cfg(feature = "des")]
-use goblin::Object;
 
 use crate::DataType;
 
@@ -42,97 +36,8 @@ use crate::DataType;
 // details.
 pub(crate) const PROBE_REC_VERSION: u8 = 1;
 
-/// Extract probe records from the given file, if possible.
-///
-/// An `Err` is returned if the file not an ELF file, or if parsing the records fails in some way.
-/// `None` is returned if the file is valid, but contains no records.
-#[cfg(feature = "des")]
-pub fn extract_probe_records<P: AsRef<Path>>(file: P) -> Result<Option<Section>, crate::Error> {
-    let data = fs::read(file)?;
-    match Object::parse(&data).map_err(|_| crate::Error::InvalidFile)? {
-        Object::Elf(object) => {
-            // Try to find our special `set_dtrace_probes` section from the section headers. These may not
-            // exist, e.g., if the file has been stripped. In that case, we look for the special __start
-            // and __stop symbols themselves.
-            if let Some(section) = object
-                .section_headers
-                .iter()
-                .filter_map(|header| {
-                    if let Some(name) = object.shdr_strtab.get_at(header.sh_name) {
-                        if name == "set_dtrace_probes" {
-                            Some(header)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                })
-                .next()
-            {
-                let start = section.sh_offset as usize;
-                let end = start + (section.sh_size as usize);
-                process_section(&data[start..end])
-            } else {
-                // Failed to look up the section directly, iterate over the symbols.
-                let mut bounds = object.syms.iter().filter_map(|symbol| {
-                    if let Some(name) = object.strtab.get_at(symbol.st_name) {
-                        if name == "__start_set_dtrace_probes" || name == "__stop_set_dtrace_probes"
-                        {
-                            Some(symbol)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                });
-                if let (Some(start), Some(stop)) = (bounds.next(), bounds.next()) {
-                    let (start, stop) = (start.st_value as usize, stop.st_value as usize);
-                    process_section(&data[start..stop])
-                } else {
-                    Ok(None)
-                }
-            }
-        }
-        Object::Mach(goblin::mach::Mach::Binary(object)) => {
-            // Try to find our special `__dtrace_probes` section from the section headers.
-            for section in object.segments.sections().flatten() {
-                if let Ok((section, data)) = section {
-                    if section.sectname.starts_with(b"__dtrace_probes") {
-                        return process_section(&data);
-                    }
-                }
-            }
-
-            // Failed to look up the section directly, iterate over the symbols
-            if let Some(syms) = object.symbols {
-                let mut bounds = syms.iter().filter_map(|symbol| {
-                    if let Ok((name, nlist)) = symbol {
-                        if name.contains("__dtrace_probes") {
-                            Some(nlist.n_value as usize)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                });
-                if let (Some(start), Some(stop)) = (bounds.next(), bounds.next()) {
-                    process_section(&data[start..stop])
-                } else {
-                    Ok(None)
-                }
-            } else {
-                Ok(None)
-            }
-        }
-        _ => Err(crate::Error::InvalidFile),
-    }
-}
-
 // Extract records for all defined probes from our custom linker sections.
-pub(crate) fn process_section(mut data: &[u8]) -> Result<Option<Section>, crate::Error> {
+pub fn process_section(mut data: &[u8]) -> Result<Section, crate::Error> {
     let mut providers = BTreeMap::new();
 
     while !data.is_empty() {
@@ -148,10 +53,10 @@ pub(crate) fn process_section(mut data: &[u8]) -> Result<Option<Section>, crate:
         data = rest;
     }
 
-    Ok(Some(Section {
+    Ok(Section {
         providers,
         ..Default::default()
-    }))
+    })
 }
 
 // Convert an address in an object file into a function and file name, if possible.
@@ -481,7 +386,7 @@ mod test {
     #[test]
     fn test_process_section() {
         let data = make_record(PROBE_REC_VERSION);
-        let section = process_section(&data).unwrap().unwrap();
+        let section = process_section(&data).unwrap();
         let probe = section
             .providers
             .get("provider")
@@ -500,10 +405,10 @@ mod test {
         // Ensure that re-processing the same section returns zero probes, as they should have all
         // been previously processed.
         let data = make_record(PROBE_REC_VERSION);
-        let section = process_section(&data).unwrap().unwrap();
+        let section = process_section(&data).unwrap();
         assert_eq!(section.providers.len(), 1);
         assert_eq!(data[4], u8::MAX);
-        let section = process_section(&data).unwrap().unwrap();
+        let section = process_section(&data).unwrap();
         assert_eq!(data[4], u8::MAX);
         assert_eq!(section.providers.len(), 0);
     }
@@ -513,7 +418,7 @@ mod test {
         // Ensure that we _don't_ modify a future version number in a probe record, but that the
         // probes are still skipped (since by definition we're ignoring future versions).
         let data = make_record(PROBE_REC_VERSION + 1);
-        let section = process_section(&data).unwrap().unwrap();
+        let section = process_section(&data).unwrap();
         assert_eq!(section.providers.len(), 0);
         assert_eq!(data[4], PROBE_REC_VERSION + 1);
     }
