@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use usdt::Builder;
-use version_check;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");

@@ -369,7 +369,7 @@ impl TryFrom<&Pair<'_, Rule>> for File {
     type Error = DTraceError;
 
     fn try_from(pair: &Pair<'_, Rule>) -> Result<Self, Self::Error> {
-        expect_token(&pair, Rule::FILE)?;
+        expect_token(pair, Rule::FILE)?;
         let mut providers = Vec::new();
         let mut names = HashSet::new();
         for item in pair.clone().into_inner() {

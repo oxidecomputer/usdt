@@ -122,8 +122,7 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         Err(e) => {
             let message = format!(
                 "Error building provider definition in \"{}\"\n\n{}",
-                filename,
-                e.to_string()
+                filename, e
             );
             let out = quote! {
                 compile_error!(#message);

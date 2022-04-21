@@ -215,10 +215,10 @@ fn parse_probe_argument(
                 }
                 Ok((None, data_type_from_path(&path.path, true)))
             } else {
-                return Err(syn::Error::new(
+                Err(syn::Error::new(
                     item.span(),
                     "Only pointers to path types are supported",
-                ));
+                ))
             }
         }
         syn::Type::Reference(ref reference) => {

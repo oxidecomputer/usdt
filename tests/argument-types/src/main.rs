@@ -103,7 +103,7 @@ fn main() {
     refs::array!(|| &arr);
 
     // Tuples may be passed in by value.
-    refs::tuple!(|| ((0, &x[..])));
+    refs::tuple!(|| (0, &x[..]));
 
     // Serializable types may be passed by value or reference, to a probe expecting either a value
     // or a reference. Note, however, that the normal lifetime rules apply: you can't return a
@@ -114,9 +114,9 @@ fn main() {
     // refs::serializable_as_reference!(|| &crate::Arg::default());
     // ```
     let arg = crate::Arg::default();
-    refs::serializable_as_value!(|| crate::Arg::default());
+    refs::serializable_as_value!(crate::Arg::default);
     refs::serializable_as_value!(|| &arg);
-    refs::serializable_as_reference!(|| crate::Arg::default());
+    refs::serializable_as_reference!(crate::Arg::default);
     refs::serializable_as_reference!(|| &arg);
 
     // It's also possible to capture and return local variables by value in the probe argument

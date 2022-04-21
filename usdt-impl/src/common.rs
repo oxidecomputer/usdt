@@ -92,7 +92,7 @@ pub fn generate_type_check(
         })
         .collect::<Vec<_>>();
 
-    let preamble = unpack_argument_lambda(&types, /* clone = */ true);
+    let preamble = unpack_argument_lambda(types, /* clone = */ true);
 
     let type_check_function =
         format_ident!("__usdt_private_{}_{}_type_check", provider_name, probe_name);

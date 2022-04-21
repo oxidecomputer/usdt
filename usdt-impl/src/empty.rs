@@ -61,7 +61,7 @@ fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig)
     let probe_impls = provider
         .probes
         .iter()
-        .map(|probe| compile_probe(&provider, probe, config))
+        .map(|probe| compile_probe(provider, probe, config))
         .collect::<Vec<_>>();
     let module = config.module_ident();
     quote! {

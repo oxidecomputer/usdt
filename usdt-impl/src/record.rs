@@ -49,7 +49,7 @@ pub fn process_section(mut data: &[u8]) -> Result<Section, crate::Error> {
         let mut len_bytes = data;
         let len = len_bytes.read_u32::<NativeEndian>()? as usize;
         let (rec, rest) = data.split_at(len);
-        process_probe_record(&mut providers, &rec)?;
+        process_probe_record(&mut providers, rec)?;
         data = rest;
     }
 
@@ -174,7 +174,7 @@ fn process_probe_record(
     let probe = provider.probes.entry(probename.clone()).or_insert(Probe {
         name: probename,
         function: funcname,
-        address: address,
+        address,
         offsets: vec![],
         enabled_offsets: vec![],
         arguments: vec![],
