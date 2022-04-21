@@ -14,35 +14,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(all(not(usdt_stable_asm), feature = "asm"), feature(asm))]
+#![cfg_attr(usdt_need_feat_asm, feature(asm))]
+#![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
 
 use serde::Deserialize;
 use std::cell::RefCell;
 use thiserror::Error;
 
-#[cfg(all(
-    feature = "asm",
-    any(
-        all(not(target_os = "linux"), not(target_os = "macos")),
-        feature = "des",
-    )
-))]
+// Probe record parsing required for standard backend (and `des` feature used by `dusty util)
+#[cfg(any(usdt_backend_standard, feature = "des"))]
 pub mod record;
 
-#[cfg_attr(any(target_os = "linux", not(feature = "asm")), allow(dead_code))]
-mod common;
-
-#[cfg_attr(
-    feature = "asm",
-    cfg_attr(target_os = "linux", path = "empty.rs"),
-    cfg_attr(target_os = "macos", path = "linker.rs"),
-    cfg_attr(
-        all(not(target_os = "linux"), not(target_os = "macos")),
-        path = "no-linker.rs"
-    )
-)]
-#[cfg_attr(not(feature = "asm"), path = "empty.rs")]
+#[cfg_attr(usdt_backend_noop, path = "empty.rs")]
+#[cfg_attr(usdt_backend_linker, path = "linker.rs")]
+#[cfg_attr(usdt_backend_standard, path = "no-linker.rs")]
 mod internal;
+
+// Since the `empty` is mostly a no-op, parts of the common code will go unused when it is
+// selected for use.
+#[cfg_attr(usdt_backend_noop, allow(dead_code))]
+mod common;
 
 /// Register an application's probe points with DTrace.
 ///
