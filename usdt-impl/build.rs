@@ -57,7 +57,7 @@ fn main() {
                 Backend::NoOp
             }
         }
-        Some("illumos") | Some("solaris") if feat_asm => {
+        Some("illumos") | Some("solaris") | Some("freebsd") if feat_asm => {
             if have_stable_asm {
                 Backend::Standard
             } else if feat_strict_asm || is_nightly {

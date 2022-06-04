@@ -130,7 +130,7 @@ fn extract_probe_records_from_section() -> Result<Section, crate::Error> {
     // writable (to implement one-time registration), so an immutable variable here
     // leads to _two_ sections, one writable and one read-only. A mutable variable
     // here ensures this ends up in a mutable section, the same as the probe records.
-    #[cfg(target_os = "illumos")]
+    #[cfg(any(target_os = "illumos", target_os = "freebsd"))]
     #[link_section = "set_dtrace_probes"]
     #[used]
     static mut FORCE_LOAD: [u64; 0] = [];
@@ -170,9 +170,23 @@ fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), 
         dofhp_mod: modname,
         dofhp_addr: buf.as_ptr() as u64,
         dofhp_dof: buf.as_ptr() as u64,
+        #[cfg(target_os = "freebsd")]
+        dofhp_pid: std::process::id() as i32,
+        #[cfg(target_os = "freebsd")]
+        dofhp_gen: 0
     };
     let data = &helper as *const _;
+    #[cfg(target_os = "illumos")]
     let cmd: i32 = 0x64746803;
+    #[cfg(target_os = "freebsd")]
+    let cmd: u64 = {
+        const DOFHELPER_SIZE: u64 = std::mem::size_of::<dof::dof_bindings::dof_helper>() as u64;
+        const IOCPARM_SHIFT: u64 = 13;
+        const IOCPARM_MASK: u64  = (1 << IOCPARM_SHIFT) - 1;
+        const IOC_INOUT: u64     = 0xc0000000;
+        IOC_INOUT | ((DOFHELPER_SIZE & IOCPARM_MASK) << 16) | 0x7a << 8 | 0x3
+    };
+
     let file = OpenOptions::new()
         .read(true)
         .write(true)
