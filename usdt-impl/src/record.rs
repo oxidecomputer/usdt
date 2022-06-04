@@ -71,10 +71,15 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
         if libc::dladdr(addr as *const c_void, &mut info as *mut _) == 0 {
             (None, None)
         } else {
-            (
-                Some(CStr::from_ptr(info.dli_sname).to_string_lossy().to_string()),
-                Some(CStr::from_ptr(info.dli_fname).to_string_lossy().to_string()),
-            )
+            unsafe fn to_str_if_not_null(ptr: *const std::os::raw::c_char) -> Option<String> {
+              if ptr == null() {
+                  None
+              } else {
+                 Some(CStr::from_ptr(ptr).to_string_lossy().to_string())
+              }
+            }
+
+            (to_str_if_not_null(info.dli_sname), to_str_if_not_null(info.dli_fname))
         }
     }
 }
