@@ -27,20 +27,20 @@ enum Backend {
     NoOp,
 }
 
-// Extract any -C ARGS ... passed to RUSTFLAGS
-fn extract_encoded_rustc_flags() -> Vec<String> {
+fn have_link_dead_code_check() -> bool {
     match env::var_os("CARGO_ENCODED_RUSTFLAGS").as_deref() {
       Some(rustflags) => {
           let mut atoms = rustflags.to_str().unwrap_or("").split(' ');
-          let mut flags = vec![];
+          let mut link_dead_code = false;
+          // check if the last link-dead-code is n or no
           while let Some(atom) = atoms.next() {
-              if atom.starts_with("-C") {
-                  flags.push(atom[2..].to_string());
+              if atom.starts_with("-C") && atom.contains("link-dead-code") {
+                  link_dead_code = !atom.contains("link-dead-code=n")
               }
           }
-          flags
+          link_dead_code
       }
-      _ => vec![]
+      _ => false
     }
 }
 
@@ -62,10 +62,7 @@ fn main() {
     // Check if upstream have enabled link-dead-code, which in those cases we can
     // enable standard backend for FreeBSD. We check this by finding the last
     // -C link-dead-code* flag, and check if it is a negation of link-dead-code
-    let have_link_dead_code = extract_encoded_rustc_flags().iter()
-        .filter(|flag| flag.contains("link-dead-code"))
-        .map(|flag| !flag.contains("link-dead-code=n"))
-        .last().unwrap_or(false);
+    let have_link_dead_code = have_link_dead_code_check();
 
     let backend = match env::var("CARGO_CFG_TARGET_OS").ok().as_deref() {
         Some("macos") if feat_asm => {
