@@ -447,6 +447,52 @@ impl Builder {
 /// concurrent situations. Probes will be registered at most once.
 ///
 /// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
+#[cfg(not(target_os = "freebsd"))]
 pub fn register_probes() -> Result<(), Error> {
     usdt_impl::register_probes().map_err(Error::from)
+}
+
+// Hide the actual register_probes from FreeBSD consumer to prevent accidental use of the original
+// register_probes(), however since the register_probes!() macro still need visibility to a pub fn
+// thet perform the same functionality.
+pub fn usdt_internal_register_probes() -> Result<(), Error> {
+    usdt_impl::register_probes().map_err(Error::from)
+}
+
+/// Register an application's probes with DTrace.
+///
+/// This function collects the probes defined in an application, and forwards them to the DTrace
+/// kernel module. This _must_ be done for the probes to be visible via the `dtrace(1)` tool. See
+/// [probe_test_macro] for a detailed example.
+///
+/// Notes
+/// -----
+///
+/// This function registers all probes in a process's binary image, regardless of which crate
+/// actually defines the probes. It's also safe to call this function multiple times, even in
+/// concurrent situations. Probes will be registered at most once.
+///
+/// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
+// The lld linker, which used by FreeBSD implements a mark and sweep gc that wipes out symbols
+// that it thinks cannot be reached. This includes the set_dtrace_probes section that stores the
+// compiled probes. In order to combat this issue, a macro can be use to "paste" the snipper that
+// contains references to the `set_dtrace_probes` section. In order to make the reference not
+// throw away by the compiler, we need to make an offer that rustc cannot refuse (to not optmize). 
+// We accomplish this by using an extern function that likely to always exist (memcmp) and yet 
+// since rustc do not have visibility to the implementation, it cannot be optimized.
+#[cfg(any(target_os = "freebsd", target_os = "illumos"))]
+#[macro_export]
+macro_rules! register_probes {
+    () => {
+        {
+            extern "C" {
+                fn memcmp(d: *mut u64, c: *mut u64, n: usize);
+            }
+
+            #[link_section = "set_dtrace_probes"]
+            static mut dummy: [u64; 0] = [];
+            unsafe { memcmp(dummy.as_mut_ptr(), 0 as *mut u64, 0); }
+            usdt_internal_register_probes()
+        }
+    };
 }

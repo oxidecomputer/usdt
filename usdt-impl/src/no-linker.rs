@@ -132,7 +132,8 @@ fn extract_probe_records_from_section() -> Result<Section, crate::Error> {
     // here ensures this ends up in a mutable section, the same as the probe records.
     #[cfg(any(target_os = "illumos", target_os = "freebsd"))]
     #[link_section = "set_dtrace_probes"]
-    #[used]
+    #[cfg_attr(usdt_need_feat_used_with_arg, used(linker))]
+    #[cfg_attr(not(usdt_need_feat_used_with_arg), used)]
     static mut FORCE_LOAD: [u64; 0] = [];
 
     let data = unsafe {

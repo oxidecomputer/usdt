@@ -16,6 +16,7 @@
 
 #![cfg_attr(usdt_need_feat_asm, feature(asm))]
 #![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
+#![cfg_attr(usdt_need_feat_used_with_arg, feature(used_with_arg))]
 
 use serde::Deserialize;
 use std::cell::RefCell;

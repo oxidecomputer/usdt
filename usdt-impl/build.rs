@@ -27,6 +27,23 @@ enum Backend {
     NoOp,
 }
 
+// Extract any -C ARGS ... passed to RUSTFLAGS
+fn extract_encoded_rustc_flags() -> Vec<String> {
+    match env::var_os("CARGO_ENCODED_RUSTFLAGS").as_deref() {
+      Some(rustflags) => {
+          let mut atoms = rustflags.to_str().unwrap_or("").split(' ');
+          let mut flags = vec![];
+          while let Some(atom) = atoms.next() {
+              if atom.starts_with("-C") {
+                  flags.push(atom[2..].to_string());
+              }
+          }
+          flags
+      }
+      _ => vec![]
+    }
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
@@ -34,12 +51,21 @@ fn main() {
     let have_stable_asm = version_check::is_min_version("1.59").unwrap_or(false);
     // XXX: `asm_sym` feature is not yet stable
     let have_stable_asm_sym = false;
+    let have_stable_used_with_arg = false;
 
     // Are we being built with a compiler which allows feature flags (nightly)
     let is_nightly = version_check::is_feature_flaggable().unwrap_or(false);
 
     let feat_asm = env::var_os("CARGO_FEATURE_ASM").is_some();
     let feat_strict_asm = env::var_os("CARGO_FEATURE_STRICT_ASM").is_some();
+
+    // Check if upstream have enabled link-dead-code, which in those cases we can
+    // enable standard backend for FreeBSD. We check this by finding the last
+    // -C link-dead-code* flag, and check if it is a negation of link-dead-code
+    let have_link_dead_code = extract_encoded_rustc_flags().iter()
+        .filter(|flag| flag.contains("link-dead-code"))
+        .map(|flag| !flag.contains("link-dead-code=n"))
+        .last().unwrap_or(false);
 
     let backend = match env::var("CARGO_CFG_TARGET_OS").ok().as_deref() {
         Some("macos") if feat_asm => {
@@ -57,12 +83,30 @@ fn main() {
                 Backend::NoOp
             }
         }
-        Some("illumos") | Some("solaris") | Some("freebsd") if feat_asm => {
+        Some("illumos") | Some("solaris") if feat_asm => {
             if have_stable_asm {
                 Backend::Standard
             } else if feat_strict_asm || is_nightly {
                 println!("cargo:rustc-cfg=usdt_need_feat_asm");
                 Backend::Standard
+            } else {
+                Backend::NoOp
+            }
+        }
+        Some("freebsd") if feat_asm => {
+            // FreeBSD require used(linker) to preserve __(start|stop)_set_dtrace_probes
+            // without explicit "link-dead-code" by consumer
+            if have_link_dead_code || have_stable_used_with_arg || is_nightly {
+               if !have_stable_used_with_arg && is_nightly {
+                   println!("cargo:rustc-cfg=usdt_need_used_with_arg");
+               }
+               if have_stable_asm {
+                   Backend::Standard
+               } else if feat_strict_asm || is_nightly {
+                   Backend::Standard
+               } else {
+                   Backend::NoOp
+               }
             } else {
                 Backend::NoOp
             }
