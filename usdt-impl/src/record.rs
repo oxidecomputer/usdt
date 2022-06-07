@@ -218,7 +218,10 @@ impl<'a> ReadCstrExt<'a> for &'a [u8] {
 // Construct the ASM record for a probe. If `types` is `None`, then is is an is-enabled probe.
 #[allow(dead_code)]
 pub(crate) fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
+    #[cfg(not(target_os = "freebsd"))]
     let section_ident = r#"set_dtrace_probes,"aw","progbits""#;
+    #[cfg(target_os = "freebsd")]
+    let section_ident = r#"set_dtrace_probes,"awR","progbits""#;
     let is_enabled = types.is_none();
     let n_args = types.map_or(0, |typ| typ.len());
     let arguments = types.map_or_else(String::new, |types| {
