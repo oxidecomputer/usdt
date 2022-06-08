@@ -180,13 +180,7 @@ fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), 
     #[cfg(target_os = "illumos")]
     let cmd: i32 = 0x64746803;
     #[cfg(target_os = "freebsd")]
-    let cmd: u64 = {
-        const DOFHELPER_SIZE: u64 = std::mem::size_of::<dof::dof_bindings::dof_helper>() as u64;
-        const IOCPARM_SHIFT: u64 = 13;
-        const IOCPARM_MASK: u64  = (1 << IOCPARM_SHIFT) - 1;
-        const IOC_INOUT: u64     = 0xc0000000;
-        IOC_INOUT | ((DOFHELPER_SIZE & IOCPARM_MASK) << 16) | 0x7a << 8 | 0x3
-    };
+    let cmd: u64 = 0xc0587a03;
 
     let file = OpenOptions::new()
         .read(true)

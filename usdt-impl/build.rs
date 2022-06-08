@@ -95,7 +95,7 @@ fn main() {
             // without explicit "link-dead-code" by consumer
             if have_link_dead_code || have_stable_used_with_arg || is_nightly {
                if !have_stable_used_with_arg && is_nightly {
-                   println!("cargo:rustc-cfg=usdt_need_used_with_arg");
+                   println!("cargo:rustc-cfg=usdt_need_feat_used_with_arg");
                }
                if have_stable_asm {
                    Backend::Standard
