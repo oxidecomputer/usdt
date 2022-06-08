@@ -123,8 +123,8 @@ fn extract_probe_records_from_section() -> Result<Section, crate::Error> {
         static dtrace_probes_stop: usize;
     }
 
-    // Without this the illumos linker may decide to omit the symbols above that
-    // denote the start and stop addresses for this section. Note that the variable
+    // Without this the illumos and FreeBSD linker may decide to omit the symbols above
+    // that denote the start and stop addresses for this section. Note that the variable
     // must be mutable, otherwise this will generate a read-only section with the
     // name `set_dtrace_probes`. The section containing the actual probe records is
     // writable (to implement one-time registration), so an immutable variable here
