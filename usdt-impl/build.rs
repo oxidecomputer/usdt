@@ -29,18 +29,18 @@ enum Backend {
 
 fn have_link_dead_code_check() -> bool {
     match env::var_os("CARGO_ENCODED_RUSTFLAGS").as_deref() {
-      Some(rustflags) => {
-          let mut atoms = rustflags.to_str().unwrap_or("").split(' ');
-          let mut link_dead_code = false;
-          // check if the last link-dead-code is n or no
-          while let Some(atom) = atoms.next() {
-              if atom.starts_with("-C") && atom.contains("link-dead-code") {
-                  link_dead_code = !atom.contains("link-dead-code=n")
-              }
-          }
-          link_dead_code
-      }
-      _ => false
+        Some(rustflags) => {
+            let mut atoms = rustflags.to_str().unwrap_or("").split(' ');
+            let mut link_dead_code = false;
+            // check if the last link-dead-code is n or no
+            while let Some(atom) = atoms.next() {
+                if atom.starts_with("-C") && atom.contains("link-dead-code") {
+                    link_dead_code = !atom.contains("link-dead-code=n")
+                }
+            }
+            link_dead_code
+        }
+        _ => false,
     }
 }
 
@@ -94,16 +94,16 @@ fn main() {
             // FreeBSD require used(linker) to preserve __(start|stop)_set_dtrace_probes
             // without explicit "link-dead-code" by consumer
             if have_link_dead_code || have_stable_used_with_arg || is_nightly {
-               if !have_stable_used_with_arg && is_nightly {
-                   println!("cargo:rustc-cfg=usdt_need_feat_used_with_arg");
-               }
-               if have_stable_asm {
-                   Backend::Standard
-               } else if feat_strict_asm || is_nightly {
-                   Backend::Standard
-               } else {
-                   Backend::NoOp
-               }
+                if !have_stable_used_with_arg && is_nightly {
+                    println!("cargo:rustc-cfg=usdt_need_feat_used_with_arg");
+                }
+                if have_stable_asm {
+                    Backend::Standard
+                } else if feat_strict_asm || is_nightly {
+                    Backend::Standard
+                } else {
+                    Backend::NoOp
+                }
             } else {
                 Backend::NoOp
             }

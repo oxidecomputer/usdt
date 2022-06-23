@@ -449,7 +449,7 @@ pub struct dof_helper {
     #[cfg(target_os = "freebsd")]
     pub dofhp_pid: i32,
     #[cfg(target_os = "freebsd")]
-    pub dofhp_gen: ::std::os::raw::c_int
+    pub dofhp_gen: ::std::os::raw::c_int,
 }
 impl Default for dof_helper {
     fn default() -> Self {

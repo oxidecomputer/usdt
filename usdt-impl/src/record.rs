@@ -78,7 +78,10 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
             } else {
                 Some(CStr::from_ptr(info.dli_sname).to_string_lossy().to_string())
             };
-            (dli_sname, Some(CStr::from_ptr(info.dli_fname).to_string_lossy().to_string()))
+            (
+                dli_sname,
+                Some(CStr::from_ptr(info.dli_fname).to_string_lossy().to_string()),
+            )
         }
     }
 }
@@ -93,15 +96,18 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
         // The libc crate does not have `backtrace_symbos_fmt`
         #[link(name = "execinfo")]
         extern "C" {
-            pub fn backtrace_symbols_fmt(_: *const *mut c_void, _: libc::size_t, _: *const libc::c_char)
-                -> *mut *mut libc::c_char;
+            pub fn backtrace_symbols_fmt(
+                _: *const *mut c_void,
+                _: libc::size_t,
+                _: *const libc::c_char,
+            ) -> *mut *mut libc::c_char;
         }
 
         let addrs = [addr].as_ptr() as *const *mut c_void;
 
         // Use \n as a seperator for dli_sname(%n) and dli_fname(%f), we put one more \n to the end
         // to ensure s.lines() (see below) always contains two elements
-        let format  = std::ffi::CString::new("%n\n%f\n").unwrap();
+        let format = std::ffi::CString::new("%n\n%f\n").unwrap();
         let symbols = backtrace_symbols_fmt(addrs, 1, format.as_ptr());
 
         if symbols == null_mut() {
@@ -113,7 +119,6 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
         }
     }
 }
-
 
 // Limit a string to the DTrace-imposed maxima. Note that this ensures a null-terminated C string
 // result, i.e., the actual string is of length `limit - 1`.

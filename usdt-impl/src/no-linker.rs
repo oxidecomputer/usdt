@@ -174,7 +174,7 @@ fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), 
         #[cfg(target_os = "freebsd")]
         dofhp_pid: std::process::id() as i32,
         #[cfg(target_os = "freebsd")]
-        dofhp_gen: 0
+        dofhp_gen: 0,
     };
     let data = &helper as *const _;
     #[cfg(target_os = "illumos")]
