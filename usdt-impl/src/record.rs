@@ -19,10 +19,8 @@ use std::{
     collections::BTreeMap,
     ffi::CStr,
     ptr::{null, null_mut},
+    sync::atomic::{AtomicU8, Ordering},
 };
-
-#[cfg(usdt_stable_asm)]
-use std::arch::asm;
 
 use byteorder::{NativeEndian, ReadBytesExt};
 use dof::{Probe, Provider, Section};
@@ -103,20 +101,10 @@ fn read_and_update_record_version(data: &[u8]) -> Result<u8, crate::Error> {
     if data[0] <= PROBE_REC_VERSION {
         // Atomically exchange the record's version with our sentinel value, and return the
         // record's version.
-        //
-        // NOTE: It's not easy to use types from `std::sync::atomic` here because we need to
-        // atomically exchange the data through a pointer. `AtomicU8::from_mut` might work, but
-        // that would require another feature flag pinning us to a nightly compiler.
-        let mut version = u8::MAX;
-        let record_version_ptr = data.as_ptr();
-        unsafe {
-            asm!(
-                "lock xchg al, [{}]",
-                in(reg) record_version_ptr,
-                inout("al") version,
-            );
-        }
-        Ok(version)
+        let record_version = unsafe {
+            std::mem::transmute::<&u8, &AtomicU8>(&data[0])
+        };
+        Ok(record_version.swap(u8::MAX, Ordering::SeqCst))
     } else {
         // If we're not handling this probe, just return the existing version number without
         // modifying it. By "not handling", we mean that the version number is greater than the
