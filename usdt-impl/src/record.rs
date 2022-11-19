@@ -18,6 +18,7 @@
 use std::{
     collections::BTreeMap,
     ffi::CStr,
+    ffi::CString,
     ptr::{null, null_mut},
 };
 
@@ -72,7 +73,7 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
         if libc::dladdr(addr as *const c_void, &mut info as *mut _) == 0 {
             (None, None)
         } else {
-            // On some non Illumos platfroms  dli_sname can be NULL
+            // On some non Illumos platforms dli_sname can be NULL
             let dli_sname = if info.dli_sname == null() {
                 None
             } else {
@@ -87,13 +88,12 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
 }
 
 // On FreeBSD, dladdr(3M) only examines the dynamic symbol table. Which is pretty useless as it
-// will always gives null dli_sname. To workaround this issue, we use `backtrace_symbols_fmt` from
-// libexecinfo, which internally lookup in the executable to determine the symbol of the given
+// will always returns a dli_sname. To workaround this issue, we use `backtrace_symbols_fmt` from
+// libexecinfo, which internally looks in the executable to determine the symbol of the given
 // address
 #[cfg(target_os = "freebsd")]
 pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
-        // The libc crate does not have `backtrace_symbos_fmt`
         #[link(name = "execinfo")]
         extern "C" {
             pub fn backtrace_symbols_fmt(
@@ -103,19 +103,22 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
             ) -> *mut *mut libc::c_char;
         }
 
-        let addrs = [addr].as_ptr() as *const *mut c_void;
+        let addrs_arr = [addr];
+        let addrs = addrs_arr.as_ptr() as *const *mut c_void;
 
         // Use \n as a seperator for dli_sname(%n) and dli_fname(%f), we put one more \n to the end
         // to ensure s.lines() (see below) always contains two elements
-        let format = std::ffi::CString::new("%n\n%f\n").unwrap();
+        let format = CString::new("%n\n%f").unwrap();
         let symbols = backtrace_symbols_fmt(addrs, 1, format.as_ptr());
 
-        if symbols == null_mut() {
-            (None, None)
+        if symbols != null_mut() {
+            if let Some((sname, fname)) = CStr::from_ptr(*symbols).to_string_lossy().split_once('\n') {
+                (Some(sname.to_string()), Some(fname.to_string()))
+            } else {
+                (None, None)
+            }
         } else {
-            let s = CStr::from_ptr(*symbols).to_string_lossy().to_string();
-            let lines: Vec<_> = s.lines().collect();
-            (Some(lines[0].to_string()), Some(lines[1].to_string()))
+            (None, None)
         }
     }
 }
