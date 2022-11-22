@@ -8,12 +8,19 @@ license = "Apache-2.0"
 description = "Dust your Rust with USDT probes"
 repository = "https://github.com/oxidecomputer/usdt.git"
 
+# NOTE: The use of path and version dependencies is deliberate and load-bearing.
+#
+# When building from source, this will select the version in the workspace, by
+# path. When publishing the specific version will be used. Combined with the
+# exact version requirements, this prevents issues like oxidecomputer/usdt#69,
+# where the public-facing `usdt` crate may pick up different versions of the
+# internal implementation crates.
 [dependencies]
-dtrace-parser = { path = "../dtrace-parser", optional = true, version = "0.1.14" }
+dtrace-parser = { path = "../dtrace-parser", optional = true, version = "= 0.1.14" }
 serde = "1"
-usdt-impl = { path = "../usdt-impl", default-features = false, version = "0.3.4" }
-usdt-macro = { path = "../usdt-macro", default-features = false, version = "0.3.4" }
-usdt-attr-macro = { path = "../usdt-attr-macro", default-features = false, version = "0.3.4" }
+usdt-impl = { path = "../usdt-impl", default-features = false, version = "= 0.3.4" }
+usdt-macro = { path = "../usdt-macro", default-features = false, version = "= 0.3.4" }
+usdt-attr-macro = { path = "../usdt-attr-macro", default-features = false, version = "= 0.3.4" }
 
 [features]
 default = ["asm"]
