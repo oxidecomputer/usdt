@@ -3,7 +3,7 @@ error: Error building provider definition in "../../../tests/compile-errors/prov
        Input is not a valid DTrace provider definition:
         --> 2:12
          |
-       2 |     probe bad(float);␊
+       2 |     probe bad(float);
          |               ^---
          |
          = expected RIGHT_PAREN or DATA_TYPE.

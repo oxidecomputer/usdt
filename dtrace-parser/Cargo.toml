@@ -1,6 +1,6 @@
 [package]
 name = "dtrace-parser"
-version = "0.1.12"
+version = "0.1.13"
 authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
            "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2018"
