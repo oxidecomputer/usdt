@@ -1,9 +1,9 @@
 #!/bin/bash
 #:
-#: name = "illumos / test-no-op-implementation"
+#: name = "illumos / check-compile-errors"
 #: variety = "basic"
 #: target = "helios"
-#: rust_toolchain = "stable"
+#: rust_toolchain = "nightly-2021-11-24"
 #: output_rules = []
 #:
 
@@ -19,6 +19,6 @@ export RUST_BACKTRACE=1
 banner test
 ptime -m cargo test \
         --release \
+        --no-fail-fast \
         --verbose \
-        --no-default-features \
-        --package empty
+        --package compile-errors
