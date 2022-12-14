@@ -1,3 +1,17 @@
+// Copyright 2022 Oxide Computer Company
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 //! Expose USDT probe points from Rust programs.
 //!
 //! Overview
@@ -42,15 +56,13 @@
 //! with:
 //!
 //! ```ignore
-//! #![cfg_attr(usdt_need_feat_asm, feature(asm))]
-//! #![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
 //! usdt::dtrace_provider!("test.d");
 //! ```
 //!
 //! This procedural macro will generate a Rust macro for each probe defined in the provider. Note
-//! that including the `asm` features are required; see [the notes](#notes) for a discussion. The
-//! `feature` directive and the invocation of `dtrace_provider` **should both be at the crate
-//! root**, i.e., `src/lib.rs` or `src/main.rs`.
+//! that for versions of rust prior to 1.66 features may be required; see [the
+//! notes](#features) for a discussion. The invocation of `dtrace_provider` (and any required
+//! feature directives) **should be at the crate root**, i.e., `src/lib.rs` or `src/main.rs`.
 //!
 //! One may then call the `start` probe via:
 //!
@@ -110,7 +122,7 @@
 //! accessed in DTrace with the `json` function. The signature is `json(string, key)`, where `key`
 //! is used to access the named key of a JSON-encoded string. For example:
 //!
-//! ```bash
+//! ```console
 //! $ dtrace -n 'stop_work { printf("%s", json(copyinstr(arg0), "ok.buffer[0]")); }'
 //! ```
 //!
@@ -188,8 +200,8 @@
 //! Examples
 //! --------
 //!
-//! See the [probe_test_macro], [probe_test_build], and [probe_test_attr] crates for detailed working
-//! examples showing how the probes may be defined, included, and used.
+//! See the [probe_test_macro], [probe_test_build], and [probe_test_attr] crates in the github repo
+//! for detailed working examples showing how the probes may be defined, included, and used.
 //!
 //! Probe arguments
 //! ---------------
@@ -240,7 +252,7 @@
 //! the `usdt` crate on downstream applications, library writers should re-export the
 //! `register_probes` function with:
 //!
-//! ```ignore
+//! ```
 //! pub use usdt::register_probes;
 //! ```
 //!
@@ -259,73 +271,58 @@
 //! purpose. It may be passed as any argument to a probe function, and is guaranteed to be unique
 //! between different invocations of the same probe. See the type's documentation for details.
 //!
-//! Feature flags
-//! -------------
+//! Features
+//! --------
 //!
-//! The USDT crate relies on inline assembly to hook into DTrace. Unfortunatley this feature is
-//! unstable, and requires explicitly opting in with `#![cfg_attr(usdt_need_feat_asm, feature(asm))]` as well as running with a
-//! nightly Rust compiler. A nightly toolchain may be installed with:
+//! > **Note**: This section is only relevant prior to Rust 1.59 (or Rust 1.66 on macOS).
 //!
-//! ```bash
-//! $ rustup toolchain install nightly
-//! ```
+//! The USDT crate relies on inline assembly to hook into DTrace. Prior to Rust 1.59, this is
+//! unstable, and requires explicitly opting in with `#![feature(asm))]`.
 //!
-//! and Rust code exposing USDT probes may then be built with:
-//!
-//! ```bash
-//! $ cargo +nightly build
-//! ```
-//!
-//! The `asm` feature is a default of the `usdt` crate.
-//!
-//! ### Rust toolchain versions and the `asm_sym` flag
-//!
-//! The toolchain story is unfortunately more complicated than this. As of Rust 1.58.0-nightly
-//! (2021-10-29), the `asm` feature has been broken out into several more fine-grained features, to
-//! more quickly allow stabilization of the core inline assembly components. The result is that
-//! this crate requires the `asm_sym` feature on macOS target platforms.
+//! On macOS (only) an addition feature is required prior to Rust 1.66 (but after Rust 1.58.0-nightly).
+//! The macOS implementation relies on native linker support; it uses the `sym` syntax of the `asm!`
+//! macro which was split into its own feature in Rust 1.58.0-nightly (2021-10-29).
 //!
 //! Unfortunately, because of the way the features were added (see [this pull
 //! request][asm-sym-feature-pr]), this version of Rust nightly is a Rubicon: the `usdt` crate, and
 //! crates using it, _cannot be built with compilers both before and after this version._
-//! Specifically, it's not possible to write the set of feature flags that would allow code to be
+//! Specifically, it's not possible to write the set of features that would allow code to be
 //! compiled with a nightly toolchain before and after this version. If we _include_ the
 //! `feature(asm_sym)` directive with a toolchain of 1.57 or earlier, the compiler will generate an
 //! error because that feature isn't known for those versions. If we _omit_ the directive, it will
-//! compile with previous toolchains, but a newer one will generate an error because the feature
-//! flag is required for opting into the functionality used in the `usdt` crate's implementation on
-//! macOS.
+//! compile with previous toolchains, but a newer one will generate an error because the feature is
+//! required for opting into the functionality used in the `usdt` crate's implementation on macOS.
 //!
-//! There's no great solution here. If you're developing an application, i.e., something that
-//! you're sure can be built with a specific toolchain such as with a `rust-toolchain` file, you
-//! can write the correct feature attribute for that toolchain version.
+//! There's no great solution here. If you're developing an application, i.e., something that you're
+//! sure can be built with a specific toolchain such as with a `rust-toolchain` file, you can write
+//! the correct feature attribute for that toolchain version.
 //!
-//! If you're building a library, things are more complicated, because you don't know what
-//! toolchain a consuming application will choose to use. It's not possible to use a `build.rs`
-//! file or other code-generation mechanism, because inner attributes must generally be written
-//! directly at the top of the crate's root source file. A mechanism that _expands_ to the right
-//! tokens is not sufficient. The only real approach is to specify which versions of the toolchain
-//! are supported by your library in the documentation, as we've done here.
+//! If you're building a library, things are more complicated, because you don't know what toolchain
+//! a consuming application will choose to use. It's not possible to use a `build.rs` file or other
+//! code-generation mechanism, because inner attributes must generally be written directly at the
+//! top of the crate's root source file. A mechanism that _expands_ to the right tokens is not
+//! sufficient. The only real approach is to specify which versions of the toolchain are supported
+//! by your library in the documentation, as we've done here.
 //!
 //! Selecting the no-op implementation
 //! ----------------------------------
 //!
-//! It's also important to note that it's possible to use the `usdt` crate in libraries without
-//! transitively requiring a nightly compiler of one's users. Though `asm` is a default feature,
-//! users can opt to build with `--no-default-features`, which uses a no-op implementation of the
-//! internals. This generates the same probe macros, but with empty bodies, meaning the code can be
-//! compiled unchanged.
+//! It's possible to use the `usdt` crate in libraries without transitively requiring a nightly
+//! compiler of one's users (prior to Rust 1.66). Though `asm` is a default feature of the `usdt`
+//! crate, users can opt to build with `--no-default-features`, which uses a no-op implementation of
+//! the internals. This generates the same probe macros, but with empty bodies, meaning the code can
+//! be compiled unchanged.
 //!
-//! Library developers can choose to re-export this feature, with a name such as `probes`, which
+//! Library developers may choose to re-export this feature, with a name such as `probes`, which
 //! implies the `asm` feature of the `usdt` crate. This feature-gating allows users to select a
 //! nightly compiler in exchange for probes, but still allows the code to be compiled with a stable
 //! toolchain.
 //!
-//! Note that the `#![cfg_attr(usdt_need_feat_asm, feature(asm))]` directive is required anywhere the generated macros are
-//! _called_, rather than where they're defined. (Because they're macros-by-example, and expand to
-//! an actual `asm!` macro call.) So library writers should probably gate the feature directive on
-//! their own re-exported feature, e.g., `#![cfg_attr(feature = "probes", feature(asm))]`, and
-//! instruct developers consuming their libraries to do the same.
+//! Note that prior to Rust 1.66, the appropriate features are required anywhere the generated
+//! macros are _called_, rather than where they're defined. (Because they're macros-by-example, and
+//! expand to an actual `asm!` macro call.) So library writers should probably gate the feature
+//! directive on their own re-exported feature, e.g., `#![cfg_attr(feature = "probes",
+//! feature(asm))]`, and instruct developers consuming their libraries to do the same.
 //!
 //! It's important to keep in mind how Cargo unifies features, however. Specifically, if `usdt` is
 //! a dependency of two other dependencies in a package, it's possible to end up in a confusing
@@ -333,8 +330,9 @@
 //! expecting to use the no-op implementation and another is built _using_ the real, `asm`-based
 //! implementation, the latter will be chosen. This can be confusing or downright dangerous. First,
 //! the former crate will fail at compile time, because the `asm!` macro will actually be emitted,
-//! but the `#![cfg_attr(usdt_need_feat_asm, feature(asm))]` flag will not be included. More troubling, the probes will actually
-//! exist in the resulting object file, even if the user specifically opted to not use them.
+//! but the `#![cfg_attr(target_os = "macos", feature(asm))]` flag will not be included. More
+//! troubling, the probes will actually exist in the resulting object file, even if the user
+//! specifically opted to not use them.
 //!
 //! To handle this, library writers should place _all_ references to `usdt`-related code behind a
 //! conditional compilation directive. This will ensure that the crate is not even used, rather
@@ -347,22 +345,7 @@
 //! [probe_test_build]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-build
 //! [probe_test_attr]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-attr
 //! [serde]: https://serde.rs
-//! [asm-features]: https://github.com/rust-lang/rust/pull/90348
 //! [asm-sym-feature-pr]: https://github.com/rust-lang/rust/pull/90348
-
-// Copyright 2021 Oxide Computer Company
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
 use std::path::{Path, PathBuf};
 use std::{env, fs};
@@ -423,8 +406,7 @@ impl Builder {
         let tokens = usdt_impl::compile_provider_source(&source, &self.config)?;
         let mut out_file = Path::new(&env::var("OUT_DIR")?).to_path_buf();
         out_file.push(
-            &self
-                .out_file
+            self.out_file
                 .file_name()
                 .expect("Could not extract filename"),
         );

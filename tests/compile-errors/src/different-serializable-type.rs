@@ -1,7 +1,7 @@
 //! Test that passing a type that is serializable, but not the same concrete type as the probe
 //! signature, fails compilation.
 
-// Copyright 2021 Oxide Computer Company
+// Copyright 2022 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
