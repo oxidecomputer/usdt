@@ -36,9 +36,10 @@ jobs:
           cargo test
           --release
           --verbose
-          --package
-          empty
           --no-default-features
+          --workspace
+          --exclude does-it-work
+          --exclude test-json
 
   # stable-test:
   #   name: Run all tests

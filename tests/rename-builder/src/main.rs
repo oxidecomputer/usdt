@@ -16,7 +16,7 @@
 // limitations under the License.
 
 #![cfg_attr(not(usdt_stable_asm), feature(asm))]
-#![cfg_attr(not(usdt_stable_asm_sym), feature(asm_sym))]
+#![cfg_attr(need_asm_sym, feature(asm_sym))]
 include!(concat!(env!("OUT_DIR"), "/test.rs"));
 
 fn main() {
