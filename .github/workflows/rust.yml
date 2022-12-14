@@ -18,7 +18,7 @@ jobs:
           components: rustfmt
       - run: cargo fmt -- --check
 
-  no-op tests:
+  no-op-tests:
     name: Check unsupported platforms
     runs-on: ${{ matrix.os }}
     strategy:
