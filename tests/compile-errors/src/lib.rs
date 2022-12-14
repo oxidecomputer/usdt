@@ -14,6 +14,8 @@
 
 #![deny(warnings)]
 
+// These tests are only valid when running on the Rust version specified
+// in rust-toolchain.toml
 #[cfg(test)]
 mod tests {
     #[test]
@@ -25,8 +27,6 @@ mod tests {
         t.compile_fail("src/no-provider-file.rs");
         t.compile_fail("src/zero-arg-probe-type-check.rs");
         t.compile_fail("src/different-serializable-type.rs");
-        // The results of this differ between stable and nightly toolchains.
-        // It is omitted until usdt is usable with a stable compiler on all targetted platforms.
-        // t.compile_fail("src/relative-import.rs");
+        t.compile_fail("src/relative-import.rs");
     }
 }
