@@ -40,6 +40,7 @@ jobs:
           --workspace
           --exclude does-it-work
           --exclude test-json
+          --exclude test-unique-ids
 
   # stable-test:
   #   name: Run all tests
