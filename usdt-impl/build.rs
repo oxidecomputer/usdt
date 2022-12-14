@@ -32,7 +32,7 @@ fn main() {
 
     // `asm` feature was stabilized in 1.59
     let have_stable_asm = version_check::is_min_version("1.59").unwrap_or(false);
-    // `asm_sym` feature was stabilized in 1.66
+    // `asm_sym` feature was stabilized in nightly 1.67
     let have_stable_asm_sym = version_check::is_min_version("1.66").unwrap_or(false);
 
     // Are we being built with a compiler which allows feature flags (nightly)
@@ -67,7 +67,12 @@ fn main() {
                 Backend::NoOp
             }
         }
-        _ => Backend::NoOp,
+        _ => {
+            if !have_stable_asm {
+                println!("cargo:rustc-cfg=usdt_need_feat_asm");
+            }
+            Backend::NoOp
+        }
     };
 
     // Since visibility of the `asm!()` macro differs between the nightly feature and the

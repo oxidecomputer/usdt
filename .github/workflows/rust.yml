@@ -33,7 +33,7 @@ jobs:
           profile: minimal
       - run: >
           RUST_BACKTRACE=1
-          cargo +beta test # TODO remove
+          cargo +beta test
           --release
           --verbose
           --workspace
