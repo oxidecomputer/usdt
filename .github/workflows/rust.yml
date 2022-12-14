@@ -18,8 +18,8 @@ jobs:
           components: rustfmt
       - run: cargo fmt -- --check
 
-  no-op-tests:
-    name: Check unsupported platforms
+  stable-test-no-op:
+    name: Test with probes disabled
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
