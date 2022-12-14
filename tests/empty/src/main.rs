@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #![cfg_attr(not(usdt_stable_asm), feature(asm))]
-#![cfg_attr(all(feature = "asm", target_os = "macos"), feature(asm_sym))]
+#![cfg_attr(not(usdt_stable_asm_sym), feature(asm_sym))]
 #![deny(warnings)]
 
 use usdt::register_probes;

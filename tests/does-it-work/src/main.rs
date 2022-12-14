@@ -17,7 +17,7 @@
 // limitations under the License.
 
 #![cfg_attr(not(usdt_stable_asm), feature(asm))]
-#![cfg_attr(target_os = "macos", feature(asm_sym))]
+#![cfg_attr(not(usdt_stable_asm_sym), feature(asm_sym))]
 
 use usdt::register_probes;
 
@@ -27,7 +27,7 @@ fn main() {
     doesit::work!(|| (0, "something"));
 }
 
-// Disuade the compiler from inlining this, which would ruin the test for `probefunc`.
+// Dissuade the compiler from inlining this, which would ruin the test for `probefunc`.
 #[inline(never)]
 #[allow(dead_code)]
 fn run_test(rx: std::sync::mpsc::Receiver<()>) {

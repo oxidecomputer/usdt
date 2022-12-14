@@ -1,10 +1,10 @@
 error: USDT probe macros should be invoked with a closure returning the arguments
-  --> src/no-closure.rs:18:1
+  --> $DIR/no-closure.rs:15:1
    |
-18 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/type-mismatch.d");
+15 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/type-mismatch.d");
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
-22 |     mismatch::bad!(arg);
+19 |     mismatch::bad!(arg);
    |     ------------------- in this macro invocation
    |
    = note: this error originates in the macro `mismatch::bad` (in Nightly builds, run with -Z macro-backtrace for more info)

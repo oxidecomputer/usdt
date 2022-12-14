@@ -32,8 +32,8 @@ fn main() {
 
     // `asm` feature was stabilized in 1.59
     let have_stable_asm = version_check::is_min_version("1.59").unwrap_or(false);
-    // XXX: `asm_sym` feature is not yet stable
-    let have_stable_asm_sym = false;
+    // `asm_sym` feature was stabilized in 1.66
+    let have_stable_asm_sym = version_check::is_min_version("1.66").unwrap_or(false);
 
     // Are we being built with a compiler which allows feature flags (nightly)
     let is_nightly = version_check::is_feature_flaggable().unwrap_or(false);

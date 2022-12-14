@@ -14,12 +14,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![feature(asm)]
-#![cfg_attr(target_os = "macos", feature(asm_sym))]
-
 #[derive(serde::Serialize)]
 struct Expected {
-    x: u8
+    x: u8,
 }
 
 #[usdt::provider]

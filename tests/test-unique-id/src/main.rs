@@ -15,7 +15,7 @@
 // limitations under the License.
 
 #![cfg_attr(not(usdt_stable_asm), feature(asm))]
-#![cfg_attr(target_os = "macos", feature(asm_sym))]
+#![cfg_attr(not(usdt_stable_asm_sym), feature(asm_sym))]
 
 #[usdt::provider]
 mod with_ids {

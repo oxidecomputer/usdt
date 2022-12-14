@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![feature(asm)]
-#![cfg_attr(target_os = "macos", feature(asm_sym))]
-
 usdt::dtrace_provider!("../../../tests/compile-errors/providers/unsupported-type.d");
 
 fn main() {
