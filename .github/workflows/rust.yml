@@ -18,30 +18,6 @@ jobs:
           components: rustfmt
       - run: cargo fmt -- --check
 
-  stable-test-no-op:
-    name: Test with probes disabled
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          profile: minimal
-      - run: >
-          RUST_BACKTRACE=1
-          cargo test
-          --release
-          --verbose
-          --no-default-features
-          --workspace
-          --exclude does-it-work
-          --exclude test-json
-          --exclude test-unique-id
-
   stable-test:
     name: Run all tests
     runs-on: ${{ matrix.os }}
@@ -65,8 +41,32 @@ jobs:
           --exclude test-json
           --exclude test-unique-id
 
+  stable-test-no-op:
+    name: Test with probes disabled
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "macos-latest" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo test
+          --release
+          --verbose
+          --no-default-features
+          --workspace
+          --exclude does-it-work
+          --exclude test-json
+          --exclude test-unique-id
+
   recent-nightly:
-    name: Run tests on an older nightly
+    name: Run tests on an recent nightly
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

@@ -16,10 +16,11 @@ rustc --version
 
 export RUST_BACKTRACE=1
 
+# TODO
+
 banner test
 ptime -m cargo test \
         --release \
         --no-fail-fast \
         --verbose \
-        --workspace \
-        --exclude compile-errors
+        --workspace
