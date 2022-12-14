@@ -299,8 +299,8 @@ thread_local! {
 /// -------
 /// ```ignore
 /// TODO
-/// #![cfg_attr(not(usdt_stable_asm), feature(asm))]
-/// #![cfg_attr(need_asm_sym, feature(asm_sym))]
+/// #![cfg_attr(usdt_need_feat_asm, feature(asm))]
+/// #![cfg_attr(not(usdt_stable_asm_sym), feature(asm_sym))]
 /// #[usdt::provider]
 /// mod with_id {
 ///     fn work_started(_: &usdt::UniqueId) {}
@@ -337,8 +337,8 @@ thread_local! {
 /// which materializes the internal value. For example, this will fail to compile:
 ///
 /// ```compile_fail
-/// #![cfg_attr(not(usdt_stable_asm), feature(asm))]
-/// #![cfg_attr(need_asm_sym, feature(asm_sym))]
+/// #![cfg_attr(usdt_need_feat_asm, feature(asm))]
+/// #![cfg_attr(not(usdt_stable_asm_sym), feature(asm_sym))]
 /// #[usdt::provider]
 /// mod with_id {
 ///     fn work_started(_: &usdt::UniqueId) {}

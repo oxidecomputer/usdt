@@ -14,8 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(not(usdt_stable_asm), feature(asm))]
-#![cfg_attr(need_asm_sym, feature(asm_sym))]
+#![cfg_attr(usdt_need_feat_asm, feature(asm))]
+#![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
 
 use serde::{Serialize, Serializer};
 

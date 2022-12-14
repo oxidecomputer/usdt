@@ -42,8 +42,8 @@
 //! with:
 //!
 //! ```ignore
-//! #![cfg_attr(not(usdt_stable_asm), feature(asm))]
-//! #![cfg_attr(need_asm_sym, feature(asm_sym))]
+//! #![cfg_attr(usdt_need_feat_asm, feature(asm))]
+//! #![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
 //! usdt::dtrace_provider!("test.d");
 //! ```
 //!
@@ -263,7 +263,7 @@
 //! -------------
 //!
 //! The USDT crate relies on inline assembly to hook into DTrace. Unfortunatley this feature is
-//! unstable, and requires explicitly opting in with `#![cfg_attr(not(usdt_stable_asm), feature(asm))]` as well as running with a
+//! unstable, and requires explicitly opting in with `#![cfg_attr(usdt_need_feat_asm, feature(asm))]` as well as running with a
 //! nightly Rust compiler. A nightly toolchain may be installed with:
 //!
 //! ```bash
@@ -321,7 +321,7 @@
 //! nightly compiler in exchange for probes, but still allows the code to be compiled with a stable
 //! toolchain.
 //!
-//! Note that the `#![cfg_attr(not(usdt_stable_asm), feature(asm))]` directive is required anywhere the generated macros are
+//! Note that the `#![cfg_attr(usdt_need_feat_asm, feature(asm))]` directive is required anywhere the generated macros are
 //! _called_, rather than where they're defined. (Because they're macros-by-example, and expand to
 //! an actual `asm!` macro call.) So library writers should probably gate the feature directive on
 //! their own re-exported feature, e.g., `#![cfg_attr(feature = "probes", feature(asm))]`, and
@@ -333,7 +333,7 @@
 //! expecting to use the no-op implementation and another is built _using_ the real, `asm`-based
 //! implementation, the latter will be chosen. This can be confusing or downright dangerous. First,
 //! the former crate will fail at compile time, because the `asm!` macro will actually be emitted,
-//! but the `#![cfg_attr(not(usdt_stable_asm), feature(asm))]` flag will not be included. More troubling, the probes will actually
+//! but the `#![cfg_attr(usdt_need_feat_asm, feature(asm))]` flag will not be included. More troubling, the probes will actually
 //! exist in the resulting object file, even if the user specifically opted to not use them.
 //!
 //! To handle this, library writers should place _all_ references to `usdt`-related code behind a
