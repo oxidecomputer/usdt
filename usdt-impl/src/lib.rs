@@ -276,7 +276,7 @@ thread_local! {
 /// system calls by storing a timestamp on the `syscall:::entry` probe and then computing the
 /// elapsed time in the `syscall:::return` probe. This requires some way to "match up" these two
 /// probes, to ensure that the elapsed time is correctly attributed to a single system call. Doing
-/// so requires an identifier. User code may already have an ID appopriate for this use case, but
+/// so requires an identifier. User code may already have an ID appropriate for this use case, but
 /// the `UniqueId` type may be used when one is not already available. These unique IDs can be used
 /// to correlate multiple probes occurring in a section or span of user code.
 ///
@@ -298,8 +298,6 @@ thread_local! {
 /// Example
 /// -------
 /// ```ignore
-/// #![feature(asm)]
-/// #![cfg_attr(target_os = "macos", feature(asm_sym))]
 /// #[usdt::provider]
 /// mod with_id {
 ///     fn work_started(_: &usdt::UniqueId) {}
@@ -336,8 +334,6 @@ thread_local! {
 /// which materializes the internal value. For example, this will fail to compile:
 ///
 /// ```compile_fail
-/// #![feature(asm)]
-/// #![cfg_attr(target_os = "macos", feature(asm_sym))]
 /// #[usdt::provider]
 /// mod with_id {
 ///     fn work_started(_: &usdt::UniqueId) {}

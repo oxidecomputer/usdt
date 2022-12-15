@@ -20,9 +20,8 @@ than the first two. See [below](#serializable-types) for more details, but brief
 form supports probe arguments of any type that implement [`serde::Seralize`][2]. These different
 versions are shown in the crates `probe-test-{build,macro,attr}` respectively.
 
-> Note: This crate uses inline assembly to work its magic.  That feature has been stable as of Rust
-1.59.  Any project using `usdt` prior to that must build with a nightly toolchain and enable the
-`asm` feature.  See the [notes](#notes) for a discussion.
+> Note: This crate uses inline assembly to work its magic. See the [notes](#notes) for a discussion
+of its use prior to Rust 1.59 and prior to 1.66 on macOS.
 
 ## Example
 
@@ -64,8 +63,6 @@ Using the probes in Rust code looks like the following, which is in `probe-test-
 
 ```rust
 //! An example using the `usdt` crate, generating the probes via a build script.
-#![feature(asm)]
-#![cfg_attr(target_os = "macos", feature(asm_sym))]
 
 use std::thread::sleep;
 use std::time::Duration;
@@ -98,11 +95,8 @@ fn main() {
 }
 ```
 
-Note that the `#![feature(asm)]` attribute is required. As of Rust 1.58.0-nightly (2021-10-29),
-the `asm_sym` feature is required on macOS, so it may be placed in a call to `cfg_attr`, or
-included in any case. If you're developing a library, this is an unfortunate Rubicon -- you
-must choose to support compilers before that version or after, but there is no method by which
-compilers before _and_ after may be supported.
+> Note: Prior to 1.59 (and prior to 1.66 on macOS) nightly features are required. See the
+[notes](#notes) for a discussion.
 
 One can also see that the Rust code is included directly using the `include!` macro. The probe
 definitions are converted into Rust macros, in a module named by the provider, and with macro
@@ -118,7 +112,7 @@ We can see that this is hooked up with DTrace by running the example and listing
 probes by name.
 
 ```bash
-$ cargo +nightly run --features asm
+$ cargo run
 ```
 
 And in another terminal, list the matching probes with:
@@ -233,7 +227,7 @@ guarantee that probes are registered.
 
 ## Notes
 
-The `usdt` crate requires [inline asm][inline-asm], a feature only stabilized as of Rust 1.59.
+The `usdt` crate requires [inline asm][inline-asm], a feature stabilized in Rust 1.59.
 Prior to that version, a nightly toolchain was required to import the feature.  For legacy
 convenience reasons, the crate contains also an empty, no-op implementation, which generates all the
 same probe macros, but with empty bodies (thus not requiring inline asm).  This may be selected by
@@ -263,23 +257,25 @@ nightly with the `asm` feature enabled on their project.
 On toolchains prior to 1.59, inline asm was [not available][asm-issue] without the feature being
 enabled.  This applies to code _calling_ the probe macros, in addition to `usdt` where they are
 implemented.  Those generated probe macros must be in a module that is either built with a >=1.59
-toolchain or where the `feature(asm)` configuration is present.  On MacOS where the linker is
-involved in USDT probe creation, the `asm_sym` feature is required, making use of a nightly
-compiler required there.
+toolchain or where the `feature(asm)` configuration is present.
+
 
 #### Toolchain versions and the `asm_sym` feature
 
-In addition, the `asm` feature was [recently][asm-feature-flags] broken out into several more
-fine-grained features. Though it's great that inline assembly is being stabilized, a downside
-of this that an additional feature flag is required on macOS platforms, `asm_sym`. This can be
-included just on that platform, e.g., with `#![cfg_attr(target_os = "macos", feature(asm_sym))]`,
-or unconditionally on all platforms.
+On macOS (where the linker is involved in USDT probe creation) on toolchains prior to 1.66, the
+`asm_sym` feature is required (in addition to `asm` in nightly toolchains prior to November 2021;
+see [this issue][asm-feature-flags]). For such a toolchain, this feature can be included just on
+macOS e.g., with `#![cfg_attr(target_os = "macos", feature(asm_sym))]`, or unconditionally on all
+platforms.
 
-The addition of this new feature presents an unfortunate problem. It is no longer possible to
+The addition of the `asm_sym` feature presents an unfortunate problem. It is no longer possible to
 compile the `usdt` crate (or any crate defining probes) with a toolchain from before that feature
 was added _and_ after its addition. In the former case, we'd get errors about an unknown feature
 should we include the `asm_sym` feature, and we'd get errors about functionality behind a feature
 gate from later compilers should we omit the feature.
+
+Fortunately with the stabilization of `asm_sym` in 1.66, using this crate should become much
+simpler.
 
 ## References
 

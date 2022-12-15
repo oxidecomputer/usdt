@@ -15,8 +15,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(not(usdt_stable_asm), feature(asm))]
-#![cfg_attr(target_os = "macos", feature(asm_sym))]
+#![cfg_attr(usdt_need_feat_asm, feature(asm))]
+#![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
 
 use serde::Serialize;
 
@@ -38,7 +38,7 @@ pub struct Arg {
 
 /// Note that not all types are JSON serializable. The most common case is internally-tagged
 /// enums with a newtype variant, such as this type. Note that this will not break your program,
-/// but an error message will be transmitted to DTrace rather than a succesfully-converted value.
+/// but an error message will be transmitted to DTrace rather than a successfully-converted value.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
 pub enum Whoops {

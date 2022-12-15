@@ -18,15 +18,15 @@ error: Error building provider definition in "../../../tests/compile-errors/prov
          - int32_t
          - int64_t
          - &str
-  --> src/unsupported-type.rs:18:1
+  --> src/unsupported-type.rs:15:1
    |
-18 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/unsupported-type.d");
+15 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/unsupported-type.d");
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: this error originates in the macro `usdt::dtrace_provider` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0433]: failed to resolve: use of undeclared crate or module `unsupported`
-  --> src/unsupported-type.rs:22:5
+  --> src/unsupported-type.rs:19:5
    |
-22 |     unsupported::bad!(|| (bad));
+19 |     unsupported::bad!(|| (bad));
    |     ^^^^^^^^^^^ use of undeclared crate or module `unsupported`
