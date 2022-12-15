@@ -8,6 +8,6 @@ license = "Apache-2.0"
 
 [dependencies]
 dof = { path = "../dof", features = [ "des" ] }
-goblin = { version = "0.4", features = [ "elf32", "elf64" ] }
+goblin = { version = "0.6", features = [ "elf32", "elf64" ] }
 structopt = "0.3.21"
 usdt-impl = { path = "../usdt-impl", features = ["des"] }
