@@ -90,7 +90,28 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
+        os: [ "macos-latest" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-12-05
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo +nightly-2022-12-05 test
+          --release
+          --verbose
+          --workspace
+          --exclude compile-errors
+
+  recent-nightly-no-support:
+    name: Run tests on a recent nightly
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "ubuntu-latest" ]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -114,7 +135,28 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
+        os: [ "macos-latest" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2021-11-24
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo +nightly-2021-11-24 test
+          --release
+          --verbose
+          --workspace
+          --exclude compile-errors
+
+  old-nightly-no-support:
+    name: Run tests on an older nightly
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "ubuntu-latest" ]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
