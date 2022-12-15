@@ -3,7 +3,7 @@
 #: name = "illumos / build-and-test"
 #: variety = "basic"
 #: target = "helios"
-#: rust_toolchain = "stable"
+#: rust_toolchain = "1.66"
 #: output_rules = []
 #:
 
@@ -15,8 +15,6 @@ cargo --version
 rustc --version
 
 export RUST_BACKTRACE=1
-
-# TODO
 
 banner test
 ptime -m cargo test \
