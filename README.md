@@ -20,9 +20,8 @@ than the first two. See [below](#serializable-types) for more details, but brief
 form supports probe arguments of any type that implement [`serde::Seralize`][2]. These different
 versions are shown in the crates `probe-test-{build,macro,attr}` respectively.
 
-> Note: This crate uses inline assembly to work its magic. See the
-[notes](#notes) for a discussion of its use prior to 1.59 and prior to 1.66 on
-macOS.
+> Note: This crate uses inline assembly to work its magic. See the [notes](#notes) for a discussion
+of its use prior to Rust 1.59 and prior to 1.66 on macOS.
 
 ## Example
 

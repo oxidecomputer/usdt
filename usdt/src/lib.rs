@@ -279,9 +279,10 @@
 //! The USDT crate relies on inline assembly to hook into DTrace. Prior to Rust 1.59, this is
 //! unstable, and requires explicitly opting in with `#![feature(asm))]`.
 //!
-//! On macOS (only) an addition feature is required prior to Rust 1.66 (but after Rust 1.58.0-nightly).
-//! The macOS implementation relies on native linker support; it uses the `sym` syntax of the `asm!`
-//! macro which was split into its own feature in Rust 1.58.0-nightly (2021-10-29).
+//! On macOS (only) an additional feature (`asm_sym`) is required prior to Rust 1.66 (but after Rust
+//! 1.58.0-nightly). The macOS implementation relies on native linker support; it uses the `sym`
+//! syntax of the `asm!` macro which was split into its own feature in Rust 1.58.0-nightly
+//! (2021-10-29).
 //!
 //! Unfortunately, because of the way the features were added (see [this pull
 //! request][asm-sym-feature-pr]), this version of Rust nightly is a Rubicon: the `usdt` crate, and
@@ -330,13 +331,13 @@
 //! expecting to use the no-op implementation and another is built _using_ the real, `asm`-based
 //! implementation, the latter will be chosen. This can be confusing or downright dangerous. First,
 //! the former crate will fail at compile time, because the `asm!` macro will actually be emitted,
-//! but the `#![cfg_attr(target_os = "macos", feature(asm))]` flag will not be included. More
-//! troubling, the probes will actually exist in the resulting object file, even if the user
-//! specifically opted to not use them.
+//! but the `#![feature(asm)]` flag will not be included. More troubling, the probes will actually
+//! exist in the resulting object file, even if the user specifically opted to not use them.
 //!
-//! To handle this, library writers should place _all_ references to `usdt`-related code behind a
+//! To handle this, library writers may place _all_ references to `usdt`-related code behind a
 //! conditional compilation directive. This will ensure that the crate is not even used, rather
-//! than it being used with an unexpected implementation.
+//! than it being used with an unexpected implementation. This is most relevant for crates whose
+//! minimum supported Rust version is earlier than 1.66.
 //!
 //! [dtrace]: https://illumos.org/books/dtrace/preface.html#preface
 //! [dtrace-usdt]: https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt
