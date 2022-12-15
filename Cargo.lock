@@ -696,7 +696,7 @@ checksum = "c0edd1e5b14653f783770bce4a4dabb4a5108a5370a5f5d8cfe8710c361f6c8b"
 
 [[package]]
 name = "usdt"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "dtrace-parser",
  "serde",
@@ -707,7 +707,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-attr-macro"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "dtrace-parser",
  "proc-macro2",
@@ -720,7 +720,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-impl"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "byteorder",
  "dof",
@@ -738,7 +738,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-macro"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "dtrace-parser",
  "proc-macro2",
