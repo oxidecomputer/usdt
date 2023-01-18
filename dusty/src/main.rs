@@ -70,15 +70,12 @@ fn main() {
 
 // Extract probe records from the given file, if possible.
 pub(crate) fn probe_records<P: AsRef<Path>>(path: P) -> Result<Section, UsdtError> {
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(false)
-        .open(path)?;
+    let file = OpenOptions::new().read(true).create(false).open(path)?;
     let (offset, len) = locate_probe_section(&file).ok_or(UsdtError::InvalidFile)?;
 
-    // Remap only the probe section itself as mutable.
-    let mut map = unsafe { MmapOptions::new().offset(offset).len(len).map_mut(&file)? };
+    // Remap only the probe section itself as mutable, using a private
+    // copy-on-write mapping to avoid writing to disk in any circumstance.
+    let mut map = unsafe { MmapOptions::new().offset(offset).len(len).map_copy(&file)? };
     usdt_impl::record::process_section(&mut map, /* register = */ false)
 }
 
