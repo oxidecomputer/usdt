@@ -15,41 +15,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::DataType;
+use byteorder::{NativeEndian, ReadBytesExt};
+use dof::{Probe, Provider, Section};
+use libc::{c_void, Dl_info};
+use std::mem::size_of;
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::Ordering;
 use std::{
     collections::BTreeMap,
     ffi::CStr,
     ptr::{null, null_mut},
 };
 
-#[cfg(usdt_stable_asm)]
-use std::arch::asm;
-
-use byteorder::{NativeEndian, ReadBytesExt};
-use dof::{Probe, Provider, Section};
-use libc::{c_void, Dl_info};
-
-use crate::DataType;
-
 // Version number for probe records containing data about all probes.
 //
-// NOTE: This must have a maximum of `u8::MAX - 1`. See `read_and_update_record_version` for
+// NOTE: This must have a maximum of `u8::MAX - 1`. See `read_record_version` for
 // details.
 pub(crate) const PROBE_REC_VERSION: u8 = 1;
 
-// Extract records for all defined probes from our custom linker sections.
-pub fn process_section(mut data: &[u8]) -> Result<Section, crate::Error> {
+/// Extract records for all defined probes from our custom linker sections.
+pub fn process_section(mut data: &mut [u8], register: bool) -> Result<Section, crate::Error> {
     let mut providers = BTreeMap::new();
 
     while !data.is_empty() {
         assert!(
-            data.len() >= std::mem::size_of::<u32>(),
+            data.len() >= size_of::<u32>(),
             "Not enough bytes for length header"
         );
         // Read the length without consuming it
-        let mut len_bytes = data;
-        let len = len_bytes.read_u32::<NativeEndian>()? as usize;
-        let (rec, rest) = data.split_at(len);
-        process_probe_record(&mut providers, rec)?;
+        let len = (&data[..size_of::<u32>()]).read_u32::<NativeEndian>()? as usize;
+        let (rec, rest) = data.split_at_mut(len);
+        process_probe_record(&mut providers, rec, register)?;
         data = rest;
     }
 
@@ -97,43 +94,45 @@ fn limit_string_length<S: AsRef<str>>(s: S, limit: usize) -> String {
 }
 
 // Return the probe record version, atomically updating it if the probe record will be handled.
-fn read_and_update_record_version(data: &[u8]) -> Result<u8, crate::Error> {
-    // First check if we'll be handling this record at all. We support any version number less than
-    // or equal to the crate's version.
-    if data[0] <= PROBE_REC_VERSION {
-        // Atomically exchange the record's version with our sentinel value, and return the
-        // record's version.
-        //
-        // NOTE: It's not easy to use types from `std::sync::atomic` here because we need to
-        // atomically exchange the data through a pointer. `AtomicU8::from_mut` might work, but
-        // that would require another feature flag pinning us to a nightly compiler.
-        let mut version = u8::MAX;
-        let record_version_ptr = data.as_ptr();
-        unsafe {
-            asm!(
-                "lock xchg al, [{}]",
-                in(reg) record_version_ptr,
-                inout("al") version,
-            );
-        }
-        Ok(version)
-    } else {
-        // If we're not handling this probe, just return the existing version number without
-        // modifying it. By "not handling", we mean that the version number is greater than the
-        // version supported by this crate or the sentinel value, both of which imply this probe is
-        // ignored.
-        Ok(data[0])
+fn read_record_version(version: &mut u8, register: bool) -> u8 {
+    // First check if (1) we need to do anything other than read the version and
+    // (2) if this is a version number this compiled crate could feasibly
+    // handle.
+    let ver = *version;
+    if !register || ver > PROBE_REC_VERSION {
+        return ver;
     }
+
+    // At this point we know we need to potentially update the version, and that
+    // we also have code that can handle it. We'll exchange it with the sentinel
+    // unconditionally.
+    //
+    // If we get back the sentinel, another thread beat us to the punch. If we
+    // get back anything else, it is a version we are capable of handling.
+    //
+    // TODO-safety: We'd love to use `AtomicU8::from_mut`, but that remains a
+    // nightly-only feature. In the meantime, this is safe because we have a
+    // mutable reference to the data in this method, and atomic types are
+    // guaranteed to have the same layout as their inner type.
+    let ver = unsafe { std::mem::transmute::<&mut u8, &AtomicU8>(version) };
+    ver.swap(u8::MAX, Ordering::SeqCst)
 }
 
 // Process a single record from the custom linker section.
 fn process_probe_record(
     providers: &mut BTreeMap<String, Provider>,
-    rec: &[u8],
+    rec: &mut [u8],
+    register: bool,
 ) -> Result<(), crate::Error> {
     // First four bytes are the length, next byte is the version number.
-    let (rec, mut data) = rec.split_at(5);
-    let version = read_and_update_record_version(&rec[4..5])?;
+    let (rec, mut data) = {
+        // We need `rec` to be mutable and have type `&mut [u8]`, and `data` to
+        // be mutable, but have type `&[u8]`. Use `split_at_mut` to get two
+        // `&mut [u8]` and then convert the latter to a shared reference.
+        let (rec, data) = rec.split_at_mut(5);
+        (rec, &data[..])
+    };
+    let version = read_record_version(&mut rec[4], register);
 
     // If this record comes from a future version of the data format, we skip it
     // and hope that the author of main will *also* include a call to a more
@@ -299,7 +298,7 @@ mod test {
             .unwrap();
 
         let mut providers = BTreeMap::new();
-        process_probe_record(&mut providers, rec.as_slice()).unwrap();
+        process_probe_record(&mut providers, &mut rec, true).unwrap();
 
         let probe = providers
             .get("provider")
@@ -332,7 +331,7 @@ mod test {
             .unwrap();
 
         let mut providers = BTreeMap::new();
-        process_probe_record(&mut providers, rec.as_slice()).unwrap();
+        process_probe_record(&mut providers, &mut rec, true).unwrap();
 
         let expected_provider_name = &long_name[..MAX_PROVIDER_NAME_LEN - 1];
         let expected_probe_name = &long_name[..MAX_PROBE_NAME_LEN - 1];
@@ -385,8 +384,8 @@ mod test {
 
     #[test]
     fn test_process_section() {
-        let data = make_record(PROBE_REC_VERSION);
-        let section = process_section(&data).unwrap();
+        let mut data = make_record(PROBE_REC_VERSION);
+        let section = process_section(&mut data, true).unwrap();
         let probe = section
             .providers
             .get("provider")
@@ -404,11 +403,11 @@ mod test {
     fn test_re_process_section() {
         // Ensure that re-processing the same section returns zero probes, as they should have all
         // been previously processed.
-        let data = make_record(PROBE_REC_VERSION);
-        let section = process_section(&data).unwrap();
+        let mut data = make_record(PROBE_REC_VERSION);
+        let section = process_section(&mut data, true).unwrap();
         assert_eq!(section.providers.len(), 1);
         assert_eq!(data[4], u8::MAX);
-        let section = process_section(&data).unwrap();
+        let section = process_section(&mut data, true).unwrap();
         assert_eq!(data[4], u8::MAX);
         assert_eq!(section.providers.len(), 0);
     }
@@ -417,8 +416,8 @@ mod test {
     fn test_process_section_future_version() {
         // Ensure that we _don't_ modify a future version number in a probe record, but that the
         // probes are still skipped (since by definition we're ignoring future versions).
-        let data = make_record(PROBE_REC_VERSION + 1);
-        let section = process_section(&data).unwrap();
+        let mut data = make_record(PROBE_REC_VERSION + 1);
+        let section = process_section(&mut data, true).unwrap();
         assert_eq!(section.providers.len(), 0);
         assert_eq!(data[4], PROBE_REC_VERSION + 1);
     }

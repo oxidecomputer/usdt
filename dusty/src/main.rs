@@ -14,11 +14,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-
 use dof::Section;
 use goblin::Object;
+use memmap::Mmap;
+use memmap::MmapOptions;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::path::Path;
+use std::path::PathBuf;
 use structopt::StructOpt;
 use usdt_impl::Error as UsdtError;
 
@@ -66,15 +69,20 @@ fn main() {
 }
 
 // Extract probe records from the given file, if possible.
-pub(crate) fn probe_records<P: AsRef<Path>>(file: P) -> Result<Section, UsdtError> {
-    let data = fs::read(file)?;
-    let section = locate_probe_section(&data).ok_or(UsdtError::InvalidFile)?;
+pub(crate) fn probe_records<P: AsRef<Path>>(path: P) -> Result<Section, UsdtError> {
+    let file = OpenOptions::new().read(true).create(false).open(path)?;
+    let (offset, len) = locate_probe_section(&file).ok_or(UsdtError::InvalidFile)?;
 
-    usdt_impl::record::process_section(section)
+    // Remap only the probe section itself as mutable, using a private
+    // copy-on-write mapping to avoid writing to disk in any circumstance.
+    let mut map = unsafe { MmapOptions::new().offset(offset).len(len).map_copy(&file)? };
+    usdt_impl::record::process_section(&mut map, /* register = */ false)
 }
 
-fn locate_probe_section(data: &[u8]) -> Option<&[u8]> {
-    match Object::parse(data).ok()? {
+// Return the offset and size of the file's probe record section, if it exists.
+fn locate_probe_section(file: &File) -> Option<(u64, usize)> {
+    let map = unsafe { Mmap::map(file) }.ok()?;
+    match Object::parse(&map).ok()? {
         Object::Elf(object) => {
             // Try to find our special `set_dtrace_probes` section from the section headers. These
             // may not exist, e.g., if the file has been stripped. In that case, we look for the
@@ -90,9 +98,7 @@ fn locate_probe_section(data: &[u8]) -> Option<&[u8]> {
                     None
                 }
             }) {
-                let start = section.sh_offset as usize;
-                let end = start + (section.sh_size as usize);
-                Some(&data[start..end])
+                Some((section.sh_offset, section.sh_size as usize))
             } else {
                 // Failed to look up the section directly, iterate over the symbols.
                 let mut bounds = object.syms.iter().filter(|symbol| {
@@ -103,8 +109,7 @@ fn locate_probe_section(data: &[u8]) -> Option<&[u8]> {
                 });
 
                 if let (Some(start), Some(stop)) = (bounds.next(), bounds.next()) {
-                    let (start, stop) = (start.st_value as usize, stop.st_value as usize);
-                    Some(&data[start..stop])
+                    Some((start.st_value, (stop.st_value - start.st_value) as usize))
                 } else {
                     None
                 }
@@ -112,18 +117,18 @@ fn locate_probe_section(data: &[u8]) -> Option<&[u8]> {
         }
         Object::Mach(goblin::mach::Mach::Binary(object)) => {
             // Try to find our special `__dtrace_probes` section from the section headers.
-            for (section, sdata) in object.segments.sections().flatten().flatten() {
+            for (section, _) in object.segments.sections().flatten().flatten() {
                 if section.sectname.starts_with(b"__dtrace_probes") {
-                    return Some(sdata);
+                    return Some((section.offset as u64, section.size as usize));
                 }
             }
 
-            // Failed to look up the section directly, iterate over the symbols
+            // Failed to look up the section directly, iterate over the symbols.
             if let Some(syms) = object.symbols {
                 let mut bounds = syms.iter().filter_map(|symbol| {
                     if let Ok((name, nlist)) = symbol {
                         if name.contains("__dtrace_probes") {
-                            Some(nlist.n_value as usize)
+                            Some(nlist.n_value)
                         } else {
                             None
                         }
@@ -132,7 +137,7 @@ fn locate_probe_section(data: &[u8]) -> Option<&[u8]> {
                     }
                 });
                 if let (Some(start), Some(stop)) = (bounds.next(), bounds.next()) {
-                    Some(&data[start..stop])
+                    Some((start, (stop - start) as usize))
                 } else {
                     None
                 }
