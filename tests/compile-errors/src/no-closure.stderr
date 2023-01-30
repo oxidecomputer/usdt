@@ -1,10 +1,13 @@
-error: USDT probe macros should be invoked with a closure returning the arguments
-  --> $DIR/no-closure.rs:15:1
+error: proc macro panicked
+  --> src/no-closure.rs:15:1
    |
 15 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/type-mismatch.d");
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-...
-19 |     mismatch::bad!(arg);
-   |     ------------------- in this macro invocation
    |
-   = note: this error originates in the macro `mismatch::bad` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = help: message: Could not read D source file "../../../tests/compile-errors/providers/type-mismatch.d" in "$WORKSPACE/target/tests/trybuild/compile-errors": Os { code: 2, kind: NotFound, message: "No such file or directory" }
+
+error[E0433]: failed to resolve: use of undeclared crate or module `mismatch`
+  --> src/no-closure.rs:19:5
+   |
+19 |     mismatch::bad!(arg);
+   |     ^^^^^^^^ use of undeclared crate or module `mismatch`
