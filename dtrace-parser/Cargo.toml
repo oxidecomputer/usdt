@@ -10,7 +10,7 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
 pest = "2.5.4"
-pest_derive = "2.5.3"
+pest_derive = "2.5.4"
 thiserror = "1.0.38"
 
 [dev-dependencies]
