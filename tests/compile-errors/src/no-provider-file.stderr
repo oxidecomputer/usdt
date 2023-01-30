@@ -1,7 +1,7 @@
 error: proc macro panicked
-  --> $DIR/no-provider-file.rs:15:1
+  --> src/no-provider-file.rs:15:1
    |
 15 | usdt::dtrace_provider!("non-existent.d");
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: message: Could not read D source file "non-existent.d" in "$WORKSPACE/target/tests/compile-errors": Os { code: 2, kind: NotFound, message: "No such file or directory" }
+   = help: message: Could not read D source file "non-existent.d" in "$WORKSPACE/target/tests/trybuild/compile-errors": Os { code: 2, kind: NotFound, message: "No such file or directory" }
