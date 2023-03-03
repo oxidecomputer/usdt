@@ -9,9 +9,9 @@ description = "Parse DTrace provider definitions into Rust"
 repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
-pest = "2.1.3"
-pest_derive = "2.1.0"
-thiserror = "1.0.24"
+pest = "2.5.5"
+pest_derive = "2.5.5"
+thiserror = "1.0.38"
 
 [dev-dependencies]
-rstest = "0.11.0"
+rstest = "0.16.0"

@@ -14,40 +14,21 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.66
           components: rustfmt
       - run: cargo fmt -- --check
 
   stable-test:
-    name: Verify stable toolchain
+    name: Run all tests
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
+        os: [ "macos-latest" ]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
-          override: true
-          profile: minimal
-      - run: >
-          RUST_BACKTRACE=1
-          cargo test
-          --release
-          --verbose
-          --package
-          empty
-          --no-default-features
-
-  build-and-test:
-    name: Run all tests
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2021-11-24
+          toolchain: 1.66
           override: true
           profile: minimal
       - run: >
@@ -56,3 +37,140 @@ jobs:
           --release
           --verbose
           --workspace
+
+  stable-test-no-support:
+    name: Test on DTrace-less systems
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "ubuntu-latest" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.66
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo test
+          --release
+          --verbose
+          --workspace
+          --exclude does-it-work
+          --exclude test-json
+          --exclude test-unique-id
+
+  stable-test-no-op:
+    name: Test with probes disabled
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "macos-latest" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.66
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo test
+          --release
+          --verbose
+          --no-default-features
+          --workspace
+          --exclude does-it-work
+          --exclude test-json
+          --exclude test-unique-id
+
+  recent-nightly:
+    name: Run tests on a recent nightly
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "macos-latest" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-12-05
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo +nightly-2022-12-05 test
+          --release
+          --verbose
+          --workspace
+          --exclude compile-errors
+
+  recent-nightly-no-support:
+    name: Run tests on a recent nightly
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "ubuntu-latest" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-12-05
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo +nightly-2022-12-05 test
+          --release
+          --verbose
+          --workspace
+          --exclude compile-errors
+          --exclude does-it-work
+          --exclude test-json
+          --exclude test-unique-id
+
+  old-nightly:
+    name: Run tests on an older nightly
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "macos-latest" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-04-22
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo +nightly-2022-04-22 test
+          --release
+          --verbose
+          --workspace
+          --exclude compile-errors
+
+  old-nightly-no-support:
+    name: Run tests on an older nightly
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "ubuntu-latest" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-04-22
+          override: true
+          profile: minimal
+      - run: >
+          RUST_BACKTRACE=1
+          cargo +nightly-2022-04-22 test
+          --release
+          --verbose
+          --workspace
+          --exclude compile-errors
+          --exclude does-it-work
+          --exclude test-json
+          --exclude test-unique-id

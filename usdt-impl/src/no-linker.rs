@@ -139,9 +139,9 @@ fn extract_probe_records_from_section() -> Result<Section, crate::Error> {
     let data = unsafe {
         let start = (&dtrace_probes_start as *const usize) as usize;
         let stop = (&dtrace_probes_stop as *const usize) as usize;
-        std::slice::from_raw_parts(start as *const u8, stop - start)
+        std::slice::from_raw_parts_mut(start as *mut u8, stop - start)
     };
-    process_section(data)
+    process_section(data, /* register = */ true)
 }
 
 pub fn register_probes() -> Result<(), crate::Error> {

@@ -1,6 +1,6 @@
 //! Test that a zero-argument probe is correctly type-checked
 
-// Copyright 2021 Oxide Computer Company
+// Copyright 2022 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,9 +13,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-#![feature(asm)]
-#![cfg_attr(target_os = "macos", feature(asm_sym))]
 
 #[usdt::provider]
 mod my_provider {

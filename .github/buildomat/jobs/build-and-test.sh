@@ -3,7 +3,7 @@
 #: name = "illumos / build-and-test"
 #: variety = "basic"
 #: target = "helios"
-#: rust_toolchain = "stable"
+#: rust_toolchain = "1.66"
 #: output_rules = []
 #:
 
@@ -21,5 +21,4 @@ ptime -m cargo test \
         --release \
         --no-fail-fast \
         --verbose \
-        --workspace \
-        --exclude compile-errors
+        --workspace
