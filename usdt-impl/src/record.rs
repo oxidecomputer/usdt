@@ -109,7 +109,9 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
         let symbols = backtrace_symbols_fmt(addrs, 1, format.as_ptr());
 
         if symbols != null_mut() {
-            if let Some((sname, fname)) = CStr::from_ptr(*symbols).to_string_lossy().split_once('\n') {
+            if let Some((sname, fname)) =
+                CStr::from_ptr(*symbols).to_string_lossy().split_once('\n')
+            {
                 (Some(sname.to_string()), Some(fname.to_string()))
             } else {
                 (None, None)
