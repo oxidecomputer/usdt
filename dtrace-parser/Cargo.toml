@@ -14,4 +14,4 @@ pest_derive = "2.5.6"
 thiserror = "1.0.40"
 
 [dev-dependencies]
-rstest = "0.16.0"
+rstest = "0.17.0"
