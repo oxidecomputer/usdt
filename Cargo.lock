@@ -877,7 +877,7 @@ dependencies = [
  "quote",
  "rstest",
  "serde_tokenstream",
- "syn 1.0.109",
+ "syn 2.0.3",
  "usdt-impl",
 ]
 
@@ -893,7 +893,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "syn 1.0.109",
+ "syn 2.0.3",
  "thiserror",
  "thread-id",
  "version_check",
@@ -907,7 +907,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde_tokenstream",
- "syn 1.0.109",
+ "syn 2.0.3",
  "usdt-impl",
 ]
 
