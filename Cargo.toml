@@ -17,6 +17,7 @@ members = [
     "tests/rename-builder",
 	"tests/test-json",
 	"tests/test-unique-id",
+	"tests/usize",
 	"tests/zero-arg-probe",
 	"usdt",
 	"usdt-attr-macro",
