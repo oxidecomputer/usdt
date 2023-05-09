@@ -917,6 +917,16 @@ name = "usdt-tests-common"
 version = "0.0.0"
 
 [[package]]
+name = "usize"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "usdt",
+ "version_check",
+]
+
+[[package]]
 name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
