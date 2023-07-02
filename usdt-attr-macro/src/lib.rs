@@ -298,7 +298,17 @@ fn is_simple_type(ident: &syn::Ident) -> bool {
     let ident = format!("{}", ident);
     matches!(
         ident.as_str(),
-        "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "String" | "str"
+        "u8" | "u16"
+            | "u32"
+            | "u64"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "String"
+            | "str"
+            | "usize"
+            | "isize"
     )
 }
 
@@ -357,6 +367,16 @@ fn data_type_from_path(path: &syn::Path, pointer: bool) -> DataType {
         }))
     } else if path.is_ident("String") || path.is_ident("str") {
         DataType::Native(DType::String)
+    } else if path.is_ident("isize") {
+        DataType::Native(variant(Integer {
+            sign: Sign::Signed,
+            width: BitWidth::Pointer,
+        }))
+    } else if path.is_ident("usize") {
+        DataType::Native(variant(Integer {
+            sign: Sign::Unsigned,
+            width: BitWidth::Pointer,
+        }))
     } else {
         unreachable!("Tried to parse a non-path data type");
     }

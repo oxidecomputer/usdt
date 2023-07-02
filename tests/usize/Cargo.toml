@@ -1,0 +1,15 @@
+[package]
+name = "usize"
+version = "0.1.0"
+authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
+           "Adam H. Leventhal <ahl@oxidecomputer.com>"]
+edition = "2018"
+
+[dependencies]
+usdt = { path = "../../usdt", features = ["asm"] }
+serde = "*"
+serde_json = "*"
+
+[build-dependencies]
+usdt = { path = "../../usdt", features = ["asm"] }
+version_check = "0.9.4"

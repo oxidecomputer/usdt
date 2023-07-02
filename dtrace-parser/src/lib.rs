@@ -14,14 +14,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashSet;
-use std::convert::TryFrom;
-use std::fmt;
-use std::fs;
-use std::path::Path;
-
 use pest::iterators::{Pair, Pairs};
 use pest_derive::Parser;
+use std::collections::HashSet;
+use std::convert::TryFrom;
+use std::fs;
+use std::path::Path;
 use thiserror::Error;
 
 type PestError = pest::error::Error<Rule>;
@@ -68,18 +66,8 @@ pub enum BitWidth {
     Bit16,
     Bit32,
     Bit64,
-}
-
-impl fmt::Display for BitWidth {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let w = match self {
-            BitWidth::Bit8 => "8",
-            BitWidth::Bit16 => "16",
-            BitWidth::Bit32 => "32",
-            BitWidth::Bit64 => "64",
-        };
-        write!(f, "{}", w)
-    }
+    /// The width of the native pointer type.
+    Pointer,
 }
 
 /// The signed-ness of an integer data type
@@ -99,12 +87,27 @@ pub struct Integer {
 const RUST_TYPE_PREFIX: &str = "::std::os::raw::c_";
 
 impl Integer {
+    fn width_to_c_str(&self) -> &'static str {
+        match self.width {
+            BitWidth::Bit8 => "8",
+            BitWidth::Bit16 => "16",
+            BitWidth::Bit32 => "32",
+            BitWidth::Bit64 => "64",
+            #[cfg(target_pointer_width = "32")]
+            BitWidth::Pointer => "32",
+            #[cfg(target_pointer_width = "64")]
+            BitWidth::Pointer => "64",
+            #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
+            BitWidth::Pointer => compile_error!("Unsupported pointer width"),
+        }
+    }
+
     pub fn to_c_type(&self) -> String {
         let prefix = match self.sign {
             Sign::Unsigned => "u",
             _ => "",
         };
-        format!("{prefix}int{}_t", self.width)
+        format!("{prefix}int{}_t", self.width_to_c_str())
     }
 
     pub fn to_rust_ffi_type(&self) -> String {
@@ -113,12 +116,30 @@ impl Integer {
             (Sign::Unsigned, BitWidth::Bit16) => "ushort",
             (Sign::Unsigned, BitWidth::Bit32) => "uint",
             (Sign::Unsigned, BitWidth::Bit64) => "ulonglong",
+            #[cfg(target_pointer_width = "32")]
+            (Sign::Unsigned, BitWidth::Pointer) => "uint",
+            #[cfg(target_pointer_width = "64")]
+            (Sign::Unsigned, BitWidth::Pointer) => "ulonglong",
             (Sign::Signed, BitWidth::Bit8) => "schar",
             (Sign::Signed, BitWidth::Bit16) => "short",
             (Sign::Signed, BitWidth::Bit32) => "int",
             (Sign::Signed, BitWidth::Bit64) => "longlong",
+            #[cfg(target_pointer_width = "32")]
+            (Sign::Signed, BitWidth::Pointer) => "int",
+            #[cfg(target_pointer_width = "64")]
+            (Sign::Signed, BitWidth::Pointer) => "longlong",
+
+            #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
+            (_, BitWidth::Pointer) => compile_error!("Unsupported pointer width"),
         };
         format!("{RUST_TYPE_PREFIX}{ty}")
+    }
+
+    fn width_to_str(&self) -> &'static str {
+        match self.width {
+            BitWidth::Pointer => "size",
+            _ => self.width_to_c_str(),
+        }
     }
 
     pub fn to_rust_type(&self) -> String {
@@ -126,7 +147,7 @@ impl Integer {
             Sign::Signed => "i",
             Sign::Unsigned => "u",
         };
-        format!("{prefix}{}", self.width)
+        format!("{prefix}{}", self.width_to_str())
     }
 }
 
@@ -150,6 +171,7 @@ impl From<Pair<'_, Rule>> for Integer {
             "16" => BitWidth::Bit16,
             "32" => BitWidth::Bit32,
             "64" => BitWidth::Bit64,
+            "ptr" => BitWidth::Pointer,
             _ => unreachable!("Expected a bit width"),
         };
         Integer { sign, width }
@@ -582,10 +604,12 @@ mod tests {
         case("uint16_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit16 })),
         case("uint32_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit32 })),
         case("uint64_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit64 })),
+        case("uintptr_t", DataType::Integer(Integer { sign: Sign::Unsigned, width: BitWidth::Pointer })),
         case("int8_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit8 })),
         case("int16_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit16 })),
         case("int32_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit32 })),
         case("int64_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Bit64 })),
+        case("intptr_t", DataType::Integer(Integer { sign: Sign::Signed, width: BitWidth::Pointer })),
         case("uint8_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit8})),
         case("uint16_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit16})),
         case("uint32_t*", DataType::Pointer(Integer { sign: Sign::Unsigned, width: BitWidth::Bit32})),
