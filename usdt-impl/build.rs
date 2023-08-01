@@ -15,8 +15,6 @@
 
 use std::env;
 
-use version_check;
-
 #[derive(Copy, Clone)]
 enum Backend {
     // Standard (read: illumos) probe registration

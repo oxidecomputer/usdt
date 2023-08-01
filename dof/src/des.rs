@@ -28,13 +28,13 @@ use crate::{Error, Ident, Probe, Provider, Section};
 // Extract one or more null-terminated strings from the given byte slice.
 fn extract_strings(buf: &[u8], count: Option<usize>) -> Vec<String> {
     let chunks = buf.split(|&x| x == 0);
-    if count.is_none() {
+    if let Some(count) = count {
         chunks
+            .take(count)
             .map(|chunk| String::from_utf8(chunk.to_vec()).unwrap())
             .collect()
     } else {
         chunks
-            .take(count.unwrap())
             .map(|chunk| String::from_utf8(chunk.to_vec()).unwrap())
             .collect()
     }
@@ -45,9 +45,9 @@ fn extract_strings(buf: &[u8], count: Option<usize>) -> Vec<String> {
 fn parse_probe_section(
     buf: &[u8],
     strtab: &[u8],
-    offsets: &Vec<u32>,
-    enabled_offsets: &Vec<u32>,
-    _argument_indices: &Vec<u8>,
+    offsets: &[u32],
+    enabled_offsets: &[u32],
+    _argument_indices: &[u8],
 ) -> Vec<Probe> {
     let parse_probe = |buf| {
         let probe = *LayoutVerified::<_, dof_probe>::new(buf).unwrap();
@@ -77,14 +77,14 @@ fn parse_probe_section(
 }
 
 // Extract the bytes of a section by index
-fn extract_section<'a>(sections: &Vec<dof_sec>, index: usize, buf: &'a [u8]) -> &'a [u8] {
+fn extract_section<'a>(sections: &[dof_sec], index: usize, buf: &'a [u8]) -> &'a [u8] {
     let offset = sections[index].dofs_offset as usize;
     let size = sections[index].dofs_size as usize;
     &buf[offset..offset + size]
 }
 
 // Parse all provider sections
-fn parse_providers(sections: &Vec<dof_sec>, buf: &[u8]) -> Vec<Provider> {
+fn parse_providers(sections: &[dof_sec], buf: &[u8]) -> Vec<Provider> {
     let provider_sections = sections
         .iter()
         .filter(|sec| sec.dofs_type == DOF_SECT_PROVIDER);
@@ -97,22 +97,22 @@ fn parse_providers(sections: &Vec<dof_sec>, buf: &[u8]) -> Vec<Provider> {
         )
         .unwrap();
 
-        let strtab = extract_section(&sections, provider.dofpv_strtab as _, &buf);
+        let strtab = extract_section(sections, provider.dofpv_strtab as _, buf);
         let name = extract_strings(&strtab[provider.dofpv_name as _..], Some(1))[0].clone();
 
         // Extract the offset/index sections as vectors of a specific type
-        let offsets = extract_section(&sections, provider.dofpv_proffs as _, &buf)
+        let offsets: Vec<_> = extract_section(sections, provider.dofpv_proffs as _, buf)
             .chunks(size_of::<u32>())
             .map(|chunk| u32::from_ne_bytes(chunk.try_into().unwrap()))
             .collect();
-        let enabled_offsets = extract_section(&sections, provider.dofpv_prenoffs as _, &buf)
+        let enabled_offsets: Vec<_> = extract_section(sections, provider.dofpv_prenoffs as _, buf)
             .chunks(size_of::<u32>())
             .map(|chunk| u32::from_ne_bytes(chunk.try_into().unwrap()))
             .collect();
-        let arguments = extract_section(&sections, provider.dofpv_prargs as _, &buf).to_vec();
+        let arguments = extract_section(sections, provider.dofpv_prargs as _, buf).to_vec();
         let probes_list = parse_probe_section(
-            &extract_section(&sections, provider.dofpv_probes as _, &buf),
-            &strtab,
+            extract_section(sections, provider.dofpv_probes as _, buf),
+            strtab,
             &offsets,
             &enabled_offsets,
             &arguments,
@@ -142,9 +142,18 @@ fn deserialize_raw_headers(buf: &[u8]) -> Result<(dof_hdr, Vec<dof_sec>), Error>
     Ok((file_header, section_headers))
 }
 
+/// Simple container for raw DOF data, including header and sections.
+#[derive(Clone, Debug)]
+pub struct RawSections {
+    /// The DOF header.
+    pub header: dof_hdr,
+    /// A list of each section, along with its raw bytes.
+    pub sections: Vec<(dof_sec, Vec<u8>)>,
+}
+
 /// Deserialize the raw C-structs for the file header and each section header, along with the byte
 /// array for those sections.
-pub fn deserialize_raw_sections(buf: &[u8]) -> Result<(dof_hdr, Vec<(dof_sec, Vec<u8>)>), Error> {
+pub fn deserialize_raw_sections(buf: &[u8]) -> Result<RawSections, Error> {
     let (file_headers, section_headers) = deserialize_raw_headers(buf)?;
     let sections = section_headers
         .into_iter()
@@ -154,14 +163,17 @@ pub fn deserialize_raw_sections(buf: &[u8]) -> Result<(dof_hdr, Vec<(dof_sec, Ve
             (header, buf[start..end].to_vec())
         })
         .collect();
-    Ok((file_headers, sections))
+    Ok(RawSections {
+        header: file_headers,
+        sections,
+    })
 }
 
 /// Deserialize a `Section` from a slice of DOF bytes
 pub fn deserialize_section(buf: &[u8]) -> Result<Section, Error> {
     let (file_header, section_headers) = deserialize_raw_headers(buf)?;
     let ident = Ident::try_from(&file_header.dofh_ident[..])?;
-    let providers_list = parse_providers(&section_headers, &buf);
+    let providers_list = parse_providers(&section_headers, buf);
     let providers = providers_list
         .into_iter()
         .map(|provider| (provider.name.clone(), provider))
@@ -191,25 +203,22 @@ pub fn collect_dof_sections<P: AsRef<Path>>(path: P) -> Result<Vec<Vec<u8>>, Err
                 }
             })
             .collect()),
-        Object::Mach(mach) => match mach {
-            goblin::mach::Mach::Binary(mach) => Ok(mach
-                .segments
-                .sections()
-                .flatten()
-                .filter_map(|item| {
-                    if let Ok((_, section_data)) = item {
-                        if is_dof_section(&section_data) {
-                            Some(section_data.to_vec())
-                        } else {
-                            None
-                        }
+        Object::Mach(goblin::mach::Mach::Binary(mach)) => Ok(mach
+            .segments
+            .sections()
+            .flatten()
+            .filter_map(|item| {
+                if let Ok((_, section_data)) = item {
+                    if is_dof_section(section_data) {
+                        Some(section_data.to_vec())
                     } else {
                         None
                     }
-                })
-                .collect()),
-            _ => Err(Error::UnsupportedObjectFile),
-        },
+                } else {
+                    None
+                }
+            })
+            .collect()),
         _ => Err(Error::UnsupportedObjectFile),
     }
 }

@@ -95,18 +95,20 @@ mod tests {
         let (stdout, stderr) = comm.read_string().expect("Failed to read DTrace output");
         let stdout = stdout.unwrap_or_else(|| String::from("<EMPTY>"));
         let stderr = stderr.unwrap_or_else(|| String::from("<EMPTY>"));
-        let actual_id: u64 = stdout.trim().parse().expect(&format!(
-            concat!(
-                "Expected a u64\n",
-                "stdout\n",
-                "------\n",
-                "{}\n",
-                "stderr\n",
-                "------\n",
-                "{}"
-            ),
-            stdout, stderr
-        ));
+        let actual_id: u64 = stdout.trim().parse().unwrap_or_else(|_| {
+            panic!(
+                concat!(
+                    "Expected a u64\n",
+                    "stdout\n",
+                    "------\n",
+                    "{}\n",
+                    "stderr\n",
+                    "------\n",
+                    "{}"
+                ),
+                stdout, stderr
+            )
+        });
 
         assert_eq!(actual_id, id.as_u64());
     }

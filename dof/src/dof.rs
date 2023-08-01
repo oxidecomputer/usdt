@@ -191,7 +191,7 @@ impl Section {
 
     /// Serialize a section into DOF object file section.
     pub fn as_bytes(&self) -> Vec<u8> {
-        crate::ser::serialize_section(&self)
+        crate::ser::serialize_section(self)
     }
 }
 

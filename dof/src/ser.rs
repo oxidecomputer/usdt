@@ -33,8 +33,10 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
     let mut enabled_offsets = Vec::new();
 
     for (i, provider) in section.providers.values().enumerate() {
-        let mut provider_section = dof_provider::default();
-        provider_section.dofpv_name = strings.len() as _;
+        let mut provider_section = dof_provider {
+            dofpv_name: strings.len() as _,
+            ..Default::default()
+        };
         strings.extend_from_slice(provider.name.as_bytes());
         strings.push(0);
 
@@ -48,8 +50,10 @@ fn build_section_data(section: &Section) -> Vec<(u32, Vec<u8>)> {
 
         let mut probe_section = Vec::with_capacity(provider.probes.len() * size_of::<dof_probe>());
         for probe in provider.probes.values() {
-            let mut probe_t = dof_probe::default();
-            probe_t.dofpr_addr = probe.address;
+            let mut probe_t = dof_probe {
+                dofpr_addr: probe.address,
+                ..Default::default()
+            };
 
             // Insert function name and store strtab index
             probe_t.dofpr_func = strings.len() as _;
@@ -149,7 +153,7 @@ fn build_section_headers(
         if offset % alignment > 0 {
             let padding = alignment - offset % alignment;
             section_data.last_mut().unwrap().extend(vec![0; padding]);
-            offset = offset + padding;
+            offset += padding;
         }
 
         let header = dof_sec {
@@ -161,7 +165,7 @@ fn build_section_headers(
             dofs_size: data.len() as u64,
         };
 
-        offset = offset + data.len();
+        offset += data.len();
         section_headers.push(header);
         section_data.push(data);
     }
@@ -171,7 +175,7 @@ fn build_section_headers(
 
 /// Serialize a Section into a vector of DOF bytes
 pub fn serialize_section(section: &Section) -> Vec<u8> {
-    let sections = build_section_data(&section);
+    let sections = build_section_data(section);
     let hdr_size = size_of::<dof_hdr>() + sections.len() * size_of::<dof_sec>();
     let (section_headers, section_data, size) = build_section_headers(sections, hdr_size);
 

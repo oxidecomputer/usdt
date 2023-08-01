@@ -40,7 +40,7 @@ pub enum DTraceError {
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error("Input is not a valid DTrace provider definition:\n{0}")]
-    ParseError(#[from] PestError),
+    ParseError(#[from] Box<PestError>),
 }
 
 #[derive(Parser, Debug)]
@@ -453,7 +453,7 @@ impl TryFrom<&str> for File {
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         use pest::Parser;
         File::try_from(&DTraceParser::parse(Rule::FILE, s).map_err(|e| {
-            e.renamed_rules(|rule| match *rule {
+            Box::new(e.renamed_rules(|rule| match *rule {
                 Rule::DATA_TYPE | Rule::BIT_WIDTH => {
                     format!(
                         "{:?}.\n\n{}",
@@ -473,7 +473,7 @@ impl TryFrom<&str> for File {
                     )
                 }
                 _ => format!("{:?}", rule),
-            })
+            }))
         })?)
     }
 }
@@ -677,7 +677,7 @@ mod tests {
     #[test]
     fn test_provider_struct() {
         let provider_name = "foo";
-        let defn = std::fs::read_to_string(&data_file(&format!("{}.d", provider_name))).unwrap();
+        let defn = std::fs::read_to_string(data_file(&format!("{}.d", provider_name))).unwrap();
         let provider = Provider::try_from(
             &DTraceParser::parse(Rule::FILE, &defn)
                 .unwrap()

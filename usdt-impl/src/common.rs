@@ -390,7 +390,7 @@ mod tests {
             .zip(regs.to_string().split(','))
             .enumerate()
         {
-            let reg = actual.replace(" ", "");
+            let reg = actual.replace(' ', "");
             let expected = format!("in(\"{}\")(arg_{}", expected, i);
             assert!(reg.starts_with(&expected));
         }

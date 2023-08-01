@@ -25,3 +25,5 @@ members = [
 	"usdt-macro",
 	"usdt-tests-common",
 ]
+
+resolver = "2"
