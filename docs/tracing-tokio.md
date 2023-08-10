@@ -6,12 +6,12 @@ Many DTrace examples you'll find make extensive use of thread-local variables, p
 ```dtrace
 // !!! Don't do this with tokio!!!
 
-pid$target::my_func:entry
+pid$target::my_async_func:entry
 {
 	self->arg = arg0;
 }
 
-pid$target::my_func:return
+pid$target::my_async_func:return
 /self->arg/
 {
 	// Do something with self->arg
@@ -27,7 +27,8 @@ system's notion of a thread (as in the example above) is meaningless with regard
 We can think of DTrace's thread-local variables as shorthand for a global array indexed by the
 current thread. So `self->foo` is (conceptually) equivalent to `foo[curthread]`. Since a task may be
 run on various threads, the current thread isn't a useful key.
-**In order to correlate activies across calls, you need some other unique ID**.
+**In order to correlate activies across calls in an `async` function, you need some other unique
+ID**.
 
 ## Aside: tokio tasks
 
@@ -70,6 +71,5 @@ my_prov$target:::event-done
 
 Note that this D uses a **global** associative array whose key is the unique ID. We do **not** use
 thread-local variables because (as noted exhaustively) the task may run on other threads and other
-tasks may run on this thread.
-
-
+tasks may run on this thread. (Even in a `async` executor that's single-threaded, use of
+thread-local variables could be confused across tasks!)
