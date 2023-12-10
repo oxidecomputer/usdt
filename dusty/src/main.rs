@@ -14,6 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use clap::Parser;
 use dof::Section;
 use goblin::Object;
 use memmap::Mmap;
@@ -22,31 +23,29 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::path::PathBuf;
-use structopt::StructOpt;
 use usdt_impl::Error as UsdtError;
 
 /// Inspect data related to USDT probes in object files.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Cmd {
     /// The object file to inspect
-    #[structopt(parse(from_os_str))]
     file: PathBuf,
 
     /// Operate more verbosely, printing all available information
-    #[structopt(short, long)]
+    #[arg(short, long)]
     verbose: bool,
 
     /// Print raw binary data along with summaries or headers
-    #[structopt(short, long)]
+    #[arg(short, long, conflicts_with = "json")]
     raw: bool,
 
-    /// Format output as JSON. Not compatible with `--raw`.
-    #[structopt(long)]
+    /// Format output as JSON
+    #[arg(short, long)]
     json: bool,
 }
 
 fn main() {
-    let cmd = Cmd::from_args();
+    let cmd = Cmd::parse();
     let format_mode = if cmd.raw {
         dof::fmt::FormatMode::Raw {
             include_sections: cmd.verbose,

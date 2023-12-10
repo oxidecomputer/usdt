@@ -7,8 +7,8 @@ description = "Tool to inspect USDT probe records in object files"
 license = "Apache-2.0"
 
 [dependencies]
+clap = { version = "4.4.11", features = ["derive"] }
 dof = { path = "../dof", features = [ "des" ] }
 goblin = { version = "0.6", features = [ "elf32", "elf64" ] }
 memmap = "0.7"
-structopt = "0.3.21"
 usdt-impl = { path = "../usdt-impl", features = ["des"] }
