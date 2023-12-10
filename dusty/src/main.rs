@@ -87,15 +87,11 @@ fn locate_probe_section(file: &File) -> Option<(u64, usize)> {
             // Try to find our special `set_dtrace_probes` section from the section headers. These
             // may not exist, e.g., if the file has been stripped. In that case, we look for the
             // special __start and __stop symbols themselves.
-            if let Some(section) = object.section_headers.iter().find_map(|header| {
+            if let Some(section) = object.section_headers.iter().find(|header| {
                 if let Some(name) = object.shdr_strtab.get_at(header.sh_name) {
-                    if name == "set_dtrace_probes" {
-                        Some(header)
-                    } else {
-                        None
-                    }
+                    name == "set_dtrace_probes"
                 } else {
-                    None
+                    false
                 }
             }) {
                 Some((section.sh_offset, section.sh_size as usize))

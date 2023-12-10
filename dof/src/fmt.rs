@@ -14,12 +14,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{fmt::Debug, mem::size_of, path::Path};
-
-use pretty_hex::PrettyHex;
-use zerocopy::{FromBytes, LayoutVerified};
-
+use crate::des::RawSections;
 use crate::dof_bindings::*;
+use pretty_hex::PrettyHex;
+use std::{fmt::Debug, mem::size_of, path::Path};
+use zerocopy::{FromBytes, LayoutVerified};
 
 /// Format a DOF section into a pretty-printable string.
 pub fn fmt_dof_sec(sec: &dof_sec, index: usize) -> String {
@@ -83,7 +82,7 @@ pub fn fmt_dof_sec_data(sec: &dof_sec, data: &Vec<u8>) -> String {
     }
 }
 
-fn fmt_dof_sec_type<T: Debug + FromBytes + Copy>(data: &Vec<u8>) -> String {
+fn fmt_dof_sec_type<T: Debug + FromBytes + Copy>(data: &[u8]) -> String {
     data.chunks(size_of::<T>())
         .map(|chunk| {
             let item = *LayoutVerified::<_, T>::new(chunk).unwrap();
@@ -112,7 +111,7 @@ pub fn fmt_dof<P: AsRef<Path>>(
     if raw {
         let sections = crate::collect_dof_sections(&file)?.into_iter();
         for section in sections {
-            let (header, sections) = crate::des::deserialize_raw_sections(&section)?;
+            let RawSections { header, sections } = crate::des::deserialize_raw_sections(&section)?;
             out.push_str(&format!("{:#?}\n", header));
             for (index, (section_header, data)) in sections.into_iter().enumerate() {
                 out.push_str(&format!("{}\n", fmt_dof_sec(&section_header, index)));

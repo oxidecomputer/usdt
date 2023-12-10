@@ -93,7 +93,7 @@ fn main() {
         x: 0,
         buffer: vec![1; 12],
     };
-    let buffer = vec![2; 4];
+    let buffer = [2; 4];
     loop {
         test::start_work!(|| arg.x);
         std::thread::sleep(std::time::Duration::from_secs(1));

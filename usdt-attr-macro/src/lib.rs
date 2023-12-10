@@ -87,7 +87,7 @@ fn generate_provider_item(
                         }
                         syn::FnArg::Typed(ref item) => {
                             let (maybe_check_fn, item_type) =
-                                parse_probe_argument(&*item.ty, fn_index, arg_index)?;
+                                parse_probe_argument(&item.ty, fn_index, arg_index)?;
                             if let Some(check_fn) = maybe_check_fn {
                                 item_check_fns.push(check_fn);
                             }
@@ -222,7 +222,7 @@ fn parse_probe_argument(
             }
         }
         syn::Type::Reference(ref reference) => {
-            match parse_probe_argument(&*reference.elem, fn_index, arg_index)? {
+            match parse_probe_argument(&reference.elem, fn_index, arg_index)? {
                 (None, DataType::UniqueId) => Ok((None, DataType::UniqueId)),
                 (None, DataType::Native(ty)) => Ok((None, DataType::Native(ty))),
                 _ => Ok((
@@ -258,7 +258,7 @@ fn verify_use_tree(tree: &syn::UseTree) -> syn::Result<()> {
                     ),
                 ));
             }
-            verify_use_tree(&*path.tree)
+            verify_use_tree(&path.tree)
         }
         _ => Ok(()),
     }
@@ -494,8 +494,8 @@ mod tests {
         assert!(out.0.is_some());
         assert_eq!(out.1, DataType::Serializable(ty));
         if let (Some(chk), DataType::Serializable(ty)) = out {
-            println!("{}", quote! { #chk }.to_string());
-            println!("{}", quote! { #ty }.to_string());
+            println!("{}", quote! { #chk });
+            println!("{}", quote! { #ty });
         }
     }
 

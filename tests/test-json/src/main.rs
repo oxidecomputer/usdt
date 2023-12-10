@@ -87,7 +87,7 @@ mod tests {
         usdt::register_probes().unwrap();
 
         // Wait for notification from the main thread
-        let _ = recv.recv().unwrap();
+        recv.recv().unwrap();
         sleep(SLEEP_DURATION);
         println!("Test runner firing first probe");
 
@@ -95,7 +95,7 @@ mod tests {
         let data = ProbeArg::default();
         test_json::good!(|| &data);
         println!("Test runner awaiting notification");
-        let _ = recv.recv().unwrap();
+        recv.recv().unwrap();
 
         // Fire the bad probe.
         sleep(SLEEP_DURATION);

@@ -130,7 +130,7 @@ fn process_probe_record(
         // be mutable, but have type `&[u8]`. Use `split_at_mut` to get two
         // `&mut [u8]` and then convert the latter to a shared reference.
         let (rec, data) = rec.split_at_mut(5);
-        (rec, &data[..])
+        (rec, &*data)
     };
     let version = read_record_version(&mut rec[4], register);
 
@@ -316,7 +316,7 @@ mod test {
         let mut rec = Vec::<u8>::new();
 
         // write a dummy length
-        let long_name: String = std::iter::repeat("p").take(130).collect();
+        let long_name = "p".repeat(130);
         rec.write_u32::<NativeEndian>(0).unwrap();
         rec.write_u8(PROBE_REC_VERSION).unwrap();
         rec.write_u8(0).unwrap();
@@ -448,22 +448,18 @@ mod test {
         let mut lines = record.lines();
         println!("{}", record);
         lines.next(); // empty line
-        assert!(lines.next().unwrap().find(".pushsection").is_some());
+        assert!(lines.next().unwrap().contains(".pushsection"));
         let mut lines = lines.skip(3);
         assert!(lines
             .next()
             .unwrap()
-            .find(&format!(".byte {}", PROBE_REC_VERSION))
-            .is_some());
+            .contains(&format!(".byte {}", PROBE_REC_VERSION)));
         assert!(lines
             .next()
             .unwrap()
-            .find(&format!(".byte {}", types.len()))
-            .is_some());
+            .contains(&format!(".byte {}", types.len())));
         for (typ, line) in types.iter().zip(lines.skip(4)) {
-            assert!(line
-                .find(&format!(".asciz \"{}\"", typ.to_c_type()))
-                .is_some());
+            assert!(line.contains(&format!(".asciz \"{}\"", typ.to_c_type())));
         }
     }
 

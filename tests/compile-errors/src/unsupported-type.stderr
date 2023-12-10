@@ -4,7 +4,7 @@ error: proc macro panicked
 15 | usdt::dtrace_provider!("../../../tests/compile-errors/providers/unsupported-type.d");
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: message: Could not read D source file "../../../tests/compile-errors/providers/unsupported-type.d" in "$WORKSPACE/target/tests/trybuild/compile-errors": Os { code: 2, kind: NotFound, message: "No such file or directory" }
+   = help: message: Could not read D source file "../../../tests/compile-errors/providers/unsupported-type.d" in "$WORKSPACE/target/tests/trybuild/compile-errors"
 
 error[E0433]: failed to resolve: use of undeclared crate or module `unsupported`
   --> src/unsupported-type.rs:19:5

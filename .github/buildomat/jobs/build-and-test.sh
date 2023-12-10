@@ -16,6 +16,11 @@ rustc --version
 
 export RUST_BACKTRACE=1
 
+banner clippy
+ptime -m cargo clippy \
+        --workspace \
+        -- -D warnings -A clippy::style
+
 banner test
 ptime -m cargo test \
         --release \

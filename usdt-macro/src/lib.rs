@@ -110,10 +110,12 @@ pub fn dtrace_provider(item: proc_macro::TokenStream) -> proc_macro::TokenStream
         );
 
         let path = dir.join(&filename);
-        fs::read_to_string(path).expect(&format!(
-            "Could not read D source file \"{}\" in {:?}",
-            &filename, dir,
-        ))
+        fs::read_to_string(path).unwrap_or_else(|_| {
+            panic!(
+                "Could not read D source file \"{}\" in {:?}",
+                &filename, dir,
+            )
+        })
     } else {
         filename.clone()
     };
