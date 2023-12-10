@@ -196,7 +196,7 @@ impl Section {
 
     /// Serialize a section into a JSON representation of the DOF object file section.
     pub fn to_json(&self) -> String {
-        serde_json::to_string_pretty(self).unwrap()
+        serde_json::to_string(self).unwrap()
     }
 }
 
