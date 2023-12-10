@@ -39,15 +39,28 @@ struct Cmd {
     /// Print raw binary data along with summaries or headers
     #[structopt(short, long)]
     raw: bool,
+
+    /// Format output as JSON. Not compatible with `--raw`.
+    #[structopt(long)]
+    json: bool,
 }
 
 fn main() {
     let cmd = Cmd::from_args();
+    let format_mode = if cmd.raw {
+        dof::fmt::FormatMode::Raw {
+            include_sections: cmd.verbose,
+        }
+    } else if cmd.json {
+        dof::fmt::FormatMode::Json
+    } else {
+        dof::fmt::FormatMode::Pretty
+    };
 
     // Extract DOF section data, which is applicable for an object file built using this crate on
     // macOS, or generally using the platform's dtrace tool, i.e., `dtrace -G` and compiler.
     if let Some(data) =
-        dof::fmt::fmt_dof(&cmd.file, cmd.raw, cmd.verbose).expect("Failed to read object file")
+        dof::fmt::fmt_dof(&cmd.file, format_mode).expect("Failed to read object file")
     {
         println!("{}", data);
         return;
@@ -56,8 +69,13 @@ fn main() {
     // File contains no DOF data. Try to parse out the ASM records inserted by the `usdt` crate.
     match probe_records(&cmd.file) {
         Ok(data) => {
-            // TODO This could use the raw/verbose arguments by first converting into C structs.
-            println!("{:#?}", data)
+            match format_mode {
+                dof::fmt::FormatMode::Json => println!("{}", &data.to_json()),
+                _ => {
+                    // TODO This could use the raw/verbose arguments by first converting into C structs.
+                    println!("{:#?}", data)
+                }
+            }
         }
         Err(UsdtError::InvalidFile) => {
             println!("No probe information found");

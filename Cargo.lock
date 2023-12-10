@@ -143,6 +143,8 @@ version = "0.1.5"
 dependencies = [
  "goblin",
  "pretty-hex",
+ "serde",
+ "serde_json",
  "thiserror",
  "zerocopy",
 ]
