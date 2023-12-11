@@ -94,13 +94,13 @@ fn fmt_dof_sec_type<T: Debug + FromBytes + Copy>(data: &[u8]) -> String {
 
 #[derive(Clone, Copy)]
 pub enum FormatMode {
-    // Output is formatted as the Rust types used to represent DOF data throughout the `usdt` crate.
+    // Emit Rust types used by the usdt crate
     Pretty,
-    // The same out as `Pretty`, but formatted as JSON.
+    // Emit Rust types as json for parsing
     Json,
-    /// Underlying DOF C structs are formatted
+    /// Emit underlying DOF C types
     Raw {
-        /// If true, the DOF section data is included, along with the secion headers.
+        /// If true, the DOF section data is included, along with the section headers.
         /// If false, only the section headers are printed.
         include_sections: bool,
     },
