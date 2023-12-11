@@ -92,39 +92,63 @@ fn fmt_dof_sec_type<T: Debug + FromBytes + Copy>(data: &[u8]) -> String {
         .join("\n")
 }
 
+/// Controls how DOF data is formatted
+#[derive(Clone, Copy)]
+pub enum FormatMode {
+    // Emit Rust types used by the usdt crate
+    Pretty,
+    // Emit Rust types as json for parsing
+    Json,
+    /// Emit underlying DOF C types
+    Raw {
+        /// If true, the DOF section data is included, along with the section headers.
+        /// If false, only the section headers are printed.
+        include_sections: bool,
+    },
+}
+
 /// Format all DOF data in an object file into a pretty-printable string.
 ///
-/// If `raw` is true, then the raw, underlying DOF C structs are formatted. If false, the data is
-/// formatted as the Rust types used to represent DOF data throughout the `usdt` crate.
-///
-/// If `include_sections` is true, the DOF binary section data is included, along with the section
-/// headers. If false, only the section headers are printed.
+/// Uses the `FormatMode` to determine how the data is formatted.
 ///
 /// If the file is not of the correct format, or has invalid DOF data, an `Err` is returned. If the
 /// file has no DOF data, `None` is returned.
 pub fn fmt_dof<P: AsRef<Path>>(
     file: P,
-    raw: bool,
-    include_sections: bool,
+    format: FormatMode,
 ) -> Result<Option<String>, crate::Error> {
     let mut out = String::new();
-    if raw {
-        let sections = crate::collect_dof_sections(&file)?.into_iter();
-        for section in sections {
-            let RawSections { header, sections } = crate::des::deserialize_raw_sections(&section)?;
-            out.push_str(&format!("{:#?}\n", header));
-            for (index, (section_header, data)) in sections.into_iter().enumerate() {
-                out.push_str(&format!("{}\n", fmt_dof_sec(&section_header, index)));
-                if include_sections {
-                    out.push_str(&format!("{}\n", fmt_dof_sec_data(&section_header, &data)));
+    match format {
+        FormatMode::Raw { include_sections } => {
+            let sections = crate::collect_dof_sections(&file)?.into_iter();
+            for section in sections {
+                let RawSections { header, sections } =
+                    crate::des::deserialize_raw_sections(&section)?;
+                out.push_str(&format!("{:#?}\n", header));
+                for (index, (section_header, data)) in sections.into_iter().enumerate() {
+                    out.push_str(&format!("{}\n", fmt_dof_sec(&section_header, index)));
+                    if include_sections {
+                        out.push_str(&format!("{}\n", fmt_dof_sec_data(&section_header, &data)));
+                    }
                 }
             }
         }
-    } else {
-        for section in crate::extract_dof_sections(&file)?.iter() {
-            out.push_str(&format!("{:#?}\n", section));
+        FormatMode::Json => {
+            let dof_sections = crate::extract_dof_sections(&file)?;
+            let sections = dof_sections.iter();
+            for section in sections {
+                out.push_str(section.to_json().as_str());
+            }
+        }
+        FormatMode::Pretty => {
+            let dof_sections = crate::extract_dof_sections(&file)?;
+            let sections = dof_sections.iter();
+            for section in sections {
+                out.push_str(&format!("{:#?}\n", section));
+            }
         }
     }
+
     if out.is_empty() {
         Ok(None)
     } else {
