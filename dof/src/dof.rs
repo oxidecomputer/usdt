@@ -25,6 +25,7 @@ use std::{
     convert::{TryFrom, TryInto},
 };
 
+use serde::Serialize;
 use thiserror::Error;
 
 // Magic bytes for a DOF section
@@ -56,7 +57,7 @@ pub enum Error {
 }
 
 /// Represents the DTrace data model, e.g. the pointer width of the platform
-#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 #[repr(u8)]
 pub enum DataModel {
     None = 0,
@@ -87,7 +88,7 @@ impl TryFrom<u8> for DataModel {
 }
 
 /// Represents the endianness of the platform
-#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 #[repr(u8)]
 pub enum DataEncoding {
     None = 0,
@@ -118,7 +119,7 @@ impl TryFrom<u8> for DataEncoding {
 }
 
 /// Static identifying information about a DOF section (such as version numbers)
-#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub struct Ident {
     pub magic: [u8; 4],
     pub model: DataModel,
@@ -174,7 +175,7 @@ impl Ident {
 }
 
 /// Representation of a DOF section of an object file
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Section {
     /// The identifying bytes of this section
     pub ident: Ident,
@@ -196,7 +197,7 @@ impl Section {
 
     /// Serialize a section into a JSON representation of the DOF object file section.
     pub fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap()
+        serde_json::to_string_pretty(self).unwrap()
     }
 }
 
@@ -218,7 +219,7 @@ impl Default for Section {
 }
 
 /// Information about a single DTrace probe
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Probe {
     /// Name of this probe
     pub name: String,
@@ -235,7 +236,7 @@ pub struct Probe {
 }
 
 /// Information about a single provider
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Provider {
     /// Name of the provider
     pub name: String,
