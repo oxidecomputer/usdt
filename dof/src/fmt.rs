@@ -92,6 +92,7 @@ fn fmt_dof_sec_type<T: Debug + FromBytes + Copy>(data: &[u8]) -> String {
         .join("\n")
 }
 
+/// Controls how DOF data is formatted
 #[derive(Clone, Copy)]
 pub enum FormatMode {
     // Emit Rust types used by the usdt crate
