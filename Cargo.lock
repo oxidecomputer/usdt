@@ -224,8 +224,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "dof",
- "goblin",
- "memmap",
+ "usdt",
  "usdt-impl",
 ]
 
@@ -834,7 +833,10 @@ checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
 name = "usdt"
 version = "0.3.5"
 dependencies = [
+ "dof",
  "dtrace-parser",
+ "goblin",
+ "memmap",
  "serde",
  "usdt-attr-macro",
  "usdt-impl",
