@@ -1,8 +1,10 @@
 [package]
 name = "usdt"
 version = "0.3.5"
-authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
-           "Adam H. Leventhal <ahl@oxidecomputer.com>"]
+authors = [
+  "Benjamin Naecker <ben@oxidecomputer.com>",
+  "Adam H. Leventhal <ahl@oxidecomputer.com>",
+]
 edition = "2018"
 license = "Apache-2.0"
 description = "Dust your Rust with USDT probes"
@@ -18,10 +20,20 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 [dependencies]
 dtrace-parser = { path = "../dtrace-parser", optional = true, version = "= 0.1.14" }
 serde = "1"
-usdt-impl = { path = "../usdt-impl", default-features = false, version = "= 0.3.5" }
+usdt-impl = { path = "../usdt-impl", default-features = false, version = "= 0.3.5", features = [
+  "des",
+] }
 usdt-macro = { path = "../usdt-macro", default-features = false, version = "= 0.3.5" }
 usdt-attr-macro = { path = "../usdt-attr-macro", default-features = false, version = "= 0.3.5" }
+dof = { path = "../dof", features = ["des"] }
+goblin = { version = "0.6", features = ["elf32", "elf64"] }
+memmap = { version = "0.7" }
 
 [features]
 default = ["asm"]
-asm = ["usdt-impl/asm", "usdt-macro/asm", "usdt-attr-macro/asm", "dtrace-parser"]
+asm = [
+  "usdt-impl/asm",
+  "usdt-macro/asm",
+  "usdt-attr-macro/asm",
+  "dtrace-parser",
+]
