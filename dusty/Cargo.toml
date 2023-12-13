@@ -1,7 +1,6 @@
 [package]
 name = "dusty"
 version = "0.1.0"
-authors = ["Benjamin Naecker <ben@oxidecomputer.com>"]
 edition = "2021"
 description = "Tool to inspect USDT probe records in object files"
 license = "Apache-2.0"

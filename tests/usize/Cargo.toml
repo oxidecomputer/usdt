@@ -1,8 +1,6 @@
 [package]
 name = "usize"
 version = "0.1.0"
-authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
-           "Adam H. Leventhal <ahl@oxidecomputer.com>"]
 edition = "2021"
 
 [dependencies]
