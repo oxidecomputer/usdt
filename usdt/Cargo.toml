@@ -1,6 +1,6 @@
 [package]
 name = "usdt"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Dust your Rust with USDT probes"
@@ -14,14 +14,14 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 # where the public-facing `usdt` crate may pick up different versions of the
 # internal implementation crates.
 [dependencies]
-dtrace-parser = { path = "../dtrace-parser", optional = true, version = "= 0.1.15" }
+dtrace-parser = { path = "../dtrace-parser", optional = true, version = "=0.2.0" }
 serde = "1"
-usdt-impl = { path = "../usdt-impl", default-features = false, version = "= 0.4.1", features = [
+usdt-impl = { path = "../usdt-impl", default-features = false, version = "=0.5.0", features = [
   "des",
 ] }
-usdt-macro = { path = "../usdt-macro", default-features = false, version = "= 0.4.1" }
-usdt-attr-macro = { path = "../usdt-attr-macro", default-features = false, version = "= 0.4.1" }
-dof = { path = "../dof", features = ["des"], version = "= 0.2.0" }
+usdt-macro = { path = "../usdt-macro", default-features = false, version = "=0.5.0" }
+usdt-attr-macro = { path = "../usdt-attr-macro", default-features = false, version = "=0.5.0" }
+dof = { path = "../dof", features = ["des"], version = "=0.3.0" }
 goblin = { version = "0.6", features = ["elf32", "elf64"] }
 memmap = { version = "0.7" }
 

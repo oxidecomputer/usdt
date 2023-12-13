@@ -152,7 +152,7 @@ jobs:
           --verbose
           --workspace
           --exclude compile-errors
-          --exclude dusty 
+          --exclude dusty
 
   old-nightly-no-support:
     name: Run tests on an older nightly

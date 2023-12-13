@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "dof"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "goblin",
  "pretty-hex",
@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "dtrace-parser"
-version = "0.1.15"
+version = "0.2.0"
 dependencies = [
  "pest",
  "pest_derive",
@@ -214,7 +214,7 @@ dependencies = [
 
 [[package]]
 name = "dusty"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "dof",
@@ -815,7 +815,7 @@ checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
 
 [[package]]
 name = "usdt"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "dof",
  "dtrace-parser",
@@ -829,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-attr-macro"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "dtrace-parser",
  "proc-macro2",
@@ -842,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-impl"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "byteorder",
  "dof",
@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-macro"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "dtrace-parser",
  "proc-macro2",
