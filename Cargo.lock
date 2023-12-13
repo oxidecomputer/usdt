@@ -210,7 +210,7 @@ dependencies = [
 
 [[package]]
 name = "dtrace-parser"
-version = "0.1.14"
+version = "0.1.15"
 dependencies = [
  "pest",
  "pest_derive",
@@ -831,7 +831,7 @@ checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
 
 [[package]]
 name = "usdt"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "dof",
  "dtrace-parser",
@@ -845,7 +845,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-attr-macro"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "dtrace-parser",
  "proc-macro2",
@@ -858,7 +858,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-impl"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "byteorder",
  "dof",
@@ -876,7 +876,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-macro"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "dtrace-parser",
  "proc-macro2",
