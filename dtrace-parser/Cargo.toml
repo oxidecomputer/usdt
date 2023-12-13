@@ -1,9 +1,7 @@
 [package]
 name = "dtrace-parser"
 version = "0.1.14"
-authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
-           "Adam H. Leventhal <ahl@oxidecomputer.com>"]
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 description = "Parse DTrace provider definitions into Rust"
 repository = "https://github.com/oxidecomputer/usdt.git"
