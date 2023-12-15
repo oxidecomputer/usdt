@@ -50,26 +50,12 @@ fn main() {
         dof::fmt::FormatMode::Pretty
     };
 
-    // Extract DOF section data, which is applicable for an object file built using this crate on
-    // macOS, or generally using the platform's dtrace tool, i.e., `dtrace -G` and compiler.
-    if let Some(data) =
-        dof::fmt::fmt_dof(&cmd.file, format_mode).expect("Failed to read object file")
-    {
-        println!("{}", data);
-        return;
-    }
-
-    // File contains no DOF data. Try to parse out the ASM records inserted by the `usdt` crate.
     match probe_records(&cmd.file) {
-        Ok(data) => {
-            match format_mode {
-                dof::fmt::FormatMode::Json => println!("{}", &data.to_json()),
-                _ => {
-                    // TODO This could use the raw/verbose arguments by first converting into C structs.
-                    println!("{:#?}", data)
-                }
-            }
-        }
+        Ok(data) => match dof::fmt::fmt_dof(data, format_mode) {
+            Ok(Some(dof)) => println!("{}", dof),
+            Ok(None) => println!("No probe information found"),
+            Err(e) => println!("Failed to format probe information, {:?}", e),
+        },
         Err(UsdtError::InvalidFile) => {
             println!("No probe information found");
         }
