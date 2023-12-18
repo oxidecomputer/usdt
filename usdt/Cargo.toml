@@ -22,7 +22,7 @@ usdt-impl = { path = "../usdt-impl", default-features = false, version = "= 0.4.
 usdt-macro = { path = "../usdt-macro", default-features = false, version = "= 0.4.1" }
 usdt-attr-macro = { path = "../usdt-attr-macro", default-features = false, version = "= 0.4.1" }
 dof = { path = "../dof", features = ["des"], version = "= 0.2.0" }
-goblin = { version = "0.6", features = ["elf32", "elf64"] }
+goblin = { version = "0.7", features = ["elf32", "elf64"] }
 memmap = { version = "0.7" }
 
 [features]
