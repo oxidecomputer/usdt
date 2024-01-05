@@ -14,10 +14,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::des::RawSections;
-use crate::dof_bindings::*;
+use crate::{des::RawSections, Section};
+use crate::{dof_bindings::*, Error};
 use pretty_hex::PrettyHex;
-use std::{fmt::Debug, mem::size_of, path::Path};
+use std::{fmt::Debug, mem::size_of};
 use zerocopy::{FromBytes, LayoutVerified};
 
 /// Format a DOF section into a pretty-printable string.
@@ -107,23 +107,16 @@ pub enum FormatMode {
     },
 }
 
-/// Format all DOF data in an object file into a pretty-printable string.
+/// Format all DOF data in a collection of DOF sections into a pretty-printable string.
 ///
 /// Uses the `FormatMode` to determine how the data is formatted.
-///
-/// If the file is not of the correct format, or has invalid DOF data, an `Err` is returned. If the
-/// file has no DOF data, `None` is returned.
-pub fn fmt_dof<P: AsRef<Path>>(
-    file: P,
-    format: FormatMode,
-) -> Result<Option<String>, crate::Error> {
+pub fn fmt_dof(sections: Vec<Section>, format: FormatMode) -> Result<Option<String>, Error> {
     let mut out = String::new();
     match format {
         FormatMode::Raw { include_sections } => {
-            let sections = crate::collect_dof_sections(&file)?.into_iter();
-            for section in sections {
+            for section in sections.iter() {
                 let RawSections { header, sections } =
-                    crate::des::deserialize_raw_sections(&section)?;
+                    crate::des::deserialize_raw_sections(&section.as_bytes().as_slice())?;
                 out.push_str(&format!("{:#?}\n", header));
                 for (index, (section_header, data)) in sections.into_iter().enumerate() {
                     out.push_str(&format!("{}\n", fmt_dof_sec(&section_header, index)));
@@ -134,16 +127,12 @@ pub fn fmt_dof<P: AsRef<Path>>(
             }
         }
         FormatMode::Json => {
-            let dof_sections = crate::extract_dof_sections(&file)?;
-            let sections = dof_sections.iter();
-            for section in sections {
+            for section in sections.iter() {
                 out.push_str(section.to_json().as_str());
             }
         }
         FormatMode::Pretty => {
-            let dof_sections = crate::extract_dof_sections(&file)?;
-            let sections = dof_sections.iter();
-            for section in sections {
+            for section in sections.iter() {
                 out.push_str(&format!("{:#?}\n", section));
             }
         }

@@ -348,7 +348,7 @@
 //! [serde]: https://serde.rs
 //! [asm-sym-feature-pr]: https://github.com/rust-lang/rust/pull/90348
 
-use dof::Section;
+use dof::{extract_dof_sections, Section};
 use goblin::Object;
 use memmap::{Mmap, MmapOptions};
 use std::fs::{File, OpenOptions};
@@ -446,14 +446,22 @@ pub fn register_probes() -> Result<(), Error> {
 /// created manually by this crate on other platforms. In either case, this
 /// method extracts the metadata as a [`Section`] from the object file, if it
 /// can be found.
-pub fn probe_records<P: AsRef<Path>>(path: P) -> Result<Section, Error> {
+pub fn probe_records<P: AsRef<Path>>(path: P) -> Result<Vec<Section>, Error> {
+    // Extract DOF section data, which is applicable for an object file built using this crate on
+    // macOS, or generally using the platform's dtrace tool, i.e., `dtrace -G` and compiler.
+    let dof_sections = extract_dof_sections(&path).map_err(|_| Error::InvalidFile)?;
+    if dof_sections.len() > 0 {
+        return Ok(dof_sections);
+    }
+
+    // File contains no DOF data. Try to parse out the ASM records inserted by the `usdt` crate.
     let file = OpenOptions::new().read(true).create(false).open(path)?;
     let (offset, len) = locate_probe_section(&file).ok_or(Error::InvalidFile)?;
 
     // Remap only the probe section itself as mutable, using a private
     // copy-on-write mapping to avoid writing to disk in any circumstance.
     let mut map = unsafe { MmapOptions::new().offset(offset).len(len).map_copy(&file)? };
-    usdt_impl::record::process_section(&mut map, /* register = */ false)
+    usdt_impl::record::process_section(&mut map, /* register = */ false).map(|s| vec![s])
 }
 
 // Return the offset and size of the file's probe record section, if it exists.
