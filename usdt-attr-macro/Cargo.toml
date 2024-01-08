@@ -1,6 +1,6 @@
 [package]
 name = "usdt-attr-macro"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Procedural macro for generating Rust macros for USDT probes"
@@ -10,12 +10,12 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 proc-macro = true
 
 [dependencies]
-dtrace-parser = { path = "../dtrace-parser", version = "= 0.1.15" }
+dtrace-parser = { path = "../dtrace-parser", version = "=0.2.0" }
 proc-macro2 = "1"
 serde_tokenstream = "0.2"
 syn = { version = "2", features = ["full"] }
 quote = "1"
-usdt-impl = { path = "../usdt-impl", default-features = false, version = "= 0.4.1" }
+usdt-impl = { path = "../usdt-impl", default-features = false, version = "=0.5.0" }
 
 [features]
 default = ["asm"]

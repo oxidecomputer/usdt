@@ -52,7 +52,7 @@ dependencies = [
 
 [[package]]
 name = "argument-types"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
@@ -143,7 +143,7 @@ checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
 name = "compile-errors"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -183,7 +183,7 @@ dependencies = [
 
 [[package]]
 name = "does-it-work"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "usdt",
  "usdt-tests-common",
@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "dof"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "goblin",
  "pretty-hex",
@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "dtrace-parser"
-version = "0.1.15"
+version = "0.2.0"
 dependencies = [
  "pest",
  "pest_derive",
@@ -214,7 +214,7 @@ dependencies = [
 
 [[package]]
 name = "dusty"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "dof",
@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "empty"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "usdt",
  "version_check",
@@ -232,7 +232,7 @@ dependencies = [
 
 [[package]]
 name = "fake-cmd"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "fake-lib",
  "version_check",
@@ -240,7 +240,7 @@ dependencies = [
 
 [[package]]
 name = "fake-lib"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "usdt",
  "version_check",
@@ -410,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "modules"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
@@ -494,7 +494,7 @@ checksum = "bbc83ee4a840062f368f9096d80077a9841ec117e17e7f700df81958f1451254"
 
 [[package]]
 name = "probe-test-attr"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "probe-test-build"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "usdt",
  "version_check",
@@ -511,7 +511,7 @@ dependencies = [
 
 [[package]]
 name = "probe-test-macro"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "usdt",
  "version_check",
@@ -537,7 +537,7 @@ dependencies = [
 
 [[package]]
 name = "rename"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
@@ -546,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "rename-builder"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
@@ -732,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "test-json"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -743,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "test-unique-id"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "subprocess",
  "usdt",
@@ -815,7 +815,7 @@ checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
 
 [[package]]
 name = "usdt"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "dof",
  "dtrace-parser",
@@ -829,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-attr-macro"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "dtrace-parser",
  "proc-macro2",
@@ -842,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-impl"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "byteorder",
  "dof",
@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "usdt-macro"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "dtrace-parser",
  "proc-macro2",
@@ -876,7 +876,7 @@ version = "0.0.0"
 
 [[package]]
 name = "usize"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -995,7 +995,7 @@ checksum = "dff9641d1cd4be8d1a070daf9e3773c5f67e78b4d9d42263020c057706765c04"
 
 [[package]]
 name = "zero-arg-probe"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "usdt",
  "version_check",
