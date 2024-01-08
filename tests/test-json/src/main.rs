@@ -135,8 +135,7 @@ mod tests {
         let now = Instant::now();
         wait_for_begin_sentinel(&mut dtrace, &now).await;
 
-        // We should now see the probe having fired exactly once. Grab the output data, kill the
-        // DTrace process, and then parse the output as JSON.
+        // Instruct the task firing probes to continue.
         tx.send(()).await.unwrap();
 
         // Wait for the process to finish, up to a pretty generous limit.
