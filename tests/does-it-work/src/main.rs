@@ -2,7 +2,7 @@
 //! registers a single probe with arguments, and then verifies that this probe is visible to the
 //! `dtrace(1)` command-line tool.
 
-// Copyright 2022 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,7 +48,8 @@ mod tests {
     fn test_does_it_work() {
         let (send, recv) = channel();
         let thr = thread::spawn(move || run_test(recv));
-        let dtrace = root_command("dtrace")
+        let dtrace = std::process::Command::new(root_command())
+            .arg("dtrace")
             .arg("-l")
             .arg("-v")
             .arg("-n")
