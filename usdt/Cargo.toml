@@ -5,6 +5,7 @@ edition = "2021"
 license = "Apache-2.0"
 description = "Dust your Rust with USDT probes"
 repository = "https://github.com/oxidecomputer/usdt.git"
+rust-version = "1.63.0"
 
 # NOTE: The use of path and version dependencies is deliberate and load-bearing.
 #
