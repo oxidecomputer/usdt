@@ -22,4 +22,4 @@ default = ["asm"]
 asm = ["usdt-impl/asm"]
 
 [dev-dependencies]
-rstest = "0.17"
+rstest = "0.18.2"
