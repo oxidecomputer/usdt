@@ -185,8 +185,8 @@
 //!
 //! It's a DTrace convention to name probes with dashes between words, rather than underscores. So
 //! the probe should be `my-probe` rather than `my_probe`. The former is not a valid Rust
-//! identifier, but can be achieved by using _two_ underscores in the provider or probe name. This
-//! crate internally translates `__` into `-` in such cases. For example, the provider:
+//! identifier, but can be achieved by using _two_ underscores in the **probe** name. This crate
+//! internally translates `__` into `-` in such cases. For example, the provider:
 //!
 //! ```ignore
 //! #[usdt::provider("my__provider")]
@@ -195,7 +195,11 @@
 //! }
 //! ```
 //!
-//! will result in a provider and probe name of `my-provider` and `my-probe`.
+//! will result in a provider and probe name of `my__provider` and `my-probe`.
+//! **Important:** This translation of double-underscores to dashes only occurs
+//! in the _probe_ name. Provider names are _not_ modified in any way. This
+//! matches the behavior of existing DTrace implementations, and guarantees that
+//! providers are similarly named regardless of the target platform.
 //!
 //! Examples
 //! --------
