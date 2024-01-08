@@ -169,16 +169,19 @@ mod tests {
                 let mut bytes = vec![0; 128];
                 stdout.read(&mut bytes).await.map(|_| bytes)
             });
-            let Ok(read_result) = read_task.await else {
-                println!("DTrace not yet ready");
-                continue;
-            };
-            let chunk = read_result.expect("Failed to read DTrace stdout");
-            output.push_str(std::str::from_utf8(&chunk).expect("Non-UTF8 stdout"));
-            if output.contains(BEGIN_SENTINEL) {
-                println!("DTrace started up successfully");
-                return;
+            match read_task.await {
+                Ok(read_result) => {
+                    let chunk = read_result.expect("Failed to read DTrace stdout");
+                    output.push_str(std::str::from_utf8(&chunk).expect("Non-UTF8 stdout"));
+                    if output.contains(BEGIN_SENTINEL) {
+                        println!("DTrace started up successfully");
+                        return;
+                    }
+                }
+                _ => {}
             }
+            println!("DTrace not yet ready");
+            continue;
         }
         panic!("DTrace failed to startup within {:?}", MAX_WAIT);
     }
