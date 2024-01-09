@@ -243,7 +243,7 @@ pub(crate) fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataTyp
         version = PROBE_REC_VERSION,
         n_args = n_args,
         flags = if is_enabled { 1 } else { 0 },
-        prov = prov.replace("__", "-"),
+        prov = prov,
         probe = probe.replace("__", "-"),
         arguments = arguments,
         yeet = if cfg!(target_os = "illumos") {
