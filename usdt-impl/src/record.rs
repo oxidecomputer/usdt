@@ -18,16 +18,10 @@
 use crate::DataType;
 use byteorder::{NativeEndian, ReadBytesExt};
 use dof::{Probe, Provider, Section};
-#[cfg(target_os = "unix")]
-use libc::{c_void, Dl_info};
+use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
-use std::{
-    collections::BTreeMap,
-    ffi::CStr,
-    ptr::{null, null_mut},
-};
 
 // Version number for probe records containing data about all probes.
 //
@@ -61,18 +55,26 @@ pub fn process_section(mut data: &mut [u8], register: bool) -> Result<Section, c
 /// Convert an address in an object file into a function and file name, if possible.
 pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
-        let mut info = Dl_info {
-            dli_fname: null(),
-            dli_fbase: null_mut(),
-            dli_sname: null(),
-            dli_saddr: null_mut(),
+        let mut info = libc::Dl_info {
+            dli_fname: std::ptr::null(),
+            dli_fbase: std::ptr::null_mut(),
+            dli_sname: std::ptr::null(),
+            dli_saddr: std::ptr::null_mut(),
         };
         if libc::dladdr(addr as *const c_void, &mut info as *mut _) == 0 {
             (None, None)
         } else {
             (
-                Some(CStr::from_ptr(info.dli_sname).to_string_lossy().to_string()),
-                Some(CStr::from_ptr(info.dli_fname).to_string_lossy().to_string()),
+                Some(
+                    std::ffi::CStr::from_ptr(info.dli_sname)
+                        .to_string_lossy()
+                        .to_string(),
+                ),
+                Some(
+                    std::ffi::CStr::from_ptr(info.dli_fname)
+                        .to_string_lossy()
+                        .to_string(),
+                ),
             )
         }
     }
@@ -80,7 +82,7 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
 
 #[cfg(not(target_os = "unix"))]
 /// Convert an address in an object file into a function and file name, if possible.
-pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
+pub(crate) fn addr_to_info(_addr: u64) -> (Option<String>, Option<String>) {
     (None, None)
 }
 
