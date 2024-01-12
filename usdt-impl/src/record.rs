@@ -51,7 +51,7 @@ pub fn process_section(mut data: &mut [u8], register: bool) -> Result<Section, c
     })
 }
 
-#[cfg(target_os = "unix")]
+#[cfg(unix)]
 /// Convert an address in an object file into a function and file name, if possible.
 pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
@@ -61,7 +61,7 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
             dli_sname: std::ptr::null(),
             dli_saddr: std::ptr::null_mut(),
         };
-        if libc::dladdr(addr as *const c_void, &mut info as *mut _) == 0 {
+        if libc::dladdr(addr as *const libc::c_void, &mut info as *mut _) == 0 {
             (None, None)
         } else {
             (
@@ -80,7 +80,7 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     }
 }
 
-#[cfg(not(target_os = "unix"))]
+#[cfg(not(unix))]
 /// Convert an address in an object file into a function and file name, if possible.
 pub(crate) fn addr_to_info(_addr: u64) -> (Option<String>, Option<String>) {
     (None, None)
