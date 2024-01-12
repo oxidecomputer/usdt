@@ -1,7 +1,7 @@
 //! Implementation of construction and extraction of custom linker section records used to store
 //! probe information in an object file.
 
-// Copyright 2022 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 use crate::DataType;
 use byteorder::{NativeEndian, ReadBytesExt};
 use dof::{Probe, Provider, Section};
+#[cfg(target_os = "unix")]
 use libc::{c_void, Dl_info};
 use std::mem::size_of;
 use std::sync::atomic::AtomicU8;
@@ -56,7 +57,8 @@ pub fn process_section(mut data: &mut [u8], register: bool) -> Result<Section, c
     })
 }
 
-// Convert an address in an object file into a function and file name, if possible.
+#[cfg(target_os = "unix")]
+/// Convert an address in an object file into a function and file name, if possible.
 pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
         let mut info = Dl_info {
@@ -74,6 +76,12 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
             )
         }
     }
+}
+
+#[cfg(not(target_os = "unix"))]
+/// Convert an address in an object file into a function and file name, if possible.
+pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
+    (None, None)
 }
 
 // Limit a string to the DTrace-imposed maxima. Note that this ensures a null-terminated C string
