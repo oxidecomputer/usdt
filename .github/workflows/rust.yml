@@ -61,6 +61,7 @@ jobs:
           --exclude does-it-work
           --exclude test-json
           --exclude test-unique-id
+          --exclude compile-errors
 
   stable-test-no-op:
     name: Test with probes disabled
