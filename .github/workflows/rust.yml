@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+  RUST_BACKTRACE: 1
+
 jobs:
   style-check:
     name: Check Rust style
@@ -32,7 +35,6 @@ jobs:
           override: true
           profile: minimal
       - run: >
-          RUST_BACKTRACE=1
           cargo test
           --release
           --verbose
@@ -52,7 +54,6 @@ jobs:
           override: true
           profile: minimal
       - run: >
-          RUST_BACKTRACE=1
           cargo test
           --release
           --verbose
@@ -75,7 +76,6 @@ jobs:
           override: true
           profile: minimal
       - run: >
-          RUST_BACKTRACE=1
           cargo test
           --release
           --verbose
@@ -99,7 +99,6 @@ jobs:
           override: true
           profile: minimal
       - run: >
-          RUST_BACKTRACE=1
           cargo +nightly-2024-01-01 test
           --release
           --verbose
@@ -121,7 +120,6 @@ jobs:
           override: true
           profile: minimal
       - run: >
-          RUST_BACKTRACE=1
           cargo +nightly-2024-01-01 test
           --release
           --verbose
@@ -146,7 +144,6 @@ jobs:
           override: true
           profile: minimal
       - run: >
-          RUST_BACKTRACE=1
           cargo +nightly-2022-11-01 test
           --release
           --verbose
@@ -168,7 +165,6 @@ jobs:
           override: true
           profile: minimal
       - run: >
-          RUST_BACKTRACE=1
           cargo +nightly-2022-11-01 test
           --release
           --verbose
