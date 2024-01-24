@@ -1,7 +1,7 @@
 //! Implementation of construction and extraction of custom linker section records used to store
 //! probe information in an object file.
 
-// Copyright 2022 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,15 +18,10 @@
 use crate::DataType;
 use byteorder::{NativeEndian, ReadBytesExt};
 use dof::{Probe, Provider, Section};
-use libc::{c_void, Dl_info};
+use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
-use std::{
-    collections::BTreeMap,
-    ffi::CStr,
-    ptr::{null, null_mut},
-};
 
 // Version number for probe records containing data about all probes.
 //
@@ -56,24 +51,39 @@ pub fn process_section(mut data: &mut [u8], register: bool) -> Result<Section, c
     })
 }
 
-// Convert an address in an object file into a function and file name, if possible.
+#[cfg(unix)]
+/// Convert an address in an object file into a function and file name, if possible.
 pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
-        let mut info = Dl_info {
-            dli_fname: null(),
-            dli_fbase: null_mut(),
-            dli_sname: null(),
-            dli_saddr: null_mut(),
+        let mut info = libc::Dl_info {
+            dli_fname: std::ptr::null(),
+            dli_fbase: std::ptr::null_mut(),
+            dli_sname: std::ptr::null(),
+            dli_saddr: std::ptr::null_mut(),
         };
-        if libc::dladdr(addr as *const c_void, &mut info as *mut _) == 0 {
+        if libc::dladdr(addr as *const libc::c_void, &mut info as *mut _) == 0 {
             (None, None)
         } else {
             (
-                Some(CStr::from_ptr(info.dli_sname).to_string_lossy().to_string()),
-                Some(CStr::from_ptr(info.dli_fname).to_string_lossy().to_string()),
+                Some(
+                    std::ffi::CStr::from_ptr(info.dli_sname)
+                        .to_string_lossy()
+                        .to_string(),
+                ),
+                Some(
+                    std::ffi::CStr::from_ptr(info.dli_fname)
+                        .to_string_lossy()
+                        .to_string(),
+                ),
             )
         }
     }
+}
+
+#[cfg(not(unix))]
+/// Convert an address in an object file into a function and file name, if possible.
+pub(crate) fn addr_to_info(_addr: u64) -> (Option<String>, Option<String>) {
+    (None, None)
 }
 
 // Limit a string to the DTrace-imposed maxima. Note that this ensures a null-terminated C string
