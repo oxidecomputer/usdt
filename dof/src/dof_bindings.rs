@@ -446,6 +446,10 @@ pub struct dof_helper {
     pub dofhp_mod: [::std::os::raw::c_char; 64usize],
     pub dofhp_addr: u64,
     pub dofhp_dof: u64,
+    #[cfg(target_os = "freebsd")]
+    pub dofhp_pid: i32,
+    #[cfg(target_os = "freebsd")]
+    pub dofhp_gen: ::std::os::raw::c_int,
 }
 impl Default for dof_helper {
     fn default() -> Self {
