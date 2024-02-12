@@ -14,4 +14,4 @@ serde_json = "*"
 version_check = "0.9.4"
 
 [dev-dependencies]
-tokio = { version = "1.35.1", features = [ "full" ] }
+tokio = { version = "1.36.0", features = [ "full" ] }
