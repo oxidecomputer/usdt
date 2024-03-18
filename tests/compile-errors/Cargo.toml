@@ -10,7 +10,7 @@ serde = "*"
 serde_json = "*"
 
 [dev-dependencies]
-trybuild = "1.0.89"
+trybuild = "1.0.90"
 
 [build-dependencies]
 version_check = "0.9.4"
