@@ -434,21 +434,24 @@ mod tests {
         let output = tokens.to_string();
 
         let needle = format!("link_name = \"{is_enabled}\"", is_enabled = is_enabled);
-        assert!(output.find(&needle).is_some());
+        assert!(output.contains(&needle));
 
         let needle = format!("link_name = \"{probe}\"", probe = probe);
-        assert!(output.find(&needle).is_some());
+        assert!(output.contains(&needle));
 
         let needle = format!(
             "fn {provider_name}_{probe_name}",
             provider_name = provider_name,
             probe_name = probe_name
         );
-        assert!(output.find(&needle).is_some());
+        assert!(output.contains(&needle));
 
         let needles = &[
             "asm ! (\".reference {typedefs}\"",
+            #[cfg(target_arch = "x86_64")]
             "call {extern_probe_fn}",
+            #[cfg(target_arch = "aarch64")]
+            "bl {extern_probe_fn}",
             "\".reference {stability}",
             "typedefs = sym typedefs",
             &format!(
@@ -458,8 +461,12 @@ mod tests {
             "stability = sym stability",
         ];
         for needle in needles.iter() {
-            println!("{}", needle);
-            assert!(output.find(needle).is_some());
+            assert!(
+                output.contains(needle),
+                "needle {} not found in haystack {}",
+                needle,
+                output,
+            );
         }
     }
 }

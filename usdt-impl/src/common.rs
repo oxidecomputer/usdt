@@ -376,7 +376,10 @@ mod tests {
             })),
             DataType::Native(dtrace_parser::DataType::String),
         ];
-        let registers = &["rdi", "rsi"];
+        #[cfg(target_arch = "x86_64")]
+        let registers = ["rdi", "rsi"];
+        #[cfg(target_arch = "aarch64")]
+        let registers = ["x0", "x1"];
         let (args, regs) = construct_probe_args(types);
         let expected = quote! {
             let args = __usdt_private_args_lambda();
@@ -392,7 +395,12 @@ mod tests {
         {
             let reg = actual.replace(' ', "");
             let expected = format!("in(\"{}\")(arg_{}", expected, i);
-            assert!(reg.starts_with(&expected));
+            assert!(
+                reg.starts_with(&expected),
+                "reg: {}; expected {}",
+                reg,
+                expected,
+            );
         }
     }
 
