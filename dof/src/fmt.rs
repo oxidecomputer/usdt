@@ -116,7 +116,7 @@ pub fn fmt_dof(sections: Vec<Section>, format: FormatMode) -> Result<Option<Stri
         FormatMode::Raw { include_sections } => {
             for section in sections.iter() {
                 let RawSections { header, sections } =
-                    crate::des::deserialize_raw_sections(&section.as_bytes().as_slice())?;
+                    crate::des::deserialize_raw_sections(section.as_bytes().as_slice())?;
                 out.push_str(&format!("{:#?}\n", header));
                 for (index, (section_header, data)) in sections.into_iter().enumerate() {
                     out.push_str(&format!("{}\n", fmt_dof_sec(&section_header, index)));
