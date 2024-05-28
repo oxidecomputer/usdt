@@ -494,13 +494,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f232d6ef707e1956a43342693d2a31e72989554d58299d7a88738cc95b0d35c"
 
 [[package]]
-name = "memmap"
-version = "0.7.0"
+name = "memmap2"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6585fd95e7bb50d6cc31e20d4cf9afb4e2ba16c5846fc76793f11218da9c475b"
+checksum = "fe751422e4a8caa417e13c3ea66452215d7d63e19e604f4980461212f3ae1322"
 dependencies = [
  "libc",
- "winapi",
 ]
 
 [[package]]
@@ -1123,7 +1122,7 @@ dependencies = [
  "dof",
  "dtrace-parser",
  "goblin",
- "memmap",
+ "memmap2",
  "serde",
  "usdt-attr-macro",
  "usdt-impl",

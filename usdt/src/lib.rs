@@ -354,7 +354,7 @@
 
 use dof::{extract_dof_sections, Section};
 use goblin::Object;
-use memmap::{Mmap, MmapOptions};
+use memmap2::{Mmap, MmapOptions};
 use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
@@ -454,7 +454,7 @@ pub fn probe_records<P: AsRef<Path>>(path: P) -> Result<Vec<Section>, Error> {
     // Extract DOF section data, which is applicable for an object file built using this crate on
     // macOS, or generally using the platform's dtrace tool, i.e., `dtrace -G` and compiler.
     let dof_sections = extract_dof_sections(&path).map_err(|_| Error::InvalidFile)?;
-    if dof_sections.len() > 0 {
+    if !dof_sections.is_empty() {
         return Ok(dof_sections);
     }
 
