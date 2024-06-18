@@ -199,22 +199,22 @@ fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenSt
                     &[0_u8]
                 ].concat()
             },
-            quote! { .as_ptr() as i64 },
+            quote! { .as_ptr() as usize },
         ),
         DataType::Native(dtrace_parser::DataType::String) => (
             quote! {
                 [(#input.as_ref() as &str).as_bytes(), &[0_u8]].concat()
             },
-            quote! { .as_ptr() as i64 },
+            quote! { .as_ptr() as usize },
         ),
         DataType::Native(_) => {
             let ty = typ.to_rust_type();
             (
-                quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input) as i64) },
+                quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input) as usize) },
                 quote! {},
             )
         }
-        DataType::UniqueId => (quote! { #input.as_u64() as i64 }, quote! {}),
+        DataType::UniqueId => (quote! { #input.as_u64() as usize }, quote! {}),
     }
 }
 
@@ -383,7 +383,7 @@ mod tests {
         let (args, regs) = construct_probe_args(types);
         let expected = quote! {
             let args = __usdt_private_args_lambda();
-            let arg_0 = (*<_ as ::std::borrow::Borrow<*const u8>>::borrow(&args.0) as i64);
+            let arg_0 = (*<_ as ::std::borrow::Borrow<*const u8>>::borrow(&args.0) as usize);
             let arg_1 = [(args.1.as_ref() as &str).as_bytes(), &[0_u8]].concat();
         };
         assert_eq!(args.to_string(), expected.to_string());
@@ -416,7 +416,7 @@ mod tests {
         );
         assert_eq!(
             out.to_string(),
-            quote! {(*<_ as ::std::borrow::Borrow<u8>>::borrow(&foo) as i64)}.to_string()
+            quote! {(*<_ as ::std::borrow::Borrow<u8>>::borrow(&foo) as usize)}.to_string()
         );
         assert_eq!(post.to_string(), quote! {}.to_string());
 
@@ -428,6 +428,6 @@ mod tests {
             out.to_string(),
             quote! { [(foo.as_ref() as &str).as_bytes(), &[0_u8]].concat() }.to_string()
         );
-        assert_eq!(post.to_string(), quote! { .as_ptr() as i64 }.to_string());
+        assert_eq!(post.to_string(), quote! { .as_ptr() as usize }.to_string());
     }
 }
