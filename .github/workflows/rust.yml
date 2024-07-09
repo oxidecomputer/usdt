@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.75.0
           components: rustfmt
@@ -29,11 +29,9 @@ jobs:
         os: [ "macos-latest" ]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.75.0
-          override: true
-          profile: minimal
       - run: >
           cargo test
           --release
@@ -48,11 +46,9 @@ jobs:
         os: [ "ubuntu-latest", "windows-latest" ]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.75.0
-          override: true
-          profile: minimal
       - run: >
           cargo test
           --release
@@ -74,8 +70,6 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: 1.75.0
-          override: true
-          profile: minimal
       - run: >
           cargo test
           --release
@@ -94,11 +88,9 @@ jobs:
         os: [ "macos-latest" ]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2024-01-01
-          override: true
-          profile: minimal
       - run: >
           cargo +nightly-2024-01-01 test
           --release
@@ -115,11 +107,9 @@ jobs:
         os: [ "ubuntu-latest", "windows-latest" ]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2024-01-01
-          override: true
-          profile: minimal
       - run: >
           cargo +nightly-2024-01-01 test
           --release
