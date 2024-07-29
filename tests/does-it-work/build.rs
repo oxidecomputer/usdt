@@ -17,16 +17,6 @@ use usdt::Builder;
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
-    if !version_check::is_min_version("1.59").unwrap_or(false) {
-        println!("cargo:rustc-cfg=usdt_need_feat_asm");
-    }
-    #[cfg(target_os = "macos")]
-    if version_check::supports_feature("asm_sym").unwrap_or(false)
-        && !version_check::is_min_version("1.67").unwrap_or(false)
-    {
-        println!("cargo:rustc-cfg=usdt_need_feat_asm_sym");
-    }
-
     println!("cargo:rerun-if-changed=test.d");
     Builder::new("test.d").build().unwrap();
 }
