@@ -13,4 +13,4 @@ serde_json = "*"
 trybuild = "1.0.98"
 
 [build-dependencies]
-version_check = "0.9.4"
+version_check = "0.9.5"

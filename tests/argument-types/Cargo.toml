@@ -9,4 +9,4 @@ usdt = { path = "../../usdt" }
 serde = "1"
 
 [build-dependencies]
-version_check = "0.9.4"
+version_check = "0.9.5"
