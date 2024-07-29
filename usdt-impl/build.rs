@@ -27,6 +27,9 @@ enum Backend {
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo::rustc-check-cfg=cfg(usdt_backend_noop)");
+    println!("cargo::rustc-check-cfg=cfg(usdt_backend_linker)");
+    println!("cargo::rustc-check-cfg=cfg(usdt_backend_standard)");
 
     // `asm` feature was stabilized in 1.59
     let have_stable_asm = version_check::is_min_version("1.59").unwrap_or(false);
