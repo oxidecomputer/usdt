@@ -179,10 +179,7 @@ fn compile_probe(
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     compile_error!("USDT only supports x86_64 and AArch64 architectures");
 
-    #[cfg(usdt_stable_asm)]
-    let asm_macro = quote! { std::arch::asm };
-    #[cfg(not(usdt_stable_asm))]
-    let asm_macro = quote! { asm };
+    let asm_macro = quote! { ::std::arch::asm };
 
     let impl_block = quote! {
         extern "C" {

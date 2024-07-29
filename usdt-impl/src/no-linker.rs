@@ -82,10 +82,7 @@ fn compile_probe(
     let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
     let is_enabled_rec = emit_probe_record(&provider.name, &probe.name, None);
     let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
-    #[cfg(usdt_stable_asm)]
-    let asm_macro = quote! { std::arch::asm };
-    #[cfg(not(usdt_stable_asm))]
-    let asm_macro = quote! { asm };
+    let asm_macro = quote! { ::std::arch::asm };
 
     let impl_block = quote! {
         {
