@@ -9,4 +9,4 @@ usdt = { path = "../../usdt", features = ["asm"] }
 
 [build-dependencies]
 usdt = { path = "../../usdt", features = ["asm"] }
-version_check = "0.9.4"
+version_check = "0.9.5"

@@ -8,4 +8,4 @@ publish = false
 fake-lib = { path = "../fake-lib" }
 
 [build-dependencies]
-version_check = "0.9.4"
+version_check = "0.9.5"
