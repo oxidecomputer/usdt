@@ -6,10 +6,3 @@ publish = false
 
 [dependencies]
 usdt = { path = "../usdt", default-features = false }
-
-[build-dependencies]
-version_check = "0.9.5"
-
-[features]
-default = ["asm"]
-asm = ["usdt/asm"]

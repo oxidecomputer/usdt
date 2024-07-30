@@ -5,10 +5,9 @@ edition = "2021"
 publish = false
 
 [dependencies]
-usdt = { path = "../../usdt", features = ["asm"] }
+usdt = { path = "../../usdt" }
 serde = "*"
 serde_json = "*"
 
 [build-dependencies]
-usdt = { path = "../../usdt", features = ["asm"] }
-version_check = "0.9.5"
+usdt = { path = "../../usdt" }

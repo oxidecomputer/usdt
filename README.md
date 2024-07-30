@@ -225,58 +225,6 @@ comes with significant tradeoffs. As such the current recommendation is:
 function calling it), and document to their users that this function should be called to
 guarantee that probes are registered.
 
-## Notes
-
-The `usdt` crate requires [inline asm][inline-asm], a feature stabilized in Rust 1.59.
-Prior to that version, a nightly toolchain was required to import the feature.  For legacy
-convenience reasons, the crate contains also an empty, no-op implementation, which generates all the
-same probe macros, but with empty bodies (thus not requiring inline asm).  This may be selected by
-passing the `--no-default-features` flag when building the crate, or by using `default-features =
-false` in the [`[dependencies]` table][feature-deps] of one's `Cargo.toml`.
-
-Library developers may use `usdt` as an optional dependency, gated by a feature, for example
-named `usdt-probes` or similar. This feature would imply the `usdt/asm` feature, but the `usdt`
-crate could be used with the no-op implementation by default. For example, your `Cargo.toml`
-might contain
-
-```
-[dependencies]
-usdt = { version = "*", optional = true, default-features = false }
-
-# ... later
-
-[features]
-usdt-probes = ["usdt/asm"]
-```
-
-This allows users to opt into probes if they are using a suitably new toolchain, or and older
-nightly with the `asm` feature enabled on their project.
-
-### The Rust `asm` feature
-
-On toolchains prior to 1.59, inline asm was [not available][asm-issue] without the feature being
-enabled.  This applies to code _calling_ the probe macros, in addition to `usdt` where they are
-implemented.  Those generated probe macros must be in a module that is either built with a >=1.59
-toolchain or where the `feature(asm)` configuration is present.
-
-
-#### Toolchain versions and the `asm_sym` feature
-
-On macOS (where the linker is involved in USDT probe creation) on toolchains prior to 1.66, the
-`asm_sym` feature is required (in addition to `asm` in nightly toolchains prior to November 2021;
-see [this issue][asm-feature-flags]). For such a toolchain, this feature can be included just on
-macOS e.g., with `#![cfg_attr(target_os = "macos", feature(asm_sym))]`, or unconditionally on all
-platforms.
-
-The addition of the `asm_sym` feature presents an unfortunate problem. It is no longer possible to
-compile the `usdt` crate (or any crate defining probes) with a toolchain from before that feature
-was added _and_ after its addition. In the former case, we'd get errors about an unknown feature
-should we include the `asm_sym` feature, and we'd get errors about functionality behind a feature
-gate from later compilers should we omit the feature.
-
-Fortunately with the stabilization of `asm_sym` in 1.66, using this crate should become much
-simpler.
-
 ## References
 
 [1]: https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt
@@ -285,7 +233,3 @@ simpler.
 [4]: https://docs.rs/serde_json/1.0.68/serde_json/fn.to_string.html
 [serde-json-error]: https://docs.serde.rs/serde_json/error/struct.Error.html
 [serde-runtime-fail]: https://github.com/serde-rs/serde/issues/1307
-[inline-asm]: https://github.com/rust-lang/rust/issues/72016
-[feature-deps]: https://doc.rust-lang.org/cargo/reference/features.html#dependency-features
-[asm-issue]: https://github.com/rust-lang/rust/issues/72016
-[asm-feature-flags]: https://github.com/rust-lang/rust/pull/90348

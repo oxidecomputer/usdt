@@ -9,8 +9,3 @@ usdt = { path = "../usdt", default-features = false }
 
 [build-dependencies]
 usdt = { path = "../usdt" }
-version_check = "0.9.5"
-
-[features]
-default = ["asm"]
-asm = ["usdt/asm"]

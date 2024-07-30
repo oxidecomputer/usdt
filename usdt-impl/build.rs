@@ -28,56 +28,11 @@ enum Backend {
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
-    // `asm` feature was stabilized in 1.59
-    let have_stable_asm = version_check::is_min_version("1.59").unwrap_or(false);
-    // `asm_sym` feature was stabilized in 1.66
-    let have_stable_asm_sym = version_check::is_min_version("1.66").unwrap_or(false);
-
-    // Are we being built with a compiler which allows feature flags (nightly)
-    let is_nightly = version_check::is_feature_flaggable().unwrap_or(false);
-
-    let feat_asm = env::var_os("CARGO_FEATURE_ASM").is_some();
-    let feat_strict_asm = env::var_os("CARGO_FEATURE_STRICT_ASM").is_some();
-
     let backend = match env::var("CARGO_CFG_TARGET_OS").ok().as_deref() {
-        Some("macos") if feat_asm => {
-            if have_stable_asm && have_stable_asm_sym {
-                Backend::Linker
-            } else if feat_strict_asm || is_nightly {
-                if !have_stable_asm {
-                    println!("cargo:rustc-cfg=usdt_need_feat_asm");
-                }
-                if !have_stable_asm_sym {
-                    println!("cargo:rustc-cfg=usdt_need_feat_asm_sym");
-                }
-                Backend::Linker
-            } else {
-                Backend::NoOp
-            }
-        }
-        Some("illumos") | Some("solaris") if feat_asm => {
-            if have_stable_asm {
-                Backend::Standard
-            } else if feat_strict_asm || is_nightly {
-                println!("cargo:rustc-cfg=usdt_need_feat_asm");
-                Backend::Standard
-            } else {
-                Backend::NoOp
-            }
-        }
-        _ => {
-            if !have_stable_asm {
-                println!("cargo:rustc-cfg=usdt_need_feat_asm");
-            }
-            Backend::NoOp
-        }
+        Some("macos") => Backend::Linker,
+        Some("illumos") | Some("solaris") => Backend::Standard,
+        _ => Backend::NoOp,
     };
-
-    // Since visibility of the `asm!()` macro differs between the nightly feature and the
-    // stabilized version, the consumer requires information about its availability
-    if have_stable_asm {
-        println!("cargo:rustc-cfg=usdt_stable_asm");
-    }
 
     match backend {
         Backend::NoOp => {

@@ -25,7 +25,6 @@
 //!
 //! In rust, we'll want the probe site to look something like this:
 //! ```ignore
-//! #![feature(asm, asm_sym)]
 //! extern "C" {
 //!     #[link_name = "__dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"]
 //!     fn stability();
@@ -179,11 +178,6 @@ fn compile_probe(
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     compile_error!("USDT only supports x86_64 and AArch64 architectures");
 
-    #[cfg(usdt_stable_asm)]
-    let asm_macro = quote! { std::arch::asm };
-    #[cfg(not(usdt_stable_asm))]
-    let asm_macro = quote! { asm };
-
     let impl_block = quote! {
         extern "C" {
             #[allow(unused)]
@@ -205,7 +199,7 @@ fn compile_probe(
         unsafe {
             if #is_enabled_fn() != 0 {
                 #unpacked_args
-                #asm_macro!(
+                ::std::arch::asm!(
                     ".reference {typedefs}",
                     #call_instruction,
                     ".reference {stability}",
