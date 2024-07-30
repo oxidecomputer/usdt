@@ -9,6 +9,3 @@ usdt = { path = "../../usdt" }
 
 [dev-dependencies]
 subprocess = "0.2"
-
-[build-dependencies]
-version_check = "0.9.5"

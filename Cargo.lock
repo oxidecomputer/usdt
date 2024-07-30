@@ -80,7 +80,6 @@ version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -200,7 +199,6 @@ dependencies = [
  "serde_json",
  "trybuild",
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -238,7 +236,6 @@ version = "0.0.0"
 dependencies = [
  "usdt",
  "usdt-tests-common",
- "version_check",
 ]
 
 [[package]]
@@ -278,7 +275,6 @@ name = "empty"
 version = "0.0.0"
 dependencies = [
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -292,7 +288,6 @@ name = "fake-cmd"
 version = "0.0.0"
 dependencies = [
  "fake-lib",
- "version_check",
 ]
 
 [[package]]
@@ -300,7 +295,6 @@ name = "fake-lib"
 version = "0.0.0"
 dependencies = [
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -529,7 +523,6 @@ version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -645,7 +638,6 @@ version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -653,7 +645,6 @@ name = "probe-test-build"
 version = "0.0.0"
 dependencies = [
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -661,7 +652,6 @@ name = "probe-test-macro"
 version = "0.0.0"
 dependencies = [
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -741,7 +731,6 @@ version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -750,7 +739,6 @@ version = "0.0.0"
 dependencies = [
  "serde",
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -979,7 +967,6 @@ dependencies = [
  "tokio",
  "usdt",
  "usdt-tests-common",
- "version_check",
 ]
 
 [[package]]
@@ -988,7 +975,6 @@ version = "0.0.0"
 dependencies = [
  "subprocess",
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -1132,7 +1118,6 @@ name = "usdt"
 version = "0.5.0"
 dependencies = [
  "dof",
- "dtrace-parser",
  "goblin",
  "memmap2",
  "serde",
@@ -1169,7 +1154,6 @@ dependencies = [
  "syn",
  "thiserror",
  "thread-id",
- "version_check",
 ]
 
 [[package]]
@@ -1195,7 +1179,6 @@ dependencies = [
  "serde",
  "serde_json",
  "usdt",
- "version_check",
 ]
 
 [[package]]
@@ -1402,7 +1385,6 @@ name = "zero-arg-probe"
 version = "0.0.0"
 dependencies = [
  "usdt",
- "version_check",
 ]
 
 [[package]]

@@ -18,9 +18,6 @@ syn = { version = "2", features = ["full", "extra-traits"] }
 thiserror = "1"
 thread-id = "4"
 
-[build-dependencies]
-version_check = "0.9.5"
-
 [target.'cfg(target_os = "macos")'.dependencies]
 dof = { path = "../dof", optional = true, default-features = false, version = "=0.3.0" }
 
@@ -28,8 +25,7 @@ dof = { path = "../dof", optional = true, default-features = false, version = "=
 dof = { path = "../dof", default-features = false, version = "=0.3.0" }
 
 [features]
-default = ["asm"]
-asm = []
+default = []
 # The `des` feature enables `dof` and company to be able to deserialize special
 # sections emitted in the binary which describe the probes.  Except on
 # platforms with linker integration for USDT probes (currently only MacOS),

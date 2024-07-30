@@ -82,13 +82,12 @@ fn compile_probe(
     let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
     let is_enabled_rec = emit_probe_record(&provider.name, &probe.name, None);
     let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
-    let asm_macro = quote! { ::std::arch::asm };
 
     let impl_block = quote! {
         {
             let mut is_enabled: u64;
             unsafe {
-                #asm_macro!(
+                ::std::arch::asm!(
                     "990:   clr rax",
                     #is_enabled_rec,
                     out("rax") is_enabled,
@@ -99,7 +98,7 @@ fn compile_probe(
             if is_enabled != 0 {
                 #unpacked_args
                 unsafe {
-                    #asm_macro!(
+                    ::std::arch::asm!(
                         "990:   nop",
                         #probe_rec,
                         #in_regs
