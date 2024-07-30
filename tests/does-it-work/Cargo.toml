@@ -10,4 +10,3 @@ usdt-tests-common = { path = "../../usdt-tests-common" }
 
 [build-dependencies]
 usdt = { path = "../../usdt" }
-version_check = "0.9.5"

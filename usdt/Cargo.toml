@@ -15,7 +15,6 @@ rust-version = "1.75.0"
 # where the public-facing `usdt` crate may pick up different versions of the
 # internal implementation crates.
 [dependencies]
-dtrace-parser = { path = "../dtrace-parser", optional = true, version = "=0.2.0" }
 serde = "1"
 usdt-impl = { path = "../usdt-impl", default-features = false, version = "=0.5.0", features = [
   "des",
@@ -28,9 +27,9 @@ memmap2 = { version = "0.9.4" }
 
 [features]
 default = ["asm"]
-asm = [
-  "usdt-impl/asm",
-  "usdt-macro/asm",
-  "usdt-attr-macro/asm",
-  "dtrace-parser",
-]
+# This feature used to be functional, but is now a no-op because inline `asm` is available on all
+# supported versions of Rust. It's kept around for BC reasons, but whenever there's a breaking
+# change to the `usdt` crate, this feature should be removed.
+#
+# There's also a comment about this in lib.rs -- remove it when this feature is removed.
+asm = []

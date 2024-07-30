@@ -1,6 +1,6 @@
 //! The empty implementation of the USDT crate.
 //!
-//! Used when the `asm` feature is disabled, or on platforms without DTrace.
+//! Used on platforms without DTrace.
 
 // Copyright 2021 Oxide Computer Company
 //
