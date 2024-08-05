@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 env:
   RUST_BACKTRACE: 1
@@ -17,40 +17,64 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.75.0
+          toolchain: 1.80.0
           components: rustfmt
       - run: cargo fmt -- --check
 
   stable-test:
-    name: Run all tests
+    name: Run most tests
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-latest" ]
+        os: ["macos-latest"]
+        # Test on MSRV and stable.
+        toolchain: ["1.75.0", "stable"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.75.0
+          toolchain: ${{ matrix.toolchain }}
       - run: >
-          cargo test
+          cargo +${{ matrix.toolchain }} test
           --release
           --verbose
           --workspace
+          --exclude compile-errors
+
+  trybuild-test:
+    name: Run trybuild tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ["macos-latest"]
+        # Test on the pinned rust-toolchain version.
+        toolchain: ["1.80.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - run: >
+          cargo +${{ matrix.toolchain }} test
+          --release
+          --verbose
+          --test compile-errors
 
   stable-test-no-support:
     name: Test on DTrace-less systems
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "windows-latest" ]
+        os: ["ubuntu-latest", "windows-latest"]
+        # Test on MSRV and stable.
+        toolchain: ["1.75.0", "stable"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.75.0
+          toolchain: ${{ matrix.toolchain }}
       - run: >
-          cargo test
+          cargo +${{ matrix.toolchain }} test
           --release
           --verbose
           --workspace
@@ -64,14 +88,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-latest" ]
+        os: ["macos-latest"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.75.0
+          toolchain: stable
       - run: >
-          cargo test
+          cargo +stable test
           --release
           --verbose
           --no-default-features
@@ -79,13 +103,14 @@ jobs:
           --exclude does-it-work
           --exclude test-json
           --exclude test-unique-id
+          --exclude compile-errors
 
   recent-nightly:
     name: Run tests on a recent nightly
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-latest" ]
+        os: ["macos-latest"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -104,7 +129,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "windows-latest" ]
+        os: ["ubuntu-latest", "windows-latest"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
