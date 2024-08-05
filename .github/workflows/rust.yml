@@ -58,6 +58,7 @@ jobs:
           cargo +${{ matrix.toolchain }} test
           --release
           --verbose
+          --workspace
           --test compile-errors
 
   stable-test-no-support:
