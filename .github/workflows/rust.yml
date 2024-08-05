@@ -58,8 +58,7 @@ jobs:
           cargo +${{ matrix.toolchain }} test
           --release
           --verbose
-          --workspace
-          --test compile-errors
+          --package compile-errors
 
   stable-test-no-support:
     name: Test on DTrace-less systems
