@@ -263,7 +263,7 @@ where
 }
 
 thread_local! {
-    static CURRENT_ID: RefCell<u32> = RefCell::new(0);
+    static CURRENT_ID: RefCell<u32> = const { RefCell::new(0) };
     static THREAD_ID: RefCell<usize> = RefCell::new(thread_id::get());
 }
 
