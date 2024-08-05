@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [master]
+    branches: [ master ]
   pull_request:
-    branches: [master]
+    branches: [ master ]
 
 env:
   RUST_BACKTRACE: 1
@@ -26,9 +26,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macos-latest"]
+        os: [ "macos-latest" ]
         # Test on MSRV and stable.
-        toolchain: ["1.75.0", "stable"]
+        toolchain: [ "1.75.0", "stable" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -46,9 +46,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macos-latest"]
+        os: [ "macos-latest" ]
         # Test on the pinned rust-toolchain version.
-        toolchain: ["1.80.0"]
+        toolchain: [ "1.80.0" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -65,9 +65,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["ubuntu-latest", "windows-latest"]
+        os: [ "ubuntu-latest", "windows-latest" ]
         # Test on MSRV and stable.
-        toolchain: ["1.75.0", "stable"]
+        toolchain: [ "1.75.0", "stable" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -88,7 +88,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macos-latest"]
+        os: [ "macos-latest" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -110,7 +110,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macos-latest"]
+        os: [ "macos-latest" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -129,7 +129,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["ubuntu-latest", "windows-latest"]
+        os: [ "ubuntu-latest", "windows-latest" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
