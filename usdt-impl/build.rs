@@ -27,6 +27,9 @@ enum Backend {
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rustc-check-cfg=cfg(usdt_backend_noop)");
+    println!("cargo:rustc-check-cfg=cfg(usdt_backend_linker)");
+    println!("cargo:rustc-check-cfg=cfg(usdt_backend_standard)");
 
     let backend = match env::var("CARGO_CFG_TARGET_OS").ok().as_deref() {
         Some("macos") => Backend::Linker,
