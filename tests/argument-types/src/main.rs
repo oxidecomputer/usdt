@@ -25,6 +25,7 @@ struct Arg {
 
 /// Types with references are not supported.
 #[derive(Serialize)]
+#[allow(dead_code)]
 struct NotSupported<'a> {
     x: &'a [i32],
 }
