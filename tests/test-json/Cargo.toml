@@ -11,4 +11,4 @@ serde = "*"
 serde_json = "*"
 
 [dev-dependencies]
-tokio = { version = "1.39.2", features = [ "full" ] }
+tokio = { version = "1.39.3", features = [ "full" ] }
