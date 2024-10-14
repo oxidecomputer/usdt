@@ -18,7 +18,7 @@ use crate::{des::RawSections, Section};
 use crate::{dof_bindings::*, Error};
 use pretty_hex::PrettyHex;
 use std::{fmt::Debug, mem::size_of};
-use zerocopy::{FromBytes, Ref};
+use zerocopy::{FromBytes, Immutable, KnownLayout, Ref};
 
 /// Format a DOF section into a pretty-printable string.
 pub fn fmt_dof_sec(sec: &dof_sec, index: usize) -> String {
@@ -82,10 +82,10 @@ pub fn fmt_dof_sec_data(sec: &dof_sec, data: &Vec<u8>) -> String {
     }
 }
 
-fn fmt_dof_sec_type<T: Debug + FromBytes + Copy>(data: &[u8]) -> String {
+fn fmt_dof_sec_type<T: Debug + KnownLayout + Immutable + FromBytes + Copy>(data: &[u8]) -> String {
     data.chunks(size_of::<T>())
         .map(|chunk| {
-            let item = *Ref::<_, T>::new(chunk).unwrap();
+            let item = *Ref::<_, T>::from_bytes(chunk).unwrap();
             format!("{:#x?}", item)
         })
         .collect::<Vec<_>>()

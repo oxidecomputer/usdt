@@ -3,7 +3,7 @@
 
 #![allow(non_camel_case_types)]
 
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub const DIF_VERSION_1: u32 = 1;
 pub const DIF_VERSION_2: u32 = 2;
@@ -277,7 +277,7 @@ pub const DOF_SECF_LOAD: u32 = 1;
 pub const DOF_RELO_NONE: u32 = 0;
 pub const DOF_RELO_SETX: u32 = 1;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dtrace_diftype {
     pub dtdt_kind: u8,
     pub dtdt_ckind: u8,
@@ -287,7 +287,7 @@ pub struct dtrace_diftype {
 }
 pub type dtrace_diftype_t = dtrace_diftype;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_hdr {
     pub dofh_ident: [u8; 16usize],
     pub dofh_flags: u32,
@@ -303,7 +303,7 @@ pub type dof_hdr_t = dof_hdr;
 pub type dof_secidx_t = u32;
 pub type dof_stridx_t = u32;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_sec {
     pub dofs_type: u32,
     pub dofs_align: u32,
@@ -314,7 +314,7 @@ pub struct dof_sec {
 }
 pub type dof_sec_t = dof_sec;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_ecbdesc {
     pub dofe_probes: dof_secidx_t,
     pub dofe_pred: dof_secidx_t,
@@ -324,7 +324,7 @@ pub struct dof_ecbdesc {
 }
 pub type dof_ecbdesc_t = dof_ecbdesc;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_probedesc {
     pub dofp_strtab: dof_secidx_t,
     pub dofp_provider: dof_stridx_t,
@@ -335,7 +335,7 @@ pub struct dof_probedesc {
 }
 pub type dof_probedesc_t = dof_probedesc;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_actdesc {
     pub dofa_difo: dof_secidx_t,
     pub dofa_strtab: dof_secidx_t,
@@ -346,14 +346,14 @@ pub struct dof_actdesc {
 }
 pub type dof_actdesc_t = dof_actdesc;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_difohdr {
     pub dofd_rtype: dtrace_diftype_t,
     pub dofd_links: [dof_secidx_t; 1usize],
 }
 pub type dof_difohdr_t = dof_difohdr;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_relohdr {
     pub dofr_strtab: dof_secidx_t,
     pub dofr_relsec: dof_secidx_t,
@@ -361,7 +361,7 @@ pub struct dof_relohdr {
 }
 pub type dof_relohdr_t = dof_relohdr;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_relodesc {
     pub dofr_name: dof_stridx_t,
     pub dofr_type: u32,
@@ -370,7 +370,7 @@ pub struct dof_relodesc {
 }
 pub type dof_relodesc_t = dof_relodesc;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_optdesc {
     pub dofo_option: u32,
     pub dofo_strtab: dof_secidx_t,
@@ -379,7 +379,7 @@ pub struct dof_optdesc {
 pub type dof_optdesc_t = dof_optdesc;
 pub type dof_attr_t = u32;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_provider {
     pub dofpv_strtab: dof_secidx_t,
     pub dofpv_probes: dof_secidx_t,
@@ -395,7 +395,7 @@ pub struct dof_provider {
 }
 pub type dof_provider_t = dof_provider;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_probe {
     pub dofpr_addr: u64,
     pub dofpr_func: dof_stridx_t,
@@ -414,7 +414,7 @@ pub struct dof_probe {
 }
 pub type dof_probe_t = dof_probe;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_xlator {
     pub dofxl_members: dof_secidx_t,
     pub dofxl_strtab: dof_secidx_t,
@@ -425,7 +425,7 @@ pub struct dof_xlator {
 }
 pub type dof_xlator_t = dof_xlator;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_xlmember {
     pub dofxm_difo: dof_secidx_t,
     pub dofxm_name: dof_stridx_t,
@@ -433,7 +433,7 @@ pub struct dof_xlmember {
 }
 pub type dof_xlmember_t = dof_xlmember;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dof_xlref {
     pub dofxr_xlator: dof_secidx_t,
     pub dofxr_member: u32,
@@ -441,7 +441,7 @@ pub struct dof_xlref {
 }
 pub type dof_xlref_t = dof_xlref;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Copy, Clone)]
 pub struct dof_helper {
     pub dofhp_mod: [::std::os::raw::c_char; 64usize],
     pub dofhp_addr: u64,
@@ -454,7 +454,7 @@ impl Default for dof_helper {
 }
 pub type dof_helper_t = dof_helper;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Copy, Clone)]
 pub struct dof_ioctl_data {
     pub dofiod_count: u64,
     pub dofiod_helpers: [dof_helper_t; 1usize],
@@ -466,7 +466,7 @@ impl Default for dof_ioctl_data {
 }
 pub type dof_ioctl_data_t = dof_ioctl_data;
 #[repr(C)]
-#[derive(AsBytes, FromZeroes, FromBytes, Debug, Default, Copy, Clone)]
+#[derive(Immutable, KnownLayout, IntoBytes, FromBytes, Debug, Default, Copy, Clone)]
 pub struct dt_node {
     pub _address: u8,
 }

@@ -50,7 +50,7 @@ fn parse_probe_section(
     _argument_indices: &[u8],
 ) -> Vec<Probe> {
     let parse_probe = |buf| {
-        let probe = *Ref::<_, dof_probe>::new(buf).unwrap();
+        let probe = *Ref::<_, dof_probe>::from_bytes(buf).unwrap();
         let offset_index = probe.dofpr_offidx as usize;
         let offs = (offset_index..offset_index + probe.dofpr_noffs as usize)
             .map(|index| offsets[index])
@@ -93,7 +93,7 @@ fn parse_providers(sections: &[dof_sec], buf: &[u8]) -> Vec<Provider> {
         let section_start = section_header.dofs_offset as usize;
         let section_size = section_header.dofs_size as usize;
         let provider =
-            *Ref::<_, dof_provider>::new(&buf[section_start..section_start + section_size])
+            *Ref::<_, dof_provider>::from_bytes(&buf[section_start..section_start + section_size])
                 .unwrap();
 
         let strtab = extract_section(sections, provider.dofpv_strtab as _, buf);
@@ -128,14 +128,15 @@ fn parse_providers(sections: &[dof_sec], buf: &[u8]) -> Vec<Provider> {
 }
 
 fn deserialize_raw_headers(buf: &[u8]) -> Result<(dof_hdr, Vec<dof_sec>), Error> {
-    let file_header =
-        *Ref::<_, dof_hdr>::new(&buf[..size_of::<dof_hdr>()]).ok_or(Error::ParseError)?;
+    let file_header = *Ref::<_, dof_hdr>::from_bytes(&buf[..size_of::<dof_hdr>()])
+        .map_err(|_| Error::ParseError)?;
     let n_sections: usize = file_header.dofh_secnum as _;
     let mut section_headers = Vec::with_capacity(n_sections);
     for i in 0..n_sections {
         let start = file_header.dofh_secoff as usize + file_header.dofh_secsize as usize * i;
         let end = start + file_header.dofh_secsize as usize;
-        section_headers.push(*Ref::<_, dof_sec>::new(&buf[start..end]).ok_or(Error::ParseError)?);
+        section_headers
+            .push(*Ref::<_, dof_sec>::from_bytes(&buf[start..end]).map_err(|_| Error::ParseError)?);
     }
     Ok((file_header, section_headers))
 }
