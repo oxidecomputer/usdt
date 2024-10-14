@@ -16,7 +16,7 @@
 
 use std::mem::size_of;
 
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use crate::dof_bindings::*;
 use crate::Section;
