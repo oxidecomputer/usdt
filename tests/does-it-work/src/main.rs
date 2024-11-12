@@ -45,6 +45,13 @@ mod tests {
 
     #[test]
     fn test_does_it_work() {
+        // Dump contents for debugging
+        std::io::copy(
+            &mut std::fs::File::open("/usr/lib/dtrace/tcp.d").unwrap(),
+            &mut std::io::stdout(),
+        )
+        .unwrap();
+
         let (send, recv) = channel();
         let thr = thread::spawn(move || run_test(recv));
         let dtrace = std::process::Command::new(root_command())
