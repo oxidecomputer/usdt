@@ -27,6 +27,10 @@ fn main() {}
 #[cfg(test)]
 mod tests {
     use super::with_ids;
+
+    #[cfg(not(target_os = "linux"))]
+    mod dtrace {
+    use super::with_ids;
     use std::thread;
     use std::time::Duration;
     use subprocess::Exec;
@@ -108,5 +112,92 @@ mod tests {
         });
 
         assert_eq!(actual_id, id.as_u64());
+    }
+    }
+
+    #[cfg(target_os = "linux")]
+    mod stap {
+        use super::with_ids;
+        use std::thread;
+        use std::time::Duration;
+        use subprocess::Exec;
+        use usdt::UniqueId;
+        use usdt_tests_common::root_command;
+
+        #[test]
+        fn test_unique_ids() {
+            usdt::register_probes().unwrap();
+            let id = UniqueId::new();
+            with_ids::start_work!(|| &id);
+            let id2 = id.clone();
+            let thr = thread::spawn(move || {
+                for _ in 0..10 {
+                    with_ids::waypoint_from_thread!(|| (&id2, "we're in a thread"));
+                    thread::sleep(Duration::from_millis(10));
+                }
+                id2.as_u64()
+            });
+            let result = thr.join().unwrap();
+            with_ids::work_finished!(|| (&id, result));
+            assert_eq!(result, id.as_u64());
+
+            // Actually verify that the same value is received by bpftrace.
+            let mut bpftrace = Exec::cmd(root_command())
+                .arg("bpftrace")
+                .arg("-q")
+                .arg("-e")
+                .arg(r#"usdt:*:with_ids:waypoint_from_thread { printf("%lu\n", arg0); exit(); }"#)
+                .arg("-p")
+                .arg(std::process::id().to_string())
+                .stderr(subprocess::Redirection::Pipe)
+                .stdout(subprocess::Redirection::Pipe)
+                .popen()
+                .expect("Failed to run bpftrace");
+            thread::sleep(Duration::from_millis(1000));
+            let id = UniqueId::new();
+            let id2 = id.clone();
+            let thr = thread::spawn(move || {
+                with_ids::waypoint_from_thread!(|| (&id2, "we're in a thread"));
+            });
+            thr.join().unwrap();
+
+            const TIMEOUT: Duration = Duration::from_secs(10);
+            let mut comm = bpftrace.communicate_start(None).limit_time(TIMEOUT);
+            if bpftrace
+                .wait_timeout(TIMEOUT)
+                .expect("bpftrace command failed")
+                .is_none()
+            {
+                std::process::Command::new(root_command())
+                    .arg("kill")
+                    .arg(format!("{}", bpftrace.pid().unwrap()))
+                    .spawn()
+                    .expect("Failed to spawn kill")
+                    .wait()
+                    .expect("Failed to kill bpftrace subprocess");
+                panic!("bpftrace didn't exit within timeout of {:?}", TIMEOUT);
+            }
+            let (stdout, stderr) = comm.read_string().expect("Failed to read bpftrace output");
+            let stdout = stdout.unwrap_or_else(|| String::from("<EMPTY>"));
+            let stderr = stderr.unwrap_or_else(|| String::from("<EMPTY>"));
+            eprintln!("stdout: {}", stdout.trim());
+            eprintln!("stderr: {}", stderr.trim());
+            let actual_id: u64 = stdout.trim().parse().unwrap_or_else(|_| {
+                panic!(
+                    concat!(
+                        "Expected a u64\n",
+                        "stdout\n",
+                        "------\n",
+                        "{}\n",
+                        "stderr\n",
+                        "------\n",
+                        "{}"
+                    ),
+                    stdout, stderr
+                )
+            });
+
+            assert_eq!(actual_id, id.as_u64());
+        }
     }
 }

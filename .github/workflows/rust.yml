@@ -26,7 +26,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-15" ]
+        os: [ "macos-15", "ubuntu-latest" ]
         # Test on MSRV and stable.
         toolchain: [ "1.85.0", "stable" ]
     steps:
@@ -110,7 +110,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-15" ]
+        os: [ "macos-15", "ubuntu-latest" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -129,7 +129,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "windows-latest" ]
+        os: [ "windows-latest" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master

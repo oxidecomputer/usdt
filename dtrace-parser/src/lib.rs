@@ -241,7 +241,7 @@ impl TryFrom<&Pairs<'_, Rule>> for DataType {
 }
 
 impl DataType {
-    /// Convert a type into its C type represenation as a string
+    /// Convert a type into its C type representation as a string
     pub fn to_c_type(&self) -> String {
         match self {
             DataType::Integer(int) => int.to_c_type(),
