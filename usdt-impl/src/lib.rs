@@ -14,17 +14,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use dtrace_parser::Integer;
 use serde::Deserialize;
 use std::cell::RefCell;
 use thiserror::Error;
 
 // Probe record parsing required for standard backend (and `des` feature used by `dusty util)
-#[cfg(any(usdt_backend_standard, feature = "des"))]
+#[cfg(any(usdt_backend_standard, usdt_backend_stap3, feature = "des"))]
 pub mod record;
 
 #[cfg_attr(usdt_backend_noop, path = "empty.rs")]
 #[cfg_attr(usdt_backend_linker, path = "linker.rs")]
 #[cfg_attr(usdt_backend_standard, path = "no-linker.rs")]
+#[cfg_attr(usdt_backend_stap3, path = "stap3.rs")]
 mod internal;
 
 // Since the `empty` is mostly a no-op, parts of the common code will go unused when it is
@@ -147,6 +149,26 @@ impl DataType {
             DataType::Native(ty) => ty.to_c_type(),
             DataType::UniqueId => String::from("uint64_t"),
             DataType::Serializable(_) => String::from("char*"),
+        }
+    }
+
+    /// Convert a data type and register index to its GNU assembler operation
+    /// as a String
+    pub fn to_asm_op(&self, i: u8) -> String {
+        match self {
+            DataType::Native(ty) => ty.to_asm_op(i),
+            DataType::UniqueId => String::from("8"),
+            DataType::Serializable(_) => Integer::POINTER.to_asm_op(i),
+        }
+    }
+
+    /// Convert a data type to its GNU assembler size representation as a
+    /// String
+    pub fn to_asm_size(&self) -> i8 {
+        match self {
+            DataType::Native(ty) => ty.to_asm_size(),
+            DataType::UniqueId => 8,
+            DataType::Serializable(_) => Integer::POINTER.to_asm_size(),
         }
     }
 

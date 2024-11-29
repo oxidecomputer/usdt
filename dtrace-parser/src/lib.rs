@@ -87,6 +87,11 @@ pub struct Integer {
 const RUST_TYPE_PREFIX: &str = "::std::os::raw::c_";
 
 impl Integer {
+    pub const POINTER: Self = Self {
+        sign: Sign::Unsigned,
+        width: BitWidth::Pointer,
+    };
+
     fn width_to_c_str(&self) -> &'static str {
         match self.width {
             BitWidth::Bit8 => "8",
@@ -108,6 +113,93 @@ impl Integer {
             _ => "",
         };
         format!("{prefix}int{}_t", self.width_to_c_str())
+    }
+
+    pub fn to_asm_op(&self, i: u8) -> String {
+        // See common.rs for note on argument passing and maximum supported
+        // argument count.
+        #[cfg(target_arch = "x86_64")]
+        if cfg!(target_arch = "x86_64") {
+            let base = match i {
+                0 => "a",
+                1 => "b",
+                2 => "c",
+                3 => "sp",
+                4 => "bp",
+                5 => "di",
+                _ => unreachable!("Up to 6 probe arguments are currently supported"),
+            };
+            let prefix = match self.width {
+                BitWidth::Bit8 => "",
+                BitWidth::Bit16 => "",
+                BitWidth::Bit32 => "e",
+                BitWidth::Bit64 => "r",
+                #[cfg(target_pointer_width = "32")]
+                BitWidth::Pointer => "e",
+                #[cfg(target_pointer_width = "64")]
+                BitWidth::Pointer => "r",
+                #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
+                BitWidth::Pointer => compile_error!("Unsupported pointer width"),
+            };
+            let suffix = match self.width {
+                BitWidth::Bit8 => "l",
+                BitWidth::Bit16 | BitWidth::Bit32 | BitWidth::Bit64 | BitWidth::Pointer => {
+                    if i < 3 || i == 7 {
+                        // rax, rbx, rcx, [...], rdx
+                        "x"
+                    } else {
+                        // but [rsp, rbp, rdi, rsi]
+                        ""
+                    }
+                }
+            };
+            format!("%{}{}{}", prefix, base, suffix)
+        } else if cfg!(target_arch = "aarch64") {
+            let base = match i {
+                0 => "0",
+                1 => "1",
+                2 => "2",
+                3 => "3",
+                4 => "4",
+                5 => "5",
+                _ => unreachable!("Up to 6 probe arguments are currently supported"),
+            };
+            let prefix = match self.width {
+                BitWidth::Bit8 => "w",
+                BitWidth::Bit16 => "w",
+                BitWidth::Bit32 => "w",
+                BitWidth::Bit64 => "x",
+                #[cfg(target_pointer_width = "32")]
+                BitWidth::Pointer => "w",
+                #[cfg(target_pointer_width = "64")]
+                BitWidth::Pointer => "x",
+                #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
+                BitWidth::Pointer => compile_error!("Unsupported pointer width"),
+            };
+            format!("%{}{}", prefix, base)
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn to_asm_size(&self) -> i8 {
+        let prefix = match self.sign {
+            Sign::Unsigned => 1,
+            _ => -1,
+        };
+        let size = match self.width {
+            BitWidth::Bit8 => 1,
+            BitWidth::Bit16 => 2,
+            BitWidth::Bit32 => 4,
+            BitWidth::Bit64 => 8,
+            #[cfg(target_pointer_width = "32")]
+            BitWidth::Pointer => 4,
+            #[cfg(target_pointer_width = "64")]
+            BitWidth::Pointer => 8,
+            #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
+            BitWidth::Pointer => compile_error!("Unsupported pointer width"),
+        };
+        prefix * size
     }
 
     pub fn to_rust_ffi_type(&self) -> String {
@@ -241,12 +333,31 @@ impl TryFrom<&Pairs<'_, Rule>> for DataType {
 }
 
 impl DataType {
-    /// Convert a type into its C type represenation as a string
+    /// Convert a type into its C type representation as a String
     pub fn to_c_type(&self) -> String {
         match self {
             DataType::Integer(int) => int.to_c_type(),
             DataType::Pointer(int) => format!("{}*", int.to_c_type()),
             DataType::String => String::from("char*"),
+        }
+    }
+
+    /// Convert a type and register index to its GNU assembler operation as a
+    /// String
+    pub fn to_asm_op(&self, i: u8) -> String {
+        match self {
+            DataType::Integer(int) => int.to_asm_op(i),
+            // Integer pointers are dereferenced by wrapping into parentheses.
+            DataType::Pointer(int) => format!("({})", int.to_asm_op(i)),
+            DataType::String => Integer::POINTER.to_asm_op(i),
+        }
+    }
+
+    /// Convert a type to its GNU assembler size representation as an i8
+    pub fn to_asm_size(&self) -> i8 {
+        match self {
+            DataType::Integer(int) => int.to_asm_size(),
+            DataType::Pointer(_) | DataType::String => Integer::POINTER.to_asm_size(),
         }
     }
 
