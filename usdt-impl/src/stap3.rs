@@ -71,21 +71,8 @@ fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig)
     }
 }
 
-fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
+fn emit_isenabled_probe_record(prov: &str, probe: &str) -> String {
     let section_ident = r#".note.stapsdt, "", "note""#;
-    let arguments = types.map_or_else(String::new, |types| {
-        types
-            .iter()
-            .enumerate()
-            .map(|(reg_index, typ)| {
-                // Argument format is Nf@OP, N is -?{1,2,4,8} for sign and bit
-                // width, f is for floats, @ is a separator, and OP is the
-                // "actual assembly operand".
-                format!("{}@{}", typ.to_asm_size(), typ.to_asm_op(reg_index as u8))
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-    });
     let sema_name = format!("__usdt_sema_{}_{}", prov, probe);
     format!(
         r#"
@@ -118,7 +105,41 @@ fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> Str
             994:
                     .balign 4
                     .popsection
-        // Third define the actual DTrace probe
+            // Finally define the base for whatever it is needed (RIP).
+            .ifndef _.stapsdt.base
+                    .pushsection .stapsdt.base, "aG", "progbits", .stapsdt.base, comdat
+                    .weak _.stapsdt.base
+                    .hidden _.stapsdt.base
+            _.stapsdt.base:
+                    .space 1
+                    .size _.stapsdt.base, 1
+                    .popsection
+            .endif
+        "#,
+        section_ident = section_ident,
+        prov = prov,
+        probe = probe.replace("__", "-"),
+    )
+}
+
+fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
+    let section_ident = r#".note.stapsdt, "", "note""#;
+    let arguments = types.map_or_else(String::new, |types| {
+        types
+            .iter()
+            .enumerate()
+            .map(|(reg_index, typ)| {
+                // Argument format is Nf@OP, N is -?{1,2,4,8} for sign and bit
+                // width, f is for floats, @ is a separator, and OP is the
+                // "actual assembly operand".
+                format!("{}@{}", typ.to_asm_size(), typ.to_asm_op(reg_index as u8))
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    });
+    format!(
+        r#"
+        // First define the actual DTrace probe
                     .pushsection {section_ident}
                     .balign 4
                     .4byte 992f-991f, 994f-993f, 3    // length, type
@@ -136,7 +157,7 @@ fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> Str
             994:
                     .balign 4
                     .popsection
-            // Fourth define the base for whatever it is needed (RIP).
+            // Finally define the base for whatever it is needed (RIP).
             .ifndef _.stapsdt.base
                     .pushsection .stapsdt.base, "aG", "progbits", .stapsdt.base, comdat
                     .weak _.stapsdt.base
@@ -160,6 +181,7 @@ fn compile_probe(
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
     let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
+    let isenabled_probe_rec = emit_isenabled_probe_record(&provider.name, &probe.name);
     let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
 
     let sema_name = format_ident!("__usdt_sema_{}_{}", provider.name, probe.name);
@@ -176,20 +198,25 @@ fn compile_probe(
 
             let is_enabled: u16;
             unsafe {
+                #[allow(named_asm_labels)] {
+                    ::std::arch::asm!(
+                        "990:   nop",
+                        #isenabled_probe_rec,
+                        options(nomem, nostack, preserves_flags)
+                    );
+                }
                 is_enabled = ::core::ptr::addr_of!(#sema_name.is_active).read_volatile();
             }
 
             if is_enabled != 0 {
                 #unpacked_args
                 unsafe {
-                    #[allow(named_asm_labels)] {
-                        ::std::arch::asm!(
-                            "990:   nop",
-                            #probe_rec,
-                            #in_regs
-                            options(nomem, nostack, preserves_flags)
-                        );
-                    }
+                    ::std::arch::asm!(
+                        "990:   nop",
+                        #probe_rec,
+                        #in_regs
+                        options(nomem, nostack, preserves_flags)
+                    );
                 }
             }
         }
