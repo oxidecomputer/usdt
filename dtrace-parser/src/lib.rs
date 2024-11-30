@@ -121,12 +121,12 @@ impl Integer {
         #[cfg(target_arch = "x86_64")]
         if cfg!(target_arch = "x86_64") {
             let base = match i {
-                0 => "a",
-                1 => "b",
-                2 => "c",
-                3 => "sp",
-                4 => "bp",
-                5 => "di",
+                0 => "di",
+                1 => "si",
+                2 => "d",
+                3 => "c",
+                4 => "8",
+                5 => "9",
                 _ => unreachable!("Up to 6 probe arguments are currently supported"),
             };
             let prefix = match self.width {
@@ -144,12 +144,12 @@ impl Integer {
             let suffix = match self.width {
                 BitWidth::Bit8 => "l",
                 BitWidth::Bit16 | BitWidth::Bit32 | BitWidth::Bit64 | BitWidth::Pointer => {
-                    if i < 3 || i == 7 {
-                        // rax, rbx, rcx, [...], rdx
-                        "x"
-                    } else {
-                        // but [rsp, rbp, rdi, rsi]
+                    if i < 2 || 3 < i {
+                        // rdi, rsi, [...], r8, r9
                         ""
+                    } else {
+                        // but [rdx, rcx]
+                        "x"
                     }
                 }
             };
