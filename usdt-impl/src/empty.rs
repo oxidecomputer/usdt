@@ -17,7 +17,6 @@
 // limitations under the License.
 
 use crate::common;
-use crate::record::emit_probe_record;
 use crate::{Probe, Provider};
 use proc_macro2::TokenStream;
 use quote::quote;
