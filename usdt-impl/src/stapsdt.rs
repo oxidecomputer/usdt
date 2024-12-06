@@ -1,8 +1,4 @@
-//! The SystemTap probe version 3 of the USDT crate.
-//!
-//! Used on Linux platforms without DTrace.
-
-// Copyright 2021 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! The SystemTap probe version 3 of the USDT crate.
+//!
+//! Used on Linux platforms without DTrace.
+//!
+//! Name of the file comes from the `NT_STAPSDT` SystemTap probe descriptors'
+//! type name in `readelf` output.
+
+#[path = "stapsdt/args.rs"]
+mod args;
+
 use crate::{common, DataType};
 use crate::{Probe, Provider};
+use args::format_argument;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::convert::TryFrom;
@@ -71,6 +78,49 @@ fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig)
     }
 }
 
+/// ## Emit a SystemTap probe (version 3 format).
+///
+/// Source: https://sourceware.org/systemtap/wiki/UserSpaceProbeImplementation
+///
+/// A STAPSDT probe expands to a single `nop` in the generated code (the `nop`
+/// instruction is generated in `compile_probe`) and a non-allocated ELF note.
+/// Additionally, a special `.stapsdt.base` section is needed (once only) for
+/// detecting prelink address adjustments (its contents do not matter at all).
+///
+/// This method generates the ELF note assembly and an `.ifndef _.stapsdt.base`
+/// section for the address adjustments. Additionally, this method generates a
+/// 16 bit "semaphore" (counter) and links it to the ELF note. This semaphore
+/// is then used to gate invocations of the probe by reading its value at
+/// runtime and checking it against 0. A value of 0 means that no consumers are
+/// currently active and the probe and any parameter massaging work can be
+/// skipped.
+///
+/// ### Summary
+///
+/// A STAPSDT probe in plain pseudo-Rust would look roughly like this:
+/// ```rs
+/// #[linkage = "weak", visibility = "hidden"]
+/// static __usdt_sema_provider_probe: SyncUnsafeCell<u16> = SyncUnsafeCell::new(0);
+///
+/// let is_enabled = unsafe { __usdt_sema_provider_probe.get().read_volatile() } > 0;
+///
+/// if is_enabled {
+///   let arg1: u64 = get_arg1();
+///   let arg2: u32 = get_arg2();
+///   let arg3: *const u8 = get_arg3();
+///   const {
+///     // Build time: Define this location as being the place in the
+///     // instruction stream where our probe is located.
+///     core::usdt::define::<(u64, u32, *const u8)>("provider", "probe", &__usdt_sema_provider_probe);
+///   }
+///   core::arch::nop();
+/// }
+/// ```
+///
+/// When probing is started using SystemTap, perf, an eBPF program, or other,
+/// then the above `nop()` instruction will turn into an interrupt instruction
+/// that transfers control to the kernel which will then run the probe's kernel
+/// side code (such as an eBPF program).
 fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
     let sema_name = format!("__usdt_sema_{}_{}", prov, probe);
     let section_ident = r#".note.stapsdt, "", "note""#;
@@ -78,18 +128,17 @@ fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> Str
         types
             .iter()
             .enumerate()
-            .map(|(reg_index, typ)| {
-                // Argument format is Nf@OP, N is -?{1,2,4,8} for sign and bit
-                // width, f is for floats, @ is a separator, and OP is the
-                // "actual assembly operand".
-                format!("{}@{}", typ.to_asm_size(), typ.to_asm_op(reg_index as u8))
-            })
+            .map(format_argument)
             .collect::<Vec<_>>()
             .join(" ")
     });
     format!(
         r#"
         // First define the semaphore
+        // Note: This uses ifndef to make sure the same probe name can be used
+        // in multiple places but they all use the same semaphore. This can be
+        // used to eg. guard additional preparatory work far away from the
+        // actual probe site that will only be used by the probe.
             .ifndef {sema_name}
                     .pushsection .probes, "aw", "progbits"
                     .weak {sema_name}
@@ -118,7 +167,8 @@ fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> Str
             994:
                     .balign 4
                     .popsection
-        // Finally define the base for whatever it is needed (RIP).
+        // Finally define (if not defined yet) the base used to detect prelink
+        // address adjustments.
             .ifndef _.stapsdt.base
                     .pushsection .stapsdt.base, "aG", "progbits", .stapsdt.base, comdat
                     .weak _.stapsdt.base

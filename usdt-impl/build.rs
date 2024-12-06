@@ -30,7 +30,7 @@ enum Backend {
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rustc-check-cfg=cfg(usdt_backend_noop)");
-    println!("cargo:rustc-check-cfg=cfg(usdt_backend_stap3)");
+    println!("cargo:rustc-check-cfg=cfg(usdt_backend_stapsdt)");
     println!("cargo:rustc-check-cfg=cfg(usdt_backend_linker)");
     println!("cargo:rustc-check-cfg=cfg(usdt_backend_standard)");
 
@@ -46,7 +46,7 @@ fn main() {
             println!("cargo:rustc-cfg=usdt_backend_noop");
         }
         Backend::Stap3 => {
-            println!("cargo:rustc-cfg=usdt_backend_stap3");
+            println!("cargo:rustc-cfg=usdt_backend_stapsdt");
         }
         Backend::Linker => {
             println!("cargo:rustc-cfg=usdt_backend_linker");
