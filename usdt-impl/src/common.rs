@@ -117,20 +117,18 @@ fn shared_slice_elem_type(reference: &syn::TypeReference) -> Option<&syn::Type> 
     }
 }
 
-// x86_64 passes the first 6 arguments in registers, with the rest on the stack.
-// We limit this to 6 arguments in all cases for now, as handling those stack
-// arguments would be challenging with the current `asm!` macro implementation.
-#[cfg(target_arch = "x86_64")]
-pub(crate) const ABI_REGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
-#[cfg(target_arch = "aarch64")]
-pub(crate) const ABI_REGS: [&str; 6] = ["x0", "x1", "x2", "x3", "x4", "x5"];
-#[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
-compile_error!("USDT only supports x86_64 and ARM64 architectures");
-
 // Return code to destructure a probe arguments into identifiers, and to pass those to ASM
 // registers.
 pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
-    let abi_regs = &ABI_REGS;
+    // x86_64 passes the first 6 arguments in registers, with the rest on the stack.
+    // We limit this to 6 arguments in all cases for now, as handling those stack
+    // arguments would be challenging with the current `asm!` macro implementation.
+    #[cfg(target_arch = "x86_64")]
+    let abi_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+    #[cfg(target_arch = "aarch64")]
+    let arbi_regs = ["x0", "x1", "x2", "x3", "x4", "x5"];
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+    compile_error!("USDT only supports x86_64 and ARM64 architectures");
 
     assert!(
         types.len() <= abi_regs.len(),
@@ -138,7 +136,7 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
     );
     let (unpacked_args, in_regs): (Vec<_>, Vec<_>) = types
         .iter()
-        .zip(abi_regs)
+        .zip(&abi_regs)
         .enumerate()
         .map(|(i, (typ, reg))| {
             let arg = format_ident!("arg_{}", i);
