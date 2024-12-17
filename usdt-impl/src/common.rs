@@ -126,7 +126,7 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
     #[cfg(target_arch = "x86_64")]
     let abi_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
     #[cfg(target_arch = "aarch64")]
-    let abi_regs = ["x0", "x1", "x2", "x3", "x4", "x5"];
+    let arbi_regs = ["x0", "x1", "x2", "x3", "x4", "x5"];
     #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
     compile_error!("USDT only supports x86_64 and ARM64 architectures");
 
