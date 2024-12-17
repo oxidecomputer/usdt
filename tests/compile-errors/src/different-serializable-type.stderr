@@ -1,21 +1,3 @@
-error[E0277]: the trait bound `Expected: Clone` is not satisfied
-  --> src/different-serializable-type.rs:31:20
-   |
-31 |     fn my_probe(_: Expected) {}
-   |                    ^^^^^^^^ the trait `Clone` is not implemented for `Expected`
-   |
-note: required by a bound in `usdt_types_must_be_clone_and_serialize`
-  --> src/different-serializable-type.rs:28:1
-   |
-28 | #[usdt::provider]
-   | ^^^^^^^^^^^^^^^^^ required by this bound in `usdt_types_must_be_clone_and_serialize`
-   = note: this error originates in the attribute macro `usdt::provider` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: consider annotating `Expected` with `#[derive(Clone)]`
-   |
-19 + #[derive(Clone)]
-20 | struct Expected {
-   |
-
 error[E0277]: the trait bound `Different: Borrow<Expected>` is not satisfied
   --> src/different-serializable-type.rs:28:1
    |
