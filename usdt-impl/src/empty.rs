@@ -2,7 +2,7 @@
 //!
 //! Used on platforms without DTrace.
 
-// Copyright 2021 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,8 +76,20 @@ fn compile_probe(
     probe: &Probe,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let impl_block = quote! { let _ = || (__usdt_private_args_lambda()) ; };
-    common::build_probe_macro(config, provider, &probe.name, &probe.types, impl_block)
+    // We don't need to add any actual probe emission code, but we do still want
+    // to perform type-checking of its arguments here.
+    let args = common::call_argument_closure(&probe.types);
+    let type_check_fn = common::construct_type_check(
+        &provider.name,
+        &probe.name,
+        &provider.use_statements,
+        &probe.types,
+    );
+    let impl_block = quote! {
+        #args
+        #type_check_fn
+    };
+    common::build_probe_macro(config, &probe.name, &probe.types, impl_block)
 }
 
 pub fn register_probes() -> Result<(), crate::Error> {
