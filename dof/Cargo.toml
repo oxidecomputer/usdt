@@ -10,7 +10,7 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 goblin = { version = "0.9", optional = true, features = ["elf64", "mach64"] }
 pretty-hex = { version = "0.4", optional = true }
 thiserror = "2"
-zerocopy = { version = "0.8.13", features = [ "derive" ] }
+zerocopy = { version = "0.8.14", features = [ "derive" ] }
 serde = { version = "1", features = [ "derive" ] }
 serde_json = "1"
 
