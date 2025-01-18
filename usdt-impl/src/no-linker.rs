@@ -97,7 +97,7 @@ fn compile_probe(
                     "990:   clr rax",
                     #is_enabled_rec,
                     out("rax") is_enabled,
-                    options(nostack)
+                    options(nomem, nostack)
                 );
             }
 
@@ -109,7 +109,7 @@ fn compile_probe(
                         "990:   nop",
                         #probe_rec,
                         #in_regs
-                        options(nostack)
+                        options(nomem, nostack, preserves_flags)
                     );
                 }
             }
