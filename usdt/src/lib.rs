@@ -230,16 +230,10 @@
 //! - `(u?)int(8|16|32|64)_t`
 //! - Pointers to the above integer types
 //! - `char *`
-//! - `T: Clone + serde::Serialize` (Only when defining probes in Rust)
+//! - `T: serde::Serialize` (Only when defining probes in Rust)
 //!
 //! Currently, up to six (6) arguments are supported, though this limitation may be lifted in the
 //! future.
-//!
-//! > **Note**: Serializable types must implement the `Clone` trait. It's important to note that
-//! this may almost always be derived, and, more importantly, that the data in probes will _never
-//! actually be cloned_, even when probes are enabled. The trait bound `Clone` is required to
-//! implement type-checking on the probe arguments, and is just an unfortunate leakiness to the
-//! abstraction provided by this crate.
 //!
 //! Registration
 //! ------------
