@@ -1,6 +1,6 @@
 //! Generate USDT probes from an attribute macro
 
-// Copyright 2021 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ fn generate_provider_item(
         quote! {
             const _: fn() = || {
                 #(#use_statements)*
-                fn usdt_types_must_be_clone_and_serialize<T: ?Sized + Clone + ::serde::Serialize>() {}
+                fn usdt_types_must_be_serialize<T: ?Sized + ::serde::Serialize>() {}
                 #(#check_fns)*
             };
         }
@@ -269,16 +269,12 @@ fn build_serializable_check_function<T>(ident: &T, fn_index: usize, arg_index: u
 where
     T: quote::ToTokens,
 {
-    let fn_name = quote::format_ident!(
-        "usdt_types_must_be_clone_and_serialize_{}_{}",
-        fn_index,
-        arg_index
-    );
+    let fn_name = quote::format_ident!("usdt_types_must_be_serialize_{}_{}", fn_index, arg_index);
     quote! {
         fn #fn_name() {
             // #ident must be in scope here, because this function is defined in the same module as
             // the actual probe functions, and thus shares any imports the consumer wants.
-            usdt_types_must_be_clone_and_serialize::<#ident>()
+            usdt_types_must_be_serialize::<#ident>()
         }
     }
 }

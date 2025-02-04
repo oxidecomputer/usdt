@@ -46,7 +46,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-15" ]
+        os: [ "macos-15", "ubuntu-latest" ]
         # Test on the pinned rust-toolchain version.
         toolchain: [ "1.80.0" ]
     steps:
@@ -78,10 +78,10 @@ jobs:
           --release
           --verbose
           --workspace
+          --exclude compile-errors
           --exclude does-it-work
           --exclude test-json
           --exclude test-unique-id
-          --exclude compile-errors
 
   stable-test-no-op:
     name: Test with probes disabled
