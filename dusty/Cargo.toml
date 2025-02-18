@@ -8,7 +8,7 @@ rust-version = "1.70.0"
 publish = false
 
 [dependencies]
-clap = { version = "4.5.28", features = ["derive"] }
+clap = { version = "4.5.29", features = ["derive"] }
 dof = { path = "../dof", features = ["des"] }
 usdt = { path = "../usdt" }
 usdt-impl = { path = "../usdt-impl", features = ["des"] }
