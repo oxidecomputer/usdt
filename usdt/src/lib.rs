@@ -373,7 +373,7 @@ impl Builder {
 ///
 /// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
 pub fn register_probes() -> Result<(), Error> {
-    usdt_impl::register_probes().map_err(Error::from)
+    usdt_impl::register_probes()
 }
 
 /// Extract embedded USDT probe records from a file.

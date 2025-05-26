@@ -5,7 +5,7 @@ edition = "2021"
 license = "Apache-2.0"
 description = "Dust your Rust with USDT probes"
 repository = "https://github.com/oxidecomputer/usdt.git"
-rust-version = "1.75.0"
+rust-version = "1.85.0"
 
 # NOTE: The use of path and version dependencies is deliberate and load-bearing.
 #
@@ -22,7 +22,7 @@ usdt-impl = { path = "../usdt-impl", default-features = false, version = "=0.5.0
 usdt-macro = { path = "../usdt-macro", default-features = false, version = "=0.5.0" }
 usdt-attr-macro = { path = "../usdt-attr-macro", default-features = false, version = "=0.5.0" }
 dof = { path = "../dof", features = ["des"], version = "=0.3.0" }
-goblin = { version = "0.9", features = ["elf32", "elf64"] }
+goblin = { version = "0.10", features = ["elf32", "elf64"] }
 memmap2 = { version = "0.9.5" }
 
 [features]
