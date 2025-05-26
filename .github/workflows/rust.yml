@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.80.0
+          toolchain: 1.85.0
           components: rustfmt
       - run: cargo fmt -- --check
 
@@ -28,7 +28,7 @@ jobs:
       matrix:
         os: [ "macos-15" ]
         # Test on MSRV and stable.
-        toolchain: [ "1.75.0", "stable" ]
+        toolchain: [ "1.85.0", "stable" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -48,7 +48,7 @@ jobs:
       matrix:
         os: [ "macos-15", "ubuntu-latest" ]
         # Test on the pinned rust-toolchain version.
-        toolchain: [ "1.80.0" ]
+        toolchain: [ "1.85.0" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -67,7 +67,7 @@ jobs:
       matrix:
         os: [ "ubuntu-latest", "windows-latest" ]
         # Test on MSRV and stable.
-        toolchain: [ "1.75.0", "stable" ]
+        toolchain: [ "1.85.0", "stable" ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -115,9 +115,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2024-01-01
+          toolchain: nightly-2025-01-01
       - run: >
-          cargo +nightly-2024-01-01 test
+          cargo +nightly-2025-01-01 test
           --release
           --verbose
           --workspace
@@ -134,9 +134,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2024-01-01
+          toolchain: nightly-2025-01-01
       - run: >
-          cargo +nightly-2024-01-01 test
+          cargo +nightly-2025-01-01 test
           --release
           --verbose
           --workspace
