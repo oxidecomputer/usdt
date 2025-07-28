@@ -12,4 +12,4 @@ pest_derive = "2.8.1"
 thiserror = "2.0.12"
 
 [dev-dependencies]
-rstest = "0.22.0"
+rstest = "0.26.1"
