@@ -945,6 +945,7 @@ version = "0.0.0"
 dependencies = [
  "subprocess",
  "usdt",
+ "usdt-tests-common",
 ]
 
 [[package]]
