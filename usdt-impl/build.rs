@@ -27,29 +27,12 @@ enum Backend {
     NoOp,
 }
 
-fn have_link_dead_code_check() -> bool {
-    match env::var_os("CARGO_ENCODED_RUSTFLAGS").as_deref() {
-        Some(rustflags) => {
-            let mut atoms = rustflags.to_str().unwrap_or("").split(' ');
-            let mut link_dead_code = false;
-            // check if the last link-dead-code is n or no
-            while let Some(atom) = atoms.next() {
-                if atom.starts_with("-C") && atom.contains("link-dead-code") {
-                    link_dead_code = !atom.contains("link-dead-code=n")
-                }
-            }
-            link_dead_code
-        }
-        _ => false,
-    }
-}
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
     // `asm` feature was stabilized in 1.59
     let have_stable_asm = version_check::is_min_version("1.59").unwrap_or(false);
-    let have_stable_used_with_arg = false;
     // `asm_sym` feature was stabilized in 1.66
     let have_stable_asm_sym = version_check::is_min_version("1.66").unwrap_or(false);
 
@@ -59,10 +42,6 @@ fn main() {
     let feat_asm = env::var_os("CARGO_FEATURE_ASM").is_some();
     let feat_strict_asm = env::var_os("CARGO_FEATURE_STRICT_ASM").is_some();
 
-    // Check if upstream have enabled link-dead-code, which in those cases we can
-    // enable standard backend for FreeBSD. We check this by finding the last
-    // -C link-dead-code* flag, and check if it is a negation of link-dead-code
-    let have_link_dead_code = have_link_dead_code_check();
 
     let backend = match env::var("CARGO_CFG_TARGET_OS").ok().as_deref() {
         Some("macos") if feat_asm => {
@@ -91,19 +70,13 @@ fn main() {
             }
         }
         Some("freebsd") if feat_asm => {
-            // FreeBSD require used(linker) to preserve __(start|stop)_set_dtrace_probes
-            // without explicit "link-dead-code" by consumer
-            if have_link_dead_code || have_stable_used_with_arg || is_nightly {
-                if !have_stable_used_with_arg && is_nightly {
-                    println!("cargo:rustc-cfg=usdt_need_feat_used_with_arg");
-                }
-                if have_stable_asm {
-                    Backend::Standard
-                } else if feat_strict_asm || is_nightly {
-                    Backend::Standard
-                } else {
-                    Backend::NoOp
-                }
+            // FreeBSD now uses yeet mechanism like illumos to retain probe sections
+            // automatically without requiring special compiler flags from users
+            if have_stable_asm {
+                Backend::Standard
+            } else if feat_strict_asm || is_nightly {
+                println!("cargo:rustc-cfg=usdt_need_feat_asm");
+                Backend::Standard
             } else {
                 Backend::NoOp
             }

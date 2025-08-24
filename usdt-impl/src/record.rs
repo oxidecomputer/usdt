@@ -295,8 +295,8 @@ pub(crate) fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataTyp
         prov = prov.replace("__", "-"),
         probe = probe.replace("__", "-"),
         arguments = arguments,
-        yeet = if cfg!(target_os = "illumos") {
-            // The illumos linker may yeet our probes section into the trash under
+        yeet = if cfg!(any(target_os = "illumos", target_os = "freebsd")) {
+            // The illumos and FreeBSD linkers may yeet our probes section into the trash under
             // certain conditions. To counteract this, we yeet references to the
             // probes section into another section. This causes the linker to
             // retain the probes section.
