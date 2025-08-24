@@ -59,7 +59,7 @@ mod tests {
             .arg("/usr/sbin/dtrace")
             .arg("-q")
             .arg("-n")
-            .arg(r#"with_ids*:::waypoint_from_thread { printf("%d\n", arg0); exit(0); }"#)
+            .arg(r#"with_ids*:::waypoint_from_thread { printf("%u\n", arg0); exit(0); }"#)
             .stdin(subprocess::NullFile)
             .stderr(subprocess::Redirection::Pipe)
             .stdout(subprocess::Redirection::Pipe)
