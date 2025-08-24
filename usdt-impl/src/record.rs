@@ -101,12 +101,13 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
 
         // Use \n as a seperator for dli_sname(%n) and dli_fname(%f), we put one more \n to the end
         // to ensure s.lines() (see below) always contains two elements
-        let format = CString::new("%n\n%f").unwrap();
+        let format = std::ffi::CString::new("%n\n%f").unwrap();
         let symbols = backtrace_symbols_fmt(addrs, 1, format.as_ptr());
 
-        if symbols != null_mut() {
-            if let Some((sname, fname)) =
-                CStr::from_ptr(*symbols).to_string_lossy().split_once('\n')
+        if !symbols.is_null() {
+            if let Some((sname, fname)) = std::ffi::CStr::from_ptr(*symbols)
+                .to_string_lossy()
+                .split_once('\n')
             {
                 (Some(sname.to_string()), Some(fname.to_string()))
             } else {
