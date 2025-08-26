@@ -131,85 +131,85 @@ mod tests {
 
     #[cfg(not(target_os = "linux"))]
     mod dtrace {
-    use super::*;
-    use serde_json::Value;
-    use std::process::Stdio;
-    use std::time::Duration;
-    use tokio::io::AsyncReadExt;
-    use tokio::process::Child;
-    use tokio::process::Command;
-    use tokio::sync::mpsc::channel;
-    use tokio::sync::mpsc::Receiver;
-    use tokio::sync::mpsc::Sender;
-    use tokio::time::Instant;
-    use usdt_tests_common::root_command;
+        use super::*;
+        use serde_json::Value;
+        use std::process::Stdio;
+        use std::time::Duration;
+        use tokio::io::AsyncReadExt;
+        use tokio::process::Child;
+        use tokio::process::Command;
+        use tokio::sync::mpsc::channel;
+        use tokio::sync::mpsc::Receiver;
+        use tokio::sync::mpsc::Sender;
+        use tokio::time::Instant;
+        use usdt_tests_common::root_command;
 
-    // Run DTrace as a subprocess, waiting for the JSON output of the provided probe.
-    async fn run_dtrace_and_return_json(tx: &Sender<()>, probe_name: &str) -> Value {
-        // Start the DTrace subprocess, and don't exit if the probe doesn't exist.
-        let mut dtrace = Command::new(root_command())
-            .arg("dtrace")
-            .arg("-Z")
-            .arg("-q")
-            .arg("-n")
-            // The test probe we're interested in listening for.
-            .arg(format!(
-                "test_json{}:::{} {{ printf(\"%s\", copyinstr(arg0)); exit(0); }}",
-                std::process::id(),
-                probe_name
-            ))
-            .arg("-n")
-            // An output printed by DTrace when it starts, to coordinate with the test thread
-            // firing the probe itself.
-            .arg(format!("BEGIN {{ trace(\"{}\"); }}", BEGIN_SENTINEL))
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("Failed to spawn DTrace subprocess");
+        // Run DTrace as a subprocess, waiting for the JSON output of the provided probe.
+        async fn run_dtrace_and_return_json(tx: &Sender<()>, probe_name: &str) -> Value {
+            // Start the DTrace subprocess, and don't exit if the probe doesn't exist.
+            let mut dtrace = Command::new(root_command())
+                .arg("dtrace")
+                .arg("-Z")
+                .arg("-q")
+                .arg("-n")
+                // The test probe we're interested in listening for.
+                .arg(format!(
+                    "test_json{}:::{} {{ printf(\"%s\", copyinstr(arg0)); exit(0); }}",
+                    std::process::id(),
+                    probe_name
+                ))
+                .arg("-n")
+                // An output printed by DTrace when it starts, to coordinate with the test thread
+                // firing the probe itself.
+                .arg(format!("BEGIN {{ trace(\"{}\"); }}", BEGIN_SENTINEL))
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("Failed to spawn DTrace subprocess");
 
-        // Wait for DTrace to correctly start up before notifying the test thread to start
-        // firing probes.
-        let now = Instant::now();
-        wait_for_begin_sentinel(&mut dtrace, &now).await;
+            // Wait for DTrace to correctly start up before notifying the test thread to start
+            // firing probes.
+            let now = Instant::now();
+            wait_for_begin_sentinel(&mut dtrace, &now).await;
 
-        // Instruct the task firing probes to continue.
-        tx.send(()).await.unwrap();
+            // Instruct the task firing probes to continue.
+            tx.send(()).await.unwrap();
 
-        // Wait for the process to finish, up to a pretty generous limit.
-        let output = tokio::time::timeout_at(now + MAX_WAIT, dtrace.wait_with_output())
-            .await
-            .expect(&format!("DTrace did not complete within {:?}", MAX_WAIT))
-            .expect("Failed to wait for DTrace subprocess");
-        assert!(
-            output.status.success(),
-            "DTrace process failed:\n{:?}",
-            String::from_utf8_lossy(&output.stderr),
-        );
-        let stdout = std::str::from_utf8(&output.stdout).expect("Non-UTF8 stdout");
-        println!("DTrace output\n{}\n", stdout);
-        let json: Value = serde_json::from_str(&stdout).unwrap();
-        json
-    }
+            // Wait for the process to finish, up to a pretty generous limit.
+            let output = tokio::time::timeout_at(now + MAX_WAIT, dtrace.wait_with_output())
+                .await
+                .expect(&format!("DTrace did not complete within {:?}", MAX_WAIT))
+                .expect("Failed to wait for DTrace subprocess");
+            assert!(
+                output.status.success(),
+                "DTrace process failed:\n{:?}",
+                String::from_utf8_lossy(&output.stderr),
+            );
+            let stdout = std::str::from_utf8(&output.stdout).expect("Non-UTF8 stdout");
+            println!("DTrace output\n{}\n", stdout);
+            let json: Value = serde_json::from_str(&stdout).unwrap();
+            json
+        }
 
-    #[tokio::test]
-    async fn test_json_support() {
-        let (tx, rx) = channel(4);
-        let test_task = tokio::task::spawn(fire_test_probes(rx));
+        #[tokio::test]
+        async fn test_json_support() {
+            let (tx, rx) = channel(4);
+            let test_task = tokio::task::spawn(fire_test_probes(rx));
 
-        let json = run_dtrace_and_return_json(&tx, "good").await;
-        assert!(json.get("ok").is_some());
-        assert!(json.get("err").is_none());
-        assert_eq!(json["ok"]["value"], Value::from(1));
-        assert_eq!(json["ok"]["buffer"], Value::from(vec![1, 2, 3]));
+            let json = run_dtrace_and_return_json(&tx, "good").await;
+            assert!(json.get("ok").is_some());
+            assert!(json.get("err").is_none());
+            assert_eq!(json["ok"]["value"], Value::from(1));
+            assert_eq!(json["ok"]["buffer"], Value::from(vec![1, 2, 3]));
 
-        // Tell the thread to continue with the bad probe
-        let json = run_dtrace_and_return_json(&tx, "bad").await;
-        assert!(json.get("ok").is_none());
-        assert!(json.get("err").is_some());
-        assert_eq!(json["err"], Value::from(SERIALIZATION_ERROR));
+            // Tell the thread to continue with the bad probe
+            let json = run_dtrace_and_return_json(&tx, "bad").await;
+            assert!(json.get("ok").is_none());
+            assert!(json.get("err").is_some());
+            assert_eq!(json["err"], Value::from(SERIALIZATION_ERROR));
 
-        test_task.await.unwrap();
-    }
+            test_task.await.unwrap();
+        }
     }
 
     #[cfg(target_os = "linux")]

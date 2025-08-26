@@ -41,89 +41,89 @@ mod tests {
 
     #[cfg(not(target_os = "linux"))]
     mod dtrace {
-    use super::run_test;
-    use std::process::Stdio;
-    use std::sync::mpsc::channel;
-    use std::thread;
+        use super::run_test;
+        use std::process::Stdio;
+        use std::sync::mpsc::channel;
+        use std::thread;
 
-    #[test]
-    fn test_does_it_work() {
-        use usdt_tests_common::root_command;
-        let (send, recv) = channel();
-        let thr = thread::spawn(move || run_test(recv));
-        let dtrace = std::process::Command::new(root_command())
-            .arg("dtrace")
-            .arg("-l")
-            .arg("-v")
-            .arg("-n")
-            .arg("does__it*:::")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Could not start DTrace");
-        let output = dtrace
-            .wait_with_output()
-            .expect("Failed to read DTrace stdout");
+        #[test]
+        fn test_does_it_work() {
+            use usdt_tests_common::root_command;
+            let (send, recv) = channel();
+            let thr = thread::spawn(move || run_test(recv));
+            let dtrace = std::process::Command::new(root_command())
+                .arg("dtrace")
+                .arg("-l")
+                .arg("-v")
+                .arg("-n")
+                .arg("does__it*:::")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .expect("Could not start DTrace");
+            let output = dtrace
+                .wait_with_output()
+                .expect("Failed to read DTrace stdout");
 
-        // Kill the test thread
-        let _ = send.send(());
+            // Kill the test thread
+            let _ = send.send(());
 
-        // Collect the actual output
-        let output = String::from_utf8_lossy(&output.stdout);
-        println!("{}", output);
+            // Collect the actual output
+            let output = String::from_utf8_lossy(&output.stdout);
+            println!("{}", output);
 
-        // Check the line giving the full description of the probe
-        let mut lines = output.lines().skip_while(|line| !line.contains("does__it"));
-        let line = lines
-            .next()
-            .expect("Expected a line containing the provider name");
-        let mut parts = line.split_whitespace();
-        let _ = parts.next().expect("Expected an ID");
+            // Check the line giving the full description of the probe
+            let mut lines = output.lines().skip_while(|line| !line.contains("does__it"));
+            let line = lines
+                .next()
+                .expect("Expected a line containing the provider name");
+            let mut parts = line.split_whitespace();
+            let _ = parts.next().expect("Expected an ID");
 
-        let provider = parts.next().expect("Expected a provider name");
-        assert!(
-            provider.starts_with("does__it"),
-            "Provider name appears incorrect: {}",
-            provider
-        );
+            let provider = parts.next().expect("Expected a provider name");
+            assert!(
+                provider.starts_with("does__it"),
+                "Provider name appears incorrect: {}",
+                provider
+            );
 
-        let module = parts.next().expect("Expected a module name");
-        assert!(
-            module.starts_with("does_it_work"),
-            "Module name appears incorrect: {}",
-            module
-        );
+            let module = parts.next().expect("Expected a module name");
+            assert!(
+                module.starts_with("does_it_work"),
+                "Module name appears incorrect: {}",
+                module
+            );
 
-        let mangled_function = parts.next().expect("Expected a mangled function name");
-        assert!(
-            mangled_function.contains("does_it_work8run_test"),
-            "Mangled function name appears incorrect: {}",
-            mangled_function
-        );
+            let mangled_function = parts.next().expect("Expected a mangled function name");
+            assert!(
+                mangled_function.contains("does_it_work8run_test"),
+                "Mangled function name appears incorrect: {}",
+                mangled_function
+            );
 
-        // Verify the argument types
-        let mut lines = lines.skip_while(|line| !line.contains("args[0]"));
-        let first = lines
-            .next()
-            .expect("Expected a line with the argument description")
-            .trim();
-        assert_eq!(
-            first, "args[0]: uint8_t",
-            "Argument is incorrect: {}",
-            first
-        );
-        let second = lines
-            .next()
-            .expect("Expected a line with the argument description")
-            .trim();
-        assert_eq!(
-            second, "args[1]: char *",
-            "Argument is incorrect: {}",
-            second
-        );
+            // Verify the argument types
+            let mut lines = lines.skip_while(|line| !line.contains("args[0]"));
+            let first = lines
+                .next()
+                .expect("Expected a line with the argument description")
+                .trim();
+            assert_eq!(
+                first, "args[0]: uint8_t",
+                "Argument is incorrect: {}",
+                first
+            );
+            let second = lines
+                .next()
+                .expect("Expected a line with the argument description")
+                .trim();
+            assert_eq!(
+                second, "args[1]: char *",
+                "Argument is incorrect: {}",
+                second
+            );
 
-        thr.join().expect("Failed to join test runner thread");
-    }
+            thr.join().expect("Failed to join test runner thread");
+        }
     }
 
     #[cfg(target_os = "linux")]
