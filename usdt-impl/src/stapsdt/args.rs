@@ -234,6 +234,6 @@ pub(crate) fn format_argument((reg_index, typ): (usize, &DataType)) -> String {
     format!(
         "{}@{}",
         data_type_to_arg_size(typ),
-        data_type_to_asm_op(typ, reg_index as u8)
+        data_type_to_asm_op(typ, u8::try_from(reg_index).unwrap())
     )
 }
