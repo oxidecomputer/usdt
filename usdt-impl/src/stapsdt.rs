@@ -207,18 +207,13 @@ fn compile_probe(
     let sema_name = format_ident!("__usdt_sema_{}_{}", provider.name, probe.name);
     let impl_block = quote! {
         {
-            #[repr(C)]
-            struct UsdtSema {
-                is_active: u16
-            }
-
             extern "C" {
-                static #sema_name: UsdtSema;
+                static #sema_name: u16;
             }
 
             let is_enabled: u16;
             unsafe {
-                is_enabled = (&raw const #sema_name.is_active).read_volatile();
+                is_enabled = (&raw const #sema_name).read_volatile();
             }
 
             if is_enabled != 0 {
