@@ -208,6 +208,11 @@ fn compile_probe(
     let impl_block = quote! {
         {
             extern "C" {
+                // Note: C libraries use a struct containing an unsigned short
+                // for the semaphore counter. Using just a u16 here directly
+                // offers the slightest risk that on some platforms the struct
+                // wrapping could be loadbearing but it is not to the best of
+                // knowledge.
                 static #sema_name: u16;
             }
 
