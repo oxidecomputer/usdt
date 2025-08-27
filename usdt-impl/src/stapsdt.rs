@@ -98,7 +98,9 @@ fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig)
 /// ### Summary
 ///
 /// A STAPSDT probe in plain pseudo-Rust would look roughly like this:
-/// ```rs
+/// ```rust,ignore
+/// // WARNING: PSEUDO-CODE!
+///
 /// #[linkage = "weak", visibility = "hidden"]
 /// static __usdt_sema_provider_probe: SyncUnsafeCell<u16> = SyncUnsafeCell::new(0);
 ///
@@ -109,9 +111,11 @@ fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig)
 ///   let arg2: u32 = get_arg2();
 ///   let arg3: *const u8 = get_arg3();
 ///   const {
-///     // Build time: Define this location as being the place in the
-///     // instruction stream where our probe is located.
-///     core::usdt::define::<(u64, u32, *const u8)>("provider", "probe", &__usdt_sema_provider_probe);
+///     // Build time: Generate a USDT ELF header pointing to this location as
+///     // the probe location with probe argument types defined as generics
+///     // and provider name, probe name, and semaphore pointer given as
+///     // parameters.
+///     usdt::define::<(u64, u32, *const u8)>("provider", "probe", &__usdt_sema_provider_probe);
 ///   }
 ///   core::arch::nop();
 /// }
