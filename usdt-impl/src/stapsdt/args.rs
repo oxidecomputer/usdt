@@ -24,9 +24,10 @@ use dtrace_parser::{BitWidth, DataType as NativeDataType, Integer, Sign};
 fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
     // See common.rs for note on argument passing and maximum supported
     // argument count.
-    if reg_index > 5 {
-        unreachable!("Up to 6 probe arguments are currently supported");
-    }
+    assert!(
+        reg_index <= 5,
+        "Up to 6 probe arguments are currently supported"
+    );
     #[cfg(target_arch = "x86_64")]
     if cfg!(target_arch = "x86_64") {
         match (integer.width, reg_index) {
