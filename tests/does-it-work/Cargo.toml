@@ -1,9 +1,8 @@
 [package]
 name = "does-it-work"
-version = "0.1.0"
-authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
-           "Adam H. Leventhal <ahl@oxidecomputer.com>"]
-edition = "2018"
+version = "0.0.0"
+edition = "2021"
+publish = false
 
 [dependencies]
 usdt = { path = "../../usdt" }
@@ -11,4 +10,3 @@ usdt-tests-common = { path = "../../usdt-tests-common" }
 
 [build-dependencies]
 usdt = { path = "../../usdt" }
-version_check = "0.9.4"

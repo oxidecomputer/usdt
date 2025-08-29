@@ -14,9 +14,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(usdt_need_feat_asm, feature(asm))]
-#![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
-
 use serde::Deserialize;
 use std::cell::RefCell;
 use thiserror::Error;
@@ -266,7 +263,7 @@ where
 }
 
 thread_local! {
-    static CURRENT_ID: RefCell<u32> = RefCell::new(0);
+    static CURRENT_ID: RefCell<u32> = const { RefCell::new(0) };
     static THREAD_ID: RefCell<usize> = RefCell::new(thread_id::get());
 }
 

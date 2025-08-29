@@ -2,7 +2,7 @@
 //! registers a single probe with arguments, and then verifies that this probe is visible to the
 //! `dtrace(1)` command-line tool.
 
-// Copyright 2022 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,15 +16,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(usdt_need_feat_asm, feature(asm))]
-#![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
+#![allow(non_snake_case)]
 
 use usdt::register_probes;
 
 include!(concat!(env!("OUT_DIR"), "/test.rs"));
 
 fn main() {
-    doesit::work!(|| (0, "something"));
+    does__it::work!(|| (0, "something"));
 }
 
 // Dissuade the compiler from inlining this, which would ruin the test for `probefunc`.
@@ -32,7 +31,7 @@ fn main() {
 #[allow(dead_code)]
 fn run_test(rx: std::sync::mpsc::Receiver<()>) {
     register_probes().unwrap();
-    doesit::work!(|| (0, "something"));
+    does__it::work!(|| (0, "something"));
     let _ = rx.recv();
 }
 
@@ -48,11 +47,12 @@ mod tests {
     fn test_does_it_work() {
         let (send, recv) = channel();
         let thr = thread::spawn(move || run_test(recv));
-        let dtrace = root_command("dtrace")
+        let dtrace = std::process::Command::new(root_command())
+            .arg("dtrace")
             .arg("-l")
             .arg("-v")
             .arg("-n")
-            .arg("doesit*:::")
+            .arg("does__it*:::")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -69,7 +69,7 @@ mod tests {
         println!("{}", output);
 
         // Check the line giving the full description of the probe
-        let mut lines = output.lines().skip_while(|line| !line.contains("doesit"));
+        let mut lines = output.lines().skip_while(|line| !line.contains("does__it"));
         let line = lines
             .next()
             .expect("Expected a line containing the provider name");
@@ -78,7 +78,7 @@ mod tests {
 
         let provider = parts.next().expect("Expected a provider name");
         assert!(
-            provider.starts_with("doesit"),
+            provider.starts_with("does__it"),
             "Provider name appears incorrect: {}",
             provider
         );

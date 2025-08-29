@@ -1,7 +1,7 @@
 //! Implementation of construction and extraction of custom linker section records used to store
 //! probe information in an object file.
 
-// Copyright 2022 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,16 +18,10 @@
 use crate::DataType;
 use byteorder::{NativeEndian, ReadBytesExt};
 use dof::{Probe, Provider, Section};
-use libc::{c_void, Dl_info};
+use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
-use std::{
-    collections::BTreeMap,
-    ffi::CStr,
-    ffi::CString,
-    ptr::{null, null_mut},
-};
 
 // Version number for probe records containing data about all probes.
 //
@@ -57,28 +51,30 @@ pub fn process_section(mut data: &mut [u8], register: bool) -> Result<Section, c
     })
 }
 
-// Convert an address in an object file into a function and file name, if possible.
-#[cfg(not(target_os = "freebsd"))]
+#[cfg(all(unix, not(target_os = "freebsd")))]
+/// Convert an address in an object file into a function and file name, if possible.
 pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
-        let mut info = Dl_info {
-            dli_fname: null(),
-            dli_fbase: null_mut(),
-            dli_sname: null(),
-            dli_saddr: null_mut(),
+        let mut info = libc::Dl_info {
+            dli_fname: std::ptr::null(),
+            dli_fbase: std::ptr::null_mut(),
+            dli_sname: std::ptr::null(),
+            dli_saddr: std::ptr::null_mut(),
         };
-        if libc::dladdr(addr as *const c_void, &mut info as *mut _) == 0 {
+        if libc::dladdr(addr as *const libc::c_void, &mut info as *mut _) == 0 {
             (None, None)
         } else {
-            // On some non Illumos platforms dli_sname can be NULL
-            let dli_sname = if info.dli_sname == null() {
-                None
-            } else {
-                Some(CStr::from_ptr(info.dli_sname).to_string_lossy().to_string())
-            };
             (
-                dli_sname,
-                Some(CStr::from_ptr(info.dli_fname).to_string_lossy().to_string()),
+                Some(
+                    std::ffi::CStr::from_ptr(info.dli_sname)
+                        .to_string_lossy()
+                        .to_string(),
+                ),
+                Some(
+                    std::ffi::CStr::from_ptr(info.dli_fname)
+                        .to_string_lossy()
+                        .to_string(),
+                ),
             )
         }
     }
@@ -94,14 +90,14 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
         #[link(name = "execinfo")]
         extern "C" {
             pub fn backtrace_symbols_fmt(
-                _: *const *mut c_void,
+                _: *const *mut libc::c_void,
                 _: libc::size_t,
                 _: *const libc::c_char,
             ) -> *mut *mut libc::c_char;
         }
 
         let addrs_arr = [addr];
-        let addrs = addrs_arr.as_ptr() as *const *mut c_void;
+        let addrs = addrs_arr.as_ptr() as *const *mut libc::c_void;
 
         // Use \n as a seperator for dli_sname(%n) and dli_fname(%f), we put one more \n to the end
         // to ensure s.lines() (see below) always contains two elements
@@ -120,6 +116,12 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
             (None, None)
         }
     }
+}
+
+#[cfg(not(unix))]
+/// Convert an address in an object file into a function and file name, if possible.
+pub(crate) fn addr_to_info(_addr: u64) -> (Option<String>, Option<String>) {
+    (None, None)
 }
 
 // Limit a string to the DTrace-imposed maxima. Note that this ensures a null-terminated C string
@@ -176,7 +178,7 @@ fn process_probe_record(
         // be mutable, but have type `&[u8]`. Use `split_at_mut` to get two
         // `&mut [u8]` and then convert the latter to a shared reference.
         let (rec, data) = rec.split_at_mut(5);
-        (rec, &data[..])
+        (rec, &*data)
     };
     let version = read_record_version(&mut rec[4], register);
 
@@ -292,7 +294,7 @@ pub(crate) fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataTyp
         version = PROBE_REC_VERSION,
         n_args = n_args,
         flags = if is_enabled { 1 } else { 0 },
-        prov = prov.replace("__", "-"),
+        prov = prov,
         probe = probe.replace("__", "-"),
         arguments = arguments,
         yeet = if cfg!(any(target_os = "illumos", target_os = "freebsd")) {
@@ -365,7 +367,7 @@ mod test {
         let mut rec = Vec::<u8>::new();
 
         // write a dummy length
-        let long_name: String = std::iter::repeat("p").take(130).collect();
+        let long_name = "p".repeat(130);
         rec.write_u32::<NativeEndian>(0).unwrap();
         rec.write_u8(PROBE_REC_VERSION).unwrap();
         rec.write_u8(0).unwrap();
@@ -497,22 +499,18 @@ mod test {
         let mut lines = record.lines();
         println!("{}", record);
         lines.next(); // empty line
-        assert!(lines.next().unwrap().find(".pushsection").is_some());
+        assert!(lines.next().unwrap().contains(".pushsection"));
         let mut lines = lines.skip(3);
         assert!(lines
             .next()
             .unwrap()
-            .find(&format!(".byte {}", PROBE_REC_VERSION))
-            .is_some());
+            .contains(&format!(".byte {}", PROBE_REC_VERSION)));
         assert!(lines
             .next()
             .unwrap()
-            .find(&format!(".byte {}", types.len()))
-            .is_some());
+            .contains(&format!(".byte {}", types.len())));
         for (typ, line) in types.iter().zip(lines.skip(4)) {
-            assert!(line
-                .find(&format!(".asciz \"{}\"", typ.to_c_type()))
-                .is_some());
+            assert!(line.contains(&format!(".asciz \"{}\"", typ.to_c_type())));
         }
     }
 

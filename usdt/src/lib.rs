@@ -185,8 +185,8 @@
 //!
 //! It's a DTrace convention to name probes with dashes between words, rather than underscores. So
 //! the probe should be `my-probe` rather than `my_probe`. The former is not a valid Rust
-//! identifier, but can be achieved by using _two_ underscores in the provider or probe name. This
-//! crate internally translates `__` into `-` in such cases. For example, the provider:
+//! identifier, but can be achieved by using _two_ underscores in the **probe** name. This crate
+//! internally translates `__` into `-` in such cases. For example, the provider:
 //!
 //! ```ignore
 //! #[usdt::provider("my__provider")]
@@ -195,7 +195,11 @@
 //! }
 //! ```
 //!
-//! will result in a provider and probe name of `my-provider` and `my-probe`.
+//! will result in a provider and probe name of `my__provider` and `my-probe`.
+//! **Important:** This translation of double-underscores to dashes only occurs
+//! in the _probe_ name. Provider names are _not_ modified in any way. This
+//! matches the behavior of existing DTrace implementations, and guarantees that
+//! providers are similarly named regardless of the target platform.
 //!
 //! Examples
 //! --------
@@ -226,16 +230,10 @@
 //! - `(u?)int(8|16|32|64)_t`
 //! - Pointers to the above integer types
 //! - `char *`
-//! - `T: Clone + serde::Serialize` (Only when defining probes in Rust)
+//! - `T: serde::Serialize` (Only when defining probes in Rust)
 //!
 //! Currently, up to six (6) arguments are supported, though this limitation may be lifted in the
 //! future.
-//!
-//! > **Note**: Serializable types must implement the `Clone` trait. It's important to note that
-//! this may almost always be derived, and, more importantly, that the data in probes will _never
-//! actually be cloned_, even when probes are enabled. The trait bound `Clone` is required to
-//! implement type-checking on the probe arguments, and is just an unfortunate leakiness to the
-//! abstraction provided by this crate.
 //!
 //! Registration
 //! ------------
@@ -271,73 +269,14 @@
 //! purpose. It may be passed as any argument to a probe function, and is guaranteed to be unique
 //! between different invocations of the same probe. See the type's documentation for details.
 //!
-//! Features
-//! --------
+//! About the `asm` feature
+//! -----------------------
 //!
-//! > **Note**: This section is only relevant prior to Rust 1.59 (or Rust 1.66 on macOS).
+//! Previous versions of `usdt` used the `asm` feature to enable inline assembly which used to
+//! require nightly Rust with old versions of Rust. Currently, all supported versions of Rust
+//! support inline assembly, and the `asm` feature is a no-op.
 //!
-//! The USDT crate relies on inline assembly to hook into DTrace. Prior to Rust 1.59, this is
-//! unstable, and requires explicitly opting in with `#![feature(asm))]`.
-//!
-//! On macOS (only) an additional feature (`asm_sym`) is required prior to Rust 1.66 (but after Rust
-//! 1.58.0-nightly). The macOS implementation relies on native linker support; it uses the `sym`
-//! syntax of the `asm!` macro which was split into its own feature in Rust 1.58.0-nightly
-//! (2021-10-29).
-//!
-//! Unfortunately, because of the way the features were added (see [this pull
-//! request][asm-sym-feature-pr]), this version of Rust nightly is a Rubicon: the `usdt` crate, and
-//! crates using it, _cannot be built with compilers both before and after this version._
-//! Specifically, it's not possible to write the set of features that would allow code to be
-//! compiled with a nightly toolchain before and after this version. If we _include_ the
-//! `feature(asm_sym)` directive with a toolchain of 1.57 or earlier, the compiler will generate an
-//! error because that feature isn't known for those versions. If we _omit_ the directive, it will
-//! compile with previous toolchains, but a newer one will generate an error because the feature is
-//! required for opting into the functionality used in the `usdt` crate's implementation on macOS.
-//!
-//! There's no great solution here. If you're developing an application, i.e., something that you're
-//! sure can be built with a specific toolchain such as with a `rust-toolchain` file, you can write
-//! the correct feature attribute for that toolchain version.
-//!
-//! If you're building a library, things are more complicated, because you don't know what toolchain
-//! a consuming application will choose to use. It's not possible to use a `build.rs` file or other
-//! code-generation mechanism, because inner attributes must generally be written directly at the
-//! top of the crate's root source file. A mechanism that _expands_ to the right tokens is not
-//! sufficient. The only real approach is to specify which versions of the toolchain are supported
-//! by your library in the documentation, as we've done here.
-//!
-//! Selecting the no-op implementation
-//! ----------------------------------
-//!
-//! It's possible to use the `usdt` crate in libraries without transitively requiring a nightly
-//! compiler of one's users (prior to Rust 1.66). Though `asm` is a default feature of the `usdt`
-//! crate, users can opt to build with `--no-default-features`, which uses a no-op implementation of
-//! the internals. This generates the same probe macros, but with empty bodies, meaning the code can
-//! be compiled unchanged.
-//!
-//! Library developers may choose to re-export this feature, with a name such as `probes`, which
-//! implies the `asm` feature of the `usdt` crate. This feature-gating allows users to select a
-//! nightly compiler in exchange for probes, but still allows the code to be compiled with a stable
-//! toolchain.
-//!
-//! Note that prior to Rust 1.66, the appropriate features are required anywhere the generated
-//! macros are _called_, rather than where they're defined. (Because they're macros-by-example, and
-//! expand to an actual `asm!` macro call.) So library writers should probably gate the feature
-//! directive on their own re-exported feature, e.g., `#![cfg_attr(feature = "probes",
-//! feature(asm))]`, and instruct developers consuming their libraries to do the same.
-//!
-//! It's important to keep in mind how Cargo unifies features, however. Specifically, if `usdt` is
-//! a dependency of two other dependencies in a package, it's possible to end up in a confusing
-//! situation. Cargo takes the _union_ of all features in such a case. Thus if one crate is built
-//! expecting to use the no-op implementation and another is built _using_ the real, `asm`-based
-//! implementation, the latter will be chosen. This can be confusing or downright dangerous. First,
-//! the former crate will fail at compile time, because the `asm!` macro will actually be emitted,
-//! but the `#![feature(asm)]` flag will not be included. More troubling, the probes will actually
-//! exist in the resulting object file, even if the user specifically opted to not use them.
-//!
-//! To handle this, library writers may place _all_ references to `usdt`-related code behind a
-//! conditional compilation directive. This will ensure that the crate is not even used, rather
-//! than it being used with an unexpected implementation. This is most relevant for crates whose
-//! minimum supported Rust version is earlier than 1.66.
+//! The next breaking change to `usdt` will remove the `asm` feature entirely.
 //!
 //! [dtrace]: https://illumos.org/books/dtrace/preface.html#preface
 //! [dtrace-usdt]: https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt
@@ -346,8 +285,11 @@
 //! [probe_test_build]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-build
 //! [probe_test_attr]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-attr
 //! [serde]: https://serde.rs
-//! [asm-sym-feature-pr]: https://github.com/rust-lang/rust/pull/90348
 
+use dof::{extract_dof_sections, Section};
+use goblin::Object;
+use memmap2::{Mmap, MmapOptions};
+use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
@@ -431,5 +373,97 @@ impl Builder {
 ///
 /// [probe_test_macro]: https://github.com/oxidecomputer/usdt/tree/master/probe-test-macro
 pub fn register_probes() -> Result<(), Error> {
-    usdt_impl::register_probes().map_err(Error::from)
+    usdt_impl::register_probes()
+}
+
+/// Extract embedded USDT probe records from a file.
+///
+/// DTrace in general works by storing metadata about the probes in a special
+/// section of the resulting binaries. These sections are generated by the
+/// platform compiler and linker on systems with linker support (macOS), or
+/// created manually by this crate on other platforms. In either case, this
+/// method extracts the metadata as a [`Section`] from the object file, if it
+/// can be found.
+pub fn probe_records<P: AsRef<Path>>(path: P) -> Result<Vec<Section>, Error> {
+    // Extract DOF section data, which is applicable for an object file built using this crate on
+    // macOS, or generally using the platform's dtrace tool, i.e., `dtrace -G` and compiler.
+    let dof_sections = extract_dof_sections(&path).map_err(|_| Error::InvalidFile)?;
+    if !dof_sections.is_empty() {
+        return Ok(dof_sections);
+    }
+
+    // File contains no DOF data. Try to parse out the ASM records inserted by the `usdt` crate.
+    let file = OpenOptions::new().read(true).create(false).open(path)?;
+    let (offset, len) = locate_probe_section(&file).ok_or(Error::InvalidFile)?;
+
+    // Remap only the probe section itself as mutable, using a private
+    // copy-on-write mapping to avoid writing to disk in any circumstance.
+    let mut map = unsafe { MmapOptions::new().offset(offset).len(len).map_copy(&file)? };
+    usdt_impl::record::process_section(&mut map, /* register = */ false).map(|s| vec![s])
+}
+
+// Return the offset and size of the file's probe record section, if it exists.
+fn locate_probe_section(file: &File) -> Option<(u64, usize)> {
+    let map = unsafe { Mmap::map(file) }.ok()?;
+    match Object::parse(&map).ok()? {
+        Object::Elf(object) => {
+            // Try to find our special `set_dtrace_probes` section from the section headers. These
+            // may not exist, e.g., if the file has been stripped. In that case, we look for the
+            // special __start and __stop symbols themselves.
+            if let Some(section) = object.section_headers.iter().find(|header| {
+                if let Some(name) = object.shdr_strtab.get_at(header.sh_name) {
+                    name == "set_dtrace_probes"
+                } else {
+                    false
+                }
+            }) {
+                Some((section.sh_offset, section.sh_size as usize))
+            } else {
+                // Failed to look up the section directly, iterate over the symbols.
+                let mut bounds = object.syms.iter().filter(|symbol| {
+                    matches!(
+                        object.strtab.get_at(symbol.st_name),
+                        Some("__start_set_dtrace_probes") | Some("__stop_set_dtrace_probes")
+                    )
+                });
+
+                if let (Some(start), Some(stop)) = (bounds.next(), bounds.next()) {
+                    Some((start.st_value, (stop.st_value - start.st_value) as usize))
+                } else {
+                    None
+                }
+            }
+        }
+        Object::Mach(goblin::mach::Mach::Binary(object)) => {
+            // Try to find our special `__dtrace_probes` section from the section headers.
+            for (section, _) in object.segments.sections().flatten().flatten() {
+                if section.sectname.starts_with(b"__dtrace_probes") {
+                    return Some((section.offset as u64, section.size as usize));
+                }
+            }
+
+            // Failed to look up the section directly, iterate over the symbols.
+            if let Some(syms) = object.symbols {
+                let mut bounds = syms.iter().filter_map(|symbol| {
+                    if let Ok((name, nlist)) = symbol {
+                        if name.contains("__dtrace_probes") {
+                            Some(nlist.n_value)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
+                if let (Some(start), Some(stop)) = (bounds.next(), bounds.next()) {
+                    Some((start, (stop - start) as usize))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }

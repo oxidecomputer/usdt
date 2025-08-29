@@ -6,57 +6,79 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+  RUST_BACKTRACE: 1
+
 jobs:
   style-check:
     name: Check Rust style
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.66
+          toolchain: 1.85.0
           components: rustfmt
       - run: cargo fmt -- --check
 
   stable-test:
-    name: Run all tests
+    name: Run most tests
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-latest" ]
+        os: [ "macos-15" ]
+        # Test on MSRV and stable.
+        toolchain: [ "1.85.0", "stable" ]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.66
-          override: true
-          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
       - run: >
-          RUST_BACKTRACE=1
-          cargo test
+          cargo +${{ matrix.toolchain }} test
           --release
           --verbose
           --workspace
+          --exclude compile-errors
+
+  trybuild-test:
+    name: Run trybuild tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ "macos-15", "ubuntu-latest" ]
+        # Test on the pinned rust-toolchain version.
+        toolchain: [ "1.85.0" ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - run: >
+          cargo +${{ matrix.toolchain }} test
+          --release
+          --verbose
+          --package compile-errors
 
   stable-test-no-support:
     name: Test on DTrace-less systems
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "ubuntu-latest" ]
+        os: [ "ubuntu-latest", "windows-latest" ]
+        # Test on MSRV and stable.
+        toolchain: [ "1.85.0", "stable" ]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.66
-          override: true
-          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
       - run: >
-          RUST_BACKTRACE=1
-          cargo test
+          cargo +${{ matrix.toolchain }} test
           --release
           --verbose
           --workspace
+          --exclude compile-errors
           --exclude does-it-work
           --exclude test-json
           --exclude test-unique-id
@@ -66,17 +88,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-latest" ]
+        os: [ "macos-15" ]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.66
-          override: true
-          profile: minimal
+          toolchain: stable
       - run: >
-          RUST_BACKTRACE=1
-          cargo test
+          cargo +stable test
           --release
           --verbose
           --no-default-features
@@ -84,44 +103,40 @@ jobs:
           --exclude does-it-work
           --exclude test-json
           --exclude test-unique-id
+          --exclude compile-errors
 
   recent-nightly:
     name: Run tests on a recent nightly
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-latest" ]
+        os: [ "macos-15" ]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2022-12-05
-          override: true
-          profile: minimal
+          toolchain: nightly-2025-01-01
       - run: >
-          RUST_BACKTRACE=1
-          cargo +nightly-2022-12-05 test
+          cargo +nightly-2025-01-01 test
           --release
           --verbose
           --workspace
           --exclude compile-errors
+          --exclude dusty
 
   recent-nightly-no-support:
     name: Run tests on a recent nightly
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "ubuntu-latest" ]
+        os: [ "ubuntu-latest", "windows-latest" ]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2022-12-05
-          override: true
-          profile: minimal
+          toolchain: nightly-2025-01-01
       - run: >
-          RUST_BACKTRACE=1
-          cargo +nightly-2022-12-05 test
+          cargo +nightly-2025-01-01 test
           --release
           --verbose
           --workspace
@@ -129,48 +144,4 @@ jobs:
           --exclude does-it-work
           --exclude test-json
           --exclude test-unique-id
-
-  old-nightly:
-    name: Run tests on an older nightly
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ "macos-latest" ]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-04-22
-          override: true
-          profile: minimal
-      - run: >
-          RUST_BACKTRACE=1
-          cargo +nightly-2022-04-22 test
-          --release
-          --verbose
-          --workspace
-          --exclude compile-errors
-
-  old-nightly-no-support:
-    name: Run tests on an older nightly
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ "ubuntu-latest" ]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-04-22
-          override: true
-          profile: minimal
-      - run: >
-          RUST_BACKTRACE=1
-          cargo +nightly-2022-04-22 test
-          --release
-          --verbose
-          --workspace
-          --exclude compile-errors
-          --exclude does-it-work
-          --exclude test-json
-          --exclude test-unique-id
+          --exclude dusty

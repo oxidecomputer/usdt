@@ -1,6 +1,6 @@
 //! Generate USDT probes from an attribute macro
 
-// Copyright 2021 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ fn generate_provider_item(
                         }
                         syn::FnArg::Typed(ref item) => {
                             let (maybe_check_fn, item_type) =
-                                parse_probe_argument(&*item.ty, fn_index, arg_index)?;
+                                parse_probe_argument(&item.ty, fn_index, arg_index)?;
                             if let Some(check_fn) = maybe_check_fn {
                                 item_check_fns.push(check_fn);
                             }
@@ -144,7 +144,7 @@ fn generate_provider_item(
         quote! {
             const _: fn() = || {
                 #(#use_statements)*
-                fn usdt_types_must_be_clone_and_serialize<T: ?Sized + Clone + ::serde::Serialize>() {}
+                fn usdt_types_must_be_serialize<T: ?Sized + ::serde::Serialize>() {}
                 #(#check_fns)*
             };
         }
@@ -222,7 +222,7 @@ fn parse_probe_argument(
             }
         }
         syn::Type::Reference(ref reference) => {
-            match parse_probe_argument(&*reference.elem, fn_index, arg_index)? {
+            match parse_probe_argument(&reference.elem, fn_index, arg_index)? {
                 (None, DataType::UniqueId) => Ok((None, DataType::UniqueId)),
                 (None, DataType::Native(ty)) => Ok((None, DataType::Native(ty))),
                 _ => Ok((
@@ -258,7 +258,7 @@ fn verify_use_tree(tree: &syn::UseTree) -> syn::Result<()> {
                     ),
                 ));
             }
-            verify_use_tree(&*path.tree)
+            verify_use_tree(&path.tree)
         }
         _ => Ok(()),
     }
@@ -269,16 +269,12 @@ fn build_serializable_check_function<T>(ident: &T, fn_index: usize, arg_index: u
 where
     T: quote::ToTokens,
 {
-    let fn_name = quote::format_ident!(
-        "usdt_types_must_be_clone_and_serialize_{}_{}",
-        fn_index,
-        arg_index
-    );
+    let fn_name = quote::format_ident!("usdt_types_must_be_serialize_{}_{}", fn_index, arg_index);
     quote! {
         fn #fn_name() {
             // #ident must be in scope here, because this function is defined in the same module as
             // the actual probe functions, and thus shares any imports the consumer wants.
-            usdt_types_must_be_clone_and_serialize::<#ident>()
+            usdt_types_must_be_serialize::<#ident>()
         }
     }
 }
@@ -494,8 +490,8 @@ mod tests {
         assert!(out.0.is_some());
         assert_eq!(out.1, DataType::Serializable(ty));
         if let (Some(chk), DataType::Serializable(ty)) = out {
-            println!("{}", quote! { #chk }.to_string());
-            println!("{}", quote! { #ty }.to_string());
+            println!("{}", quote! { #chk });
+            println!("{}", quote! { #ty });
         }
     }
 

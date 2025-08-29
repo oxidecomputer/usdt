@@ -1,8 +1,8 @@
 [package]
 name = "compile-errors"
-version = "0.1.0"
-authors = ["Benjamin Naecker <ben@oxidecomputer.com>"]
-edition = "2018"
+version = "0.0.0"
+edition = "2021"
+publish = false
 
 [dependencies]
 usdt = { path = "../../usdt" }
@@ -10,7 +10,4 @@ serde = "*"
 serde_json = "*"
 
 [dev-dependencies]
-trybuild = "1.0.80"
-
-[build-dependencies]
-version_check = "0.9.4"
+trybuild = "1.0.110"

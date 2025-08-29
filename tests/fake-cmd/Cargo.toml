@@ -1,12 +1,8 @@
 [package]
 name = "fake-cmd"
-version = "0.1.0"
-authors = ["Benjamin Naecker <ben@oxidecomputer.com>",
-           "Adam H. Leventhal <ahl@oxidecomputer.com>"]
-edition = "2018"
+version = "0.0.0"
+edition = "2021"
+publish = false
 
 [dependencies]
 fake-lib = { path = "../fake-lib" }
-
-[build-dependencies]
-version_check = "0.9.4"

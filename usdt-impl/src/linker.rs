@@ -25,7 +25,6 @@
 //!
 //! In rust, we'll want the probe site to look something like this:
 //! ```ignore
-//! #![feature(asm, asm_sym)]
 //! extern "C" {
 //!     #[link_name = "__dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"]
 //!     fn stability();
@@ -52,7 +51,7 @@
 //!    of the `stability` and `typedefs` symbols could be anything--we just need
 //!    a symbol name we can reference for the asm! macro that won't get garbled.
 
-// Copyright 2022 Oxide Computer Company
+// Copyright 2024 Oxide Computer Company
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -171,6 +170,8 @@ fn compile_probe(
         syn::parse2::<syn::FnArg>(quote! { _: #ty }).unwrap()
     });
     let (unpacked_args, in_regs) = common::construct_probe_args(types);
+    let type_check_fn =
+        common::construct_type_check(&provider.name, probe_name, &provider.use_statements, types);
 
     #[cfg(target_arch = "x86_64")]
     let call_instruction = quote! { "call {extern_probe_fn}" };
@@ -178,11 +179,6 @@ fn compile_probe(
     let call_instruction = quote! { "bl {extern_probe_fn}" };
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     compile_error!("USDT only supports x86_64 and AArch64 architectures");
-
-    #[cfg(usdt_stable_asm)]
-    let asm_macro = quote! { std::arch::asm };
-    #[cfg(not(usdt_stable_asm))]
-    let asm_macro = quote! { asm };
 
     let impl_block = quote! {
         extern "C" {
@@ -205,7 +201,8 @@ fn compile_probe(
         unsafe {
             if #is_enabled_fn() != 0 {
                 #unpacked_args
-                #asm_macro!(
+                #type_check_fn
+                ::std::arch::asm!(
                     ".reference {typedefs}",
                     #call_instruction,
                     ".reference {stability}",
@@ -219,7 +216,7 @@ fn compile_probe(
         }
     };
 
-    common::build_probe_macro(config, provider, probe_name, types, impl_block)
+    common::build_probe_macro(config, probe_name, types, impl_block)
 }
 
 #[derive(Debug, Default, Clone)]
@@ -434,21 +431,24 @@ mod tests {
         let output = tokens.to_string();
 
         let needle = format!("link_name = \"{is_enabled}\"", is_enabled = is_enabled);
-        assert!(output.find(&needle).is_some());
+        assert!(output.contains(&needle));
 
         let needle = format!("link_name = \"{probe}\"", probe = probe);
-        assert!(output.find(&needle).is_some());
+        assert!(output.contains(&needle));
 
         let needle = format!(
             "fn {provider_name}_{probe_name}",
             provider_name = provider_name,
             probe_name = probe_name
         );
-        assert!(output.find(&needle).is_some());
+        assert!(output.contains(&needle));
 
         let needles = &[
             "asm ! (\".reference {typedefs}\"",
+            #[cfg(target_arch = "x86_64")]
             "call {extern_probe_fn}",
+            #[cfg(target_arch = "aarch64")]
+            "bl {extern_probe_fn}",
             "\".reference {stability}",
             "typedefs = sym typedefs",
             &format!(
@@ -458,8 +458,12 @@ mod tests {
             "stability = sym stability",
         ];
         for needle in needles.iter() {
-            println!("{}", needle);
-            assert!(output.find(needle).is_some());
+            assert!(
+                output.contains(needle),
+                "needle {} not found in haystack {}",
+                needle,
+                output,
+            );
         }
     }
 }

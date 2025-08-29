@@ -82,27 +82,30 @@ fn compile_probe(
     let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
     let is_enabled_rec = emit_probe_record(&provider.name, &probe.name, None);
     let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
-    #[cfg(usdt_stable_asm)]
-    let asm_macro = quote! { std::arch::asm };
-    #[cfg(not(usdt_stable_asm))]
-    let asm_macro = quote! { asm };
+    let type_check_fn = common::construct_type_check(
+        &provider.name,
+        &probe.name,
+        &provider.use_statements,
+        &probe.types,
+    );
 
     let impl_block = quote! {
         {
             let mut is_enabled: u64;
             unsafe {
-                #asm_macro!(
+                ::std::arch::asm!(
                     "990:   clr rax",
                     #is_enabled_rec,
                     out("rax") is_enabled,
-                    options(nomem, nostack, preserves_flags)
+                    options(nomem, nostack)
                 );
             }
 
             if is_enabled != 0 {
                 #unpacked_args
+                #type_check_fn
                 unsafe {
-                    #asm_macro!(
+                    ::std::arch::asm!(
                         "990:   nop",
                         #probe_rec,
                         #in_regs
@@ -112,7 +115,7 @@ fn compile_probe(
             }
         }
     };
-    common::build_probe_macro(config, provider, &probe.name, &probe.types, impl_block)
+    common::build_probe_macro(config, &probe.name, &probe.types, impl_block)
 }
 
 fn extract_probe_records_from_section() -> Result<Section, crate::Error> {

@@ -1,5 +1,9 @@
 [toolchain]
+# The Rust version is pinned because the repo has a number of trybuild tests,
+# and rustc's human-readable output is unstable across Rust versions. This
+# doesn't have to be the MSRV.
+#
 # NOTE: This toolchain is also specified within .github/workflows/rust.yml
 # If you update it here, update that file too.
-channel = "1.66"
+channel = "1.85.0"
 profile = "default"

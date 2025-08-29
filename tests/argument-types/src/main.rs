@@ -15,8 +15,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(usdt_need_feat_asm, feature(asm))]
-#![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
 use serde::Serialize;
 
 /// Most struct or tuple types implementing serde::Serialize may be used in probes.
@@ -27,6 +25,7 @@ struct Arg {
 
 /// Types with references are not supported.
 #[derive(Serialize)]
+#[allow(dead_code)]
 struct NotSupported<'a> {
     x: &'a [i32],
 }

@@ -1,8 +1,8 @@
 [package]
 name = "test-json"
-version = "0.1.0"
-authors = ["Benjamin Naecker <ben@oxidecomputer.com>"]
-edition = "2018"
+version = "0.0.0"
+edition = "2021"
+publish = false
 
 [dependencies]
 usdt = { path = "../../usdt" }
@@ -10,5 +10,5 @@ usdt-tests-common = { path = "../../usdt-tests-common" }
 serde = "*"
 serde_json = "*"
 
-[build-dependencies]
-version_check = "0.9.4"
+[dev-dependencies]
+tokio = { version = "1.47.1", features = [ "full" ] }

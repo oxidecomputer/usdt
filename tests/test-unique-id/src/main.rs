@@ -14,9 +14,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(usdt_need_feat_asm, feature(asm))]
-#![cfg_attr(usdt_need_feat_asm_sym, feature(asm_sym))]
-
 #[usdt::provider]
 mod with_ids {
     use usdt::UniqueId;
@@ -95,18 +92,20 @@ mod tests {
         let (stdout, stderr) = comm.read_string().expect("Failed to read DTrace output");
         let stdout = stdout.unwrap_or_else(|| String::from("<EMPTY>"));
         let stderr = stderr.unwrap_or_else(|| String::from("<EMPTY>"));
-        let actual_id: u64 = stdout.trim().parse().expect(&format!(
-            concat!(
-                "Expected a u64\n",
-                "stdout\n",
-                "------\n",
-                "{}\n",
-                "stderr\n",
-                "------\n",
-                "{}"
-            ),
-            stdout, stderr
-        ));
+        let actual_id: u64 = stdout.trim().parse().unwrap_or_else(|_| {
+            panic!(
+                concat!(
+                    "Expected a u64\n",
+                    "stdout\n",
+                    "------\n",
+                    "{}\n",
+                    "stderr\n",
+                    "------\n",
+                    "{}"
+                ),
+                stdout, stderr
+            )
+        });
 
         assert_eq!(actual_id, id.as_u64());
     }
