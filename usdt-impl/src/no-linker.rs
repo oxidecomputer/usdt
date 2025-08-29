@@ -119,7 +119,7 @@ fn compile_probe(
 }
 
 fn extract_probe_records_from_section() -> Result<Section, crate::Error> {
-    extern "C" {
+    unsafe extern "C" {
         #[link_name = "__start_set_dtrace_probes"]
         static dtrace_probes_start: usize;
         #[link_name = "__stop_set_dtrace_probes"]

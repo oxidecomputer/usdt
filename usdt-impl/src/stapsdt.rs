@@ -207,7 +207,7 @@ fn compile_probe(
     let sema_name = format_ident!("__usdt_sema_{}_{}", provider.name, probe.name);
     let impl_block = quote! {
         {
-            extern "C" {
+            unsafe extern "C" {
                 // Note: C libraries use a struct containing an unsigned short
                 // for the semaphore counter. Using just a u16 here directly
                 // offers the slightest risk that on some platforms the struct
