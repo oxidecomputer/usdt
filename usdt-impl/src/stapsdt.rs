@@ -127,7 +127,6 @@ fn compile_provider(provider: &Provider, config: &crate::CompileProvidersConfig)
 /// side code (such as an eBPF program).
 fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
     let sema_name = format!("__usdt_sema_{}_{}", prov, probe);
-    let section_ident = r#".note.stapsdt, "", "note""#;
     let arguments = types.map_or_else(String::new, |types| {
         types
             .iter()
@@ -137,53 +136,50 @@ fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> Str
             .join(" ")
     });
     format!(
-        r#"
-        // First define the semaphore
-        // Note: This uses ifndef to make sure the same probe name can be used
-        // in multiple places but they all use the same semaphore. This can be
-        // used to eg. guard additional preparatory work far away from the
-        // actual probe site that will only be used by the probe.
-            .ifndef {sema_name}
-                    .pushsection .probes, "aw", "progbits"
-                    .weak {sema_name}
-                    .hidden {sema_name}
-            {sema_name}:
-                    .zero 2
-                    .type {sema_name}, @object
-                    .size {sema_name}, 2
-                    .popsection
-            .endif
-        // Second define the actual USDT probe
-                    .pushsection {section_ident}
-                    .balign 4
-                    .4byte 992f-991f, 994f-993f, 3    // length, type
-            991:
-                    .asciz "stapsdt"        // vendor string
-            992:
-                    .balign 4
-            993:
-                    .8byte 990b             // probe PC address
-                    .8byte _.stapsdt.base   // link-time sh_addr of base .stapsdt.base section
-                    .8byte {sema_name}      // probe semaphore address
-                    .asciz "{prov}"         // provider name
-                    .asciz "{probe}"        // probe name
-                    .asciz "{arguments}"    // argument format (null-terminated string)
-            994:
-                    .balign 4
-                    .popsection
-        // Finally define (if not defined yet) the base used to detect prelink
-        // address adjustments.
-            .ifndef _.stapsdt.base
-                    .pushsection .stapsdt.base, "aG", "progbits", .stapsdt.base, comdat
-                    .weak _.stapsdt.base
-                    .hidden _.stapsdt.base
-            _.stapsdt.base:
-                    .space 1
-                    .size _.stapsdt.base, 1
-                    .popsection
-            .endif
-        "#,
-        section_ident = section_ident,
+        r#"// First define the semaphore
+// Note: This uses ifndef to make sure the same probe name can be used
+// in multiple places but they all use the same semaphore. This can be
+// used to eg. guard additional preparatory work far away from the
+// actual probe site that will only be used by the probe.
+.ifndef {sema_name}
+        .pushsection .probes, "aw", "progbits"
+        .weak {sema_name}
+        .hidden {sema_name}
+{sema_name}:
+        .zero 2
+        .type {sema_name}, @object
+        .size {sema_name}, 2
+        .popsection
+.endif
+// Second define the actual USDT probe
+        .pushsection .note.stapsdt, "", "note"
+        .balign 4
+        .4byte 992f-991f, 994f-993f, 3    // length, type
+991:
+        .asciz "stapsdt"        // vendor string
+992:
+        .balign 4
+993:
+        .8byte 990b             // probe PC address
+        .8byte _.stapsdt.base   // link-time sh_addr of base .stapsdt.base section
+        .8byte {sema_name}      // probe semaphore address
+        .asciz "{prov}"         // provider name
+        .asciz "{probe}"        // probe name
+        .asciz "{arguments}"    // argument format (null-terminated string)
+994:
+        .balign 4
+        .popsection
+// Finally define (if not defined yet) the base used to detect prelink
+// address adjustments.
+.ifndef _.stapsdt.base
+        .pushsection .stapsdt.base, "aG", "progbits", .stapsdt.base, comdat
+        .weak _.stapsdt.base
+        .hidden _.stapsdt.base
+_.stapsdt.base:
+        .space 1
+        .size _.stapsdt.base, 1
+        .popsection
+.endif"#,
         prov = prov,
         probe = probe.replace("__", "-"),
         arguments = arguments,
@@ -206,34 +202,31 @@ fn compile_probe(
 
     let sema_name = format_ident!("__usdt_sema_{}_{}", provider.name, probe.name);
     let impl_block = quote! {
-        {
-            unsafe extern "C" {
-                // Note: C libraries use a struct containing an unsigned short
-                // for the semaphore counter. Using just a u16 here directly
-                // offers the slightest risk that on some platforms the struct
-                // wrapping could be loadbearing but it is not to the best of
-                // knowledge.
-                static #sema_name: u16;
-            }
+        unsafe extern "C" {
+            // Note: C libraries use a struct containing an unsigned short
+            // for the semaphore counter. Using just a u16 here directly
+            // offers the slightest risk that on some platforms the struct
+            // wrapping could be loadbearing but it is not to the best of
+            // knowledge.
+            static #sema_name: u16;
+        }
 
-            let is_enabled: u16;
+        let is_enabled: u16;
+        unsafe {
+            is_enabled = (&raw const #sema_name).read_volatile();
+        }
+
+        if is_enabled != 0 {
+            #unpacked_args
+            #type_check_fn
+            #[allow(named_asm_labels)]
             unsafe {
-                is_enabled = (&raw const #sema_name).read_volatile();
-            }
-
-            if is_enabled != 0 {
-                #unpacked_args
-                #type_check_fn
-                unsafe {
-                    #[allow(named_asm_labels)] {
-                        ::std::arch::asm!(
-                            "990:   nop",
-                            #probe_rec,
-                            #in_regs
-                            options(nomem, nostack, preserves_flags)
-                        );
-                    }
-                }
+                ::std::arch::asm!(
+                    "990:   nop",
+                    #probe_rec,
+                    #in_regs
+                    options(nomem, nostack, preserves_flags)
+                );
             }
         }
     };
