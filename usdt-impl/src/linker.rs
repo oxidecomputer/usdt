@@ -25,7 +25,7 @@
 //!
 //! In rust, we'll want the probe site to look something like this:
 //! ```ignore
-//! extern "C" {
+//! unsafe extern "C" {
 //!     #[link_name = "__dtrace_stability$foo$v1$1_1_0_1_1_0_1_1_0_1_1_0_1_1_0"]
 //!     fn stability();
 //!     #[link_name = "__dtrace_probe$foo$bar$v1"]
@@ -181,7 +181,7 @@ fn compile_probe(
     compile_error!("USDT only supports x86_64 and AArch64 architectures");
 
     let impl_block = quote! {
-        extern "C" {
+        unsafe extern "C" {
             #[allow(unused)]
             #[link_name = #stability]
             fn stability();
