@@ -146,7 +146,7 @@ mod tests {
             //   stapsdt              0x00000034       NT_STAPSDT (SystemTap probe descriptors)
             //     Provider: does__it
             //     Name: work
-            //     Location: 0x00000000000618b4, Base: 0x0000000000000000, Semaphore: 0x000000000011ccc8
+            //     Location: 0x00000000000618b4, Base: 0x00000000000332b4, Semaphore: 0x000000000011ccc8
             //     Arguments: 1@%dil 8@%rsi
             // ```
             let (send, recv) = channel();
@@ -208,7 +208,7 @@ mod tests {
                 location_address.starts_with("0x")
                     && location_address.ends_with(",")
                     && usize::from_str_radix(&location_address[2..location_address.len() - 1], 16)
-                        .is_ok(),
+                        .is_ok_and(|addr| addr != 0),
                 "Location address appears incorrect: {}",
                 location_address
             );
@@ -222,7 +222,8 @@ mod tests {
             assert!(
                 base_address.starts_with("0x")
                     && base_address.ends_with(",")
-                    && usize::from_str_radix(&base_address[2..base_address.len() - 1], 16).is_ok(),
+                    && usize::from_str_radix(&base_address[2..base_address.len() - 1], 16)
+                        .is_ok_and(|addr| addr != 0),
                 "Base address appears incorrect: {}",
                 base_address
             );
@@ -235,7 +236,8 @@ mod tests {
             let semaphore_address = parts.next().expect("Expected a semaphore address");
             assert!(
                 semaphore_address.starts_with("0x")
-                    && usize::from_str_radix(&semaphore_address[2..], 16).is_ok(),
+                    && usize::from_str_radix(&semaphore_address[2..], 16)
+                        .is_ok_and(|addr| addr != 0),
                 "Semaphore address appears incorrect: {}",
                 semaphore_address
             );
