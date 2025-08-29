@@ -19,12 +19,13 @@ use std::cell::RefCell;
 use thiserror::Error;
 
 // Probe record parsing required for standard backend (and `des` feature used by `dusty util)
-#[cfg(any(usdt_backend_standard, feature = "des"))]
+#[cfg(any(usdt_backend_standard, usdt_backend_stapsdt, feature = "des"))]
 pub mod record;
 
 #[cfg_attr(usdt_backend_noop, path = "empty.rs")]
 #[cfg_attr(usdt_backend_linker, path = "linker.rs")]
 #[cfg_attr(usdt_backend_standard, path = "no-linker.rs")]
+#[cfg_attr(usdt_backend_stapsdt, path = "stapsdt.rs")]
 mod internal;
 
 // Since the `empty` is mostly a no-op, parts of the common code will go unused when it is

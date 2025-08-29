@@ -21,6 +21,8 @@ enum Backend {
     Standard,
     // MacOS linker-aware probe registration
     Linker,
+    // SystemTap version 3 probes (read: Linux without dtrace)
+    Stap3,
     // Provide probe macros, but probes are no-ops (dtrace-less OSes)
     NoOp,
 }
@@ -28,18 +30,23 @@ enum Backend {
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rustc-check-cfg=cfg(usdt_backend_noop)");
+    println!("cargo:rustc-check-cfg=cfg(usdt_backend_stapsdt)");
     println!("cargo:rustc-check-cfg=cfg(usdt_backend_linker)");
     println!("cargo:rustc-check-cfg=cfg(usdt_backend_standard)");
 
     let backend = match env::var("CARGO_CFG_TARGET_OS").ok().as_deref() {
         Some("macos") => Backend::Linker,
         Some("illumos") | Some("solaris") | Some("freebsd") => Backend::Standard,
+        Some("linux") => Backend::Stap3,
         _ => Backend::NoOp,
     };
 
     match backend {
         Backend::NoOp => {
             println!("cargo:rustc-cfg=usdt_backend_noop");
+        }
+        Backend::Stap3 => {
+            println!("cargo:rustc-cfg=usdt_backend_stapsdt");
         }
         Backend::Linker => {
             println!("cargo:rustc-cfg=usdt_backend_linker");
