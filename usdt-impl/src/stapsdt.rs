@@ -172,7 +172,7 @@ fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> Str
 // Finally define (if not defined yet) the base used to detect prelink
 // address adjustments.
 .ifndef _.stapsdt.base
-        .pushsection .stapsdt.base, "aG", "progbits", .stapsdt.base, comdat
+        .pushsection .stapsdt.base, "aGR", "progbits", .stapsdt.base, comdat
         .weak _.stapsdt.base
         .hidden _.stapsdt.base
 _.stapsdt.base:
