@@ -28,7 +28,6 @@ fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
         reg_index <= 5,
         "Up to 6 probe arguments are currently supported"
     );
-    #[cfg(target_arch = "x86_64")]
     if cfg!(target_arch = "x86_64") {
         match (integer.width, reg_index) {
             (BitWidth::Bit8, 0) => "%dil",
