@@ -1,6 +1,6 @@
 [package]
 name = "usdt"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Dust your Rust with USDT probes"
@@ -16,12 +16,12 @@ rust-version = "1.85.0"
 # internal implementation crates.
 [dependencies]
 serde = "1"
-usdt-impl = { path = "../usdt-impl", default-features = false, version = "=0.5.0", features = [
+usdt-impl = { path = "../usdt-impl", default-features = false, version = "=0.6.0", features = [
   "des",
 ] }
-usdt-macro = { path = "../usdt-macro", default-features = false, version = "=0.5.0" }
-usdt-attr-macro = { path = "../usdt-attr-macro", default-features = false, version = "=0.5.0" }
-dof = { path = "../dof", features = ["des"], version = "=0.3.0" }
+usdt-macro = { path = "../usdt-macro", default-features = false, version = "=0.6.0" }
+usdt-attr-macro = { path = "../usdt-attr-macro", default-features = false, version = "=0.6.0" }
+dof = { path = "../dof", features = ["des"], version = "=0.4.0" }
 goblin = { version = "0.10", features = ["elf32", "elf64"] }
 memmap2 = { version = "0.9.8" }
 

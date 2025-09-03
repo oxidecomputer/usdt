@@ -225,6 +225,16 @@ comes with significant tradeoffs. As such the current recommendation is:
 function calling it), and document to their users that this function should be called to
 guarantee that probes are registered.
 
+## Supported platforms
+
+As of v0.6.0, this crate supports:
+
+- illumos and other Solaris derivatives
+- macOS
+- FreeBSD
+- x86-64 Linux, through the emission of SystemTap v3 probes. Arm support is not
+  tested, but may work by accident.
+
 ## References
 
 [1]: https://illumos.org/books/dtrace/chp-usdt.html#chp-usdt
