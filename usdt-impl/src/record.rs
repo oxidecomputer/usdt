@@ -51,7 +51,7 @@ pub fn process_section(mut data: &mut [u8], register: bool) -> Result<Section, c
     })
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "freebsd")))]
 /// Convert an address in an object file into a function and file name, if possible.
 pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
@@ -76,6 +76,44 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
                         .to_string(),
                 ),
             )
+        }
+    }
+}
+
+// On FreeBSD, dladdr(3M) only examines the dynamic symbol table. Which is pretty useless as it
+// will always return a dli_sname. To workaround this issue, we use `backtrace_symbols_fmt` from
+// libexecinfo, which internally looks in the executable to determine the symbol of the given
+// address.
+// See: https://man.freebsd.org/cgi/man.cgi?query=backtrace&sektion=3
+#[cfg(target_os = "freebsd")]
+pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
+    unsafe {
+        #[link(name = "execinfo")]
+        extern "C" {
+            pub fn backtrace_symbols_fmt(
+                _: *const *mut libc::c_void,
+                _: libc::size_t,
+                _: *const libc::c_char,
+            ) -> *mut *mut libc::c_char;
+        }
+
+        let addrs_arr = [addr];
+        let addrs = addrs_arr.as_ptr() as *const *mut libc::c_void;
+
+        let format = std::ffi::CString::new("%n\n%f").unwrap();
+        let symbols = backtrace_symbols_fmt(addrs, 1, format.as_ptr());
+
+        if !symbols.is_null() {
+            if let Some((sname, fname)) = std::ffi::CStr::from_ptr(*symbols)
+                .to_string_lossy()
+                .split_once('\n')
+            {
+                (Some(sname.to_string()), Some(fname.to_string()))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
         }
     }
 }
@@ -222,7 +260,10 @@ impl<'a> ReadCstrExt<'a> for &'a [u8] {
 // Construct the ASM record for a probe. If `types` is `None`, then is is an is-enabled probe.
 #[allow(dead_code)]
 pub(crate) fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> String {
+    #[cfg(not(target_os = "freebsd"))]
     let section_ident = r#"set_dtrace_probes,"aw","progbits""#;
+    #[cfg(target_os = "freebsd")]
+    let section_ident = r#"set_dtrace_probes,"awR","progbits""#;
     let is_enabled = types.is_none();
     let n_args = types.map_or(0, |typ| typ.len());
     let arguments = types.map_or_else(String::new, |types| {
@@ -256,8 +297,8 @@ pub(crate) fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataTyp
         prov = prov,
         probe = probe.replace("__", "-"),
         arguments = arguments,
-        yeet = if cfg!(target_os = "illumos") {
-            // The illumos linker may yeet our probes section into the trash under
+        yeet = if cfg!(any(target_os = "illumos", target_os = "freebsd")) {
+            // The illumos and FreeBSD linkers may yeet our probes section into the trash under
             // certain conditions. To counteract this, we yeet references to the
             // probes section into another section. This causes the linker to
             // retain the probes section.

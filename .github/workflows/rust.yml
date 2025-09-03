@@ -42,6 +42,38 @@ jobs:
           --exclude compile-errors
           --no-fail-fast
 
+  freebsd-test:
+    name: Test on FreeBSD
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [ "1.85.0", "stable", "nightly-2025-01-01" ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test on FreeBSD
+        uses: cross-platform-actions/action@v0.27.0
+        with:
+          operating_system: freebsd
+          version: '14.1'
+          shell: bash
+          run: |
+            export IGNORE_OSVERSION=yes
+            sudo -E pkg update
+            sudo -E pkg install -y curl
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source $HOME/.cargo/env
+
+            # Enable DTrace kernel module and allow regular users to register probes
+            sudo kldload dtraceall
+            sudo chmod 666 /dev/dtrace/helper
+
+            cargo +${{ matrix.toolchain }} test \
+              --release \
+              --verbose \
+              --workspace \
+              --no-fail-fast \
+              --exclude compile-errors
+
   trybuild-test:
     name: Run trybuild tests
     runs-on: ${{ matrix.os }}

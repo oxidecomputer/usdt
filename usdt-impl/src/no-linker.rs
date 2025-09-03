@@ -126,14 +126,14 @@ fn extract_probe_records_from_section() -> Result<Section, crate::Error> {
         static dtrace_probes_stop: usize;
     }
 
-    // Without this the illumos linker may decide to omit the symbols above that
-    // denote the start and stop addresses for this section. Note that the variable
+    // Without this the illumos and FreeBSD linker may decide to omit the symbols above
+    // that denote the start and stop addresses for this section. Note that the variable
     // must be mutable, otherwise this will generate a read-only section with the
     // name `set_dtrace_probes`. The section containing the actual probe records is
     // writable (to implement one-time registration), so an immutable variable here
     // leads to _two_ sections, one writable and one read-only. A mutable variable
     // here ensures this ends up in a mutable section, the same as the probe records.
-    #[cfg(target_os = "illumos")]
+    #[cfg(any(target_os = "illumos", target_os = "freebsd"))]
     #[link_section = "set_dtrace_probes"]
     #[used]
     static mut FORCE_LOAD: [u64; 0] = [];
@@ -173,9 +173,17 @@ fn ioctl_section(buf: &[u8], modname: [std::os::raw::c_char; 64]) -> Result<(), 
         dofhp_mod: modname,
         dofhp_addr: buf.as_ptr() as u64,
         dofhp_dof: buf.as_ptr() as u64,
+        #[cfg(target_os = "freebsd")]
+        dofhp_pid: std::process::id() as i32,
+        #[cfg(target_os = "freebsd")]
+        dofhp_gen: 0,
     };
     let data = &helper as *const _;
+    #[cfg(target_os = "illumos")]
     let cmd: i32 = 0x64746803;
+    #[cfg(target_os = "freebsd")]
+    let cmd: u64 = 0xc0587a03;
+
     let file = OpenOptions::new()
         .read(true)
         .write(true)
