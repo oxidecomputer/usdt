@@ -22,4 +22,5 @@ ptime -m cargo test \
         --release \
         --verbose \
         --no-default-features \
-        --package empty
+        --package empty \
+        --no-fail-fast

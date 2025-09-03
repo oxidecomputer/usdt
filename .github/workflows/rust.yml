@@ -40,6 +40,7 @@ jobs:
           --verbose
           --workspace
           --exclude compile-errors
+          --no-fail-fast
 
   trybuild-test:
     name: Run trybuild tests
@@ -59,6 +60,7 @@ jobs:
           --release
           --verbose
           --package compile-errors
+          --no-fail-fast
 
   stable-test-no-support:
     name: Test on DTrace-less systems
@@ -82,6 +84,7 @@ jobs:
           --exclude does-it-work
           --exclude test-json
           --exclude test-unique-id
+          --no-fail-fast
 
   stable-test-no-op:
     name: Test with probes disabled
@@ -104,6 +107,7 @@ jobs:
           --exclude test-json
           --exclude test-unique-id
           --exclude compile-errors
+          --no-fail-fast
 
   recent-nightly:
     name: Run tests on a recent nightly
@@ -123,6 +127,7 @@ jobs:
           --workspace
           --exclude compile-errors
           --exclude dusty
+          --no-fail-fast
 
   recent-nightly-no-support:
     name: Run tests on a recent nightly
@@ -145,3 +150,4 @@ jobs:
           --exclude test-json
           --exclude test-unique-id
           --exclude dusty
+          --no-fail-fast
