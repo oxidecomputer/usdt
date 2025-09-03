@@ -61,17 +61,16 @@ jobs:
             sudo -E pkg install -y curl
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             source $HOME/.cargo/env
-            rustup toolchain install ${{ matrix.toolchain }}
-            rustup default ${{ matrix.toolchain }}
 
             # Enable DTrace kernel module and allow regular users to register probes
-            sudo kldload dtraceall || true
-            sudo chmod 666 /dev/dtrace/helper || echo "Could not chmod /dev/dtrace/helper"
+            sudo kldload dtraceall
+            sudo chmod 666 /dev/dtrace/helper
 
             cargo +${{ matrix.toolchain }} test \
               --release \
               --verbose \
               --workspace \
+              --no-fail-fast \
               --exclude compile-errors
 
   trybuild-test:

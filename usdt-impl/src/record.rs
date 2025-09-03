@@ -81,9 +81,10 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
 }
 
 // On FreeBSD, dladdr(3M) only examines the dynamic symbol table. Which is pretty useless as it
-// will always returns a dli_sname. To workaround this issue, we use `backtrace_symbols_fmt` from
+// will always return a dli_sname. To workaround this issue, we use `backtrace_symbols_fmt` from
 // libexecinfo, which internally looks in the executable to determine the symbol of the given
-// address
+// address.
+// See: https://man.freebsd.org/cgi/man.cgi?query=backtrace&sektion=3
 #[cfg(target_os = "freebsd")]
 pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
     unsafe {
@@ -99,8 +100,6 @@ pub(crate) fn addr_to_info(addr: u64) -> (Option<String>, Option<String>) {
         let addrs_arr = [addr];
         let addrs = addrs_arr.as_ptr() as *const *mut libc::c_void;
 
-        // Use \n as a seperator for dli_sname(%n) and dli_fname(%f), we put one more \n to the end
-        // to ensure s.lines() (see below) always contains two elements
         let format = std::ffi::CString::new("%n\n%f").unwrap();
         let symbols = backtrace_symbols_fmt(addrs, 1, format.as_ptr());
 
