@@ -243,8 +243,15 @@ mod tests {
             // Verify the argument types
             let line = lines.next().expect("Expected a line containing arguments");
             let line = line.trim();
+            let arguments_line = if cfg!(target_arch = "x86_64") {
+                "Arguments: 1@%dil 8@%rsi"
+            } else if cfg!(target_arch = "aarch64") {
+                "Arguments: 1@%w0 8@%x1"
+            } else {
+                unreachable!("Unsupported Linux target architecture")
+            };
             assert_eq!(
-                line, "Arguments: 1@%dil 8@%rsi",
+                line, arguments_line,
                 "Arguments line appears incorrect: {}",
                 line
             );

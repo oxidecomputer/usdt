@@ -125,7 +125,7 @@ fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
             _ => unreachable!(),
         }
     } else {
-        unreachable!()
+        unreachable!("Unsupported Linux target architecture")
     }
 }
 
