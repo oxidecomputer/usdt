@@ -65,7 +65,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "windows-latest" ]
+        os: [ "ubuntu-latest", "windows-latest" ]
         # Test on MSRV and stable.
         toolchain: [ "1.85.0", "stable" ]
     steps:
