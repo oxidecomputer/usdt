@@ -3,7 +3,7 @@ name = "usdt"
 version = "0.6.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Dust your Rust with USDT probes"
+description = "Cross-platform Userland Statically Defined Tracing probes"
 repository = "https://github.com/oxidecomputer/usdt.git"
 rust-version = "1.85.0"
 
