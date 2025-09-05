@@ -1,13 +1,13 @@
 # `usdt`
 
-Dust your Rust with USDT probes.
+Cross-platform Userland Statically Defined Tracing probes.
 
 ## Overview
 
 `usdt` exposes statically-defined [DTrace probes][1] to Rust code. Users write a _provider_
 definition, in either the D language or directly in Rust code. The _probes_ of the provider
 can then be compiled into Rust code that fire the probes. These are visible via the `dtrace`
-command-line tool.
+command-line tool, or via `bpftrace` on Linux platforms.
 
 There are three mechanisms for converting the D probe definitions into Rust.
 
@@ -94,9 +94,6 @@ fn main() {
     }
 }
 ```
-
-> Note: Prior to 1.59 (and prior to 1.66 on macOS) nightly features are required. See the
-[notes](#notes) for a discussion.
 
 One can also see that the Rust code is included directly using the `include!` macro. The probe
 definitions are converted into Rust macros, in a module named by the provider, and with macro
@@ -224,6 +221,16 @@ comes with significant tradeoffs. As such the current recommendation is:
 > Library developers are encouraged to re-export the `usdt::register_probes` (or a
 function calling it), and document to their users that this function should be called to
 guarantee that probes are registered.
+
+## Supported platforms
+
+As of v0.6.0, this crate supports:
+
+- illumos and other Solaris derivatives
+- macOS
+- FreeBSD
+- x86-64 Linux, through the emission of SystemTap v3 probes. ARM support is not
+  tested, but may work by accident.
 
 ## References
 
