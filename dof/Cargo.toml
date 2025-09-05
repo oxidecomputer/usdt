@@ -1,6 +1,6 @@
 [package]
 name = "dof"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Tools to read and write the DTrace Object Format (DOF)"
