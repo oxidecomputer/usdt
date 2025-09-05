@@ -246,7 +246,7 @@ mod tests {
             let arguments_line = if cfg!(target_arch = "x86_64") {
                 "Arguments: 1@%dil 8@%rsi"
             } else if cfg!(target_arch = "aarch64") {
-                "Arguments: 1@%w0 8@%x1"
+                "Arguments: 1@x0 8@x1"
             } else {
                 unreachable!("Unsupported Linux target architecture")
             };
