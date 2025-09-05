@@ -79,7 +79,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "macos-15", "ubuntu-latest" ]
+        os: [ "macos-15", "ubuntu-24.04-arm", "ubuntu-latest" ]
         # Test on the pinned rust-toolchain version.
         toolchain: [ "1.85.0" ]
     steps:
@@ -99,7 +99,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ "ubuntu-latest", "windows-latest" ]
+        os: [ "windows-latest" ]
         # Test on MSRV and stable.
         toolchain: [ "1.85.0", "stable" ]
     steps:

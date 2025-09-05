@@ -28,7 +28,6 @@ fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
         reg_index <= 5,
         "Up to 6 probe arguments are currently supported"
     );
-    #[cfg(target_arch = "x86_64")]
     if cfg!(target_arch = "x86_64") {
         match (integer.width, reg_index) {
             (BitWidth::Bit8, 0) => "%dil",
@@ -84,49 +83,19 @@ fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
             _ => unreachable!(),
         }
     } else if cfg!(target_arch = "aarch64") {
-        match (integer.width, reg_index) {
-            (BitWidth::Bit8 | BitWidth::Bit16 | BitWidth::Bit32, 0) => "%w0",
-            (BitWidth::Bit8 | BitWidth::Bit16 | BitWidth::Bit32, 1) => "%w1",
-            (BitWidth::Bit8 | BitWidth::Bit16 | BitWidth::Bit32, 2) => "%w2",
-            (BitWidth::Bit8 | BitWidth::Bit16 | BitWidth::Bit32, 3) => "%w3",
-            (BitWidth::Bit8 | BitWidth::Bit16 | BitWidth::Bit32, 4) => "%w4",
-            (BitWidth::Bit8 | BitWidth::Bit16 | BitWidth::Bit32, 5) => "%w5",
-            (BitWidth::Bit64, 0) => "%x0",
-            (BitWidth::Bit64, 1) => "%x1",
-            (BitWidth::Bit64, 2) => "%x2",
-            (BitWidth::Bit64, 3) => "%x3",
-            (BitWidth::Bit64, 4) => "%x4",
-            (BitWidth::Bit64, 5) => "%x5",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 0) => "%w0",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 0) => "%x0",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 1) => "%w1",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 1) => "%x1",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 2) => "%w2",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 2) => "%x2",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 3) => "%w3",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 3) => "%x3",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 4) => "%w4",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 4) => "%x4",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 5) => "%w5",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 5) => "%x5",
-            #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
-            (BitWidth::Pointer, _) => compile_error!("Unsupported pointer width"),
+        // GNU Assembly syntax for SystemTap only uses the extended register
+        // for some reason.
+        match reg_index {
+            0 => "x0",
+            1 => "x1",
+            2 => "x2",
+            3 => "x3",
+            4 => "x4",
+            5 => "x5",
             _ => unreachable!(),
         }
     } else {
-        unreachable!()
+        unreachable!("Unsupported Linux target architecture")
     }
 }
 
