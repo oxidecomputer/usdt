@@ -237,7 +237,7 @@ mod tests {
             assert!(
                 semaphore_address.starts_with("0x")
                     && usize::from_str_radix(&semaphore_address[2..], 16)
-                        .is_ok_and(|addr| addr != 0),
+                        .is_ok_and(|addr| addr != 0 && (addr % std::mem::align_of::<u16>()) == 0),
                 "Semaphore address appears incorrect: {}",
                 semaphore_address
             );

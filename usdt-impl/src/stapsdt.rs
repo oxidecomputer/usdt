@@ -145,6 +145,7 @@ fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> Str
         .pushsection .probes, "aw", "progbits"
         .weak {sema_name}
         .hidden {sema_name}
+        .align 2                // align the semaphore to 16 bits
 {sema_name}:
         .zero 2
         .type {sema_name}, @object
