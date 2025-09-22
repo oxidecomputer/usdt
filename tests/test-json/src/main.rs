@@ -134,12 +134,8 @@ mod tests {
         use super::*;
         use serde_json::Value;
         use std::process::Stdio;
-        use std::time::Duration;
-        use tokio::io::AsyncReadExt;
-        use tokio::process::Child;
         use tokio::process::Command;
         use tokio::sync::mpsc::channel;
-        use tokio::sync::mpsc::Receiver;
         use tokio::sync::mpsc::Sender;
         use tokio::time::Instant;
         use usdt_tests_common::root_command;

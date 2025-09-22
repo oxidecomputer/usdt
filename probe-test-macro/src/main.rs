@@ -34,7 +34,7 @@ fn main() {
 
     loop {
         // Call the "start_work" probe which accepts a u8.
-        test::start_work!(|| (counter));
+        test::start_work!(|| counter);
 
         // Do some work.
         sleep(duration);
