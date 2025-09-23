@@ -21,7 +21,7 @@ use dtrace_parser::{BitWidth, DataType as NativeDataType, Integer, Sign};
 /// that reads the integer's value from the correct register. Effectively this
 /// means generating a string like `%REG` where `REG` is the register that the
 /// data is located in.
-fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
+fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> String {
     // See common.rs for note on argument passing and maximum supported
     // argument count.
     assert!(
@@ -29,71 +29,22 @@ fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
         "Up to 6 probe arguments are currently supported"
     );
     if cfg!(target_arch = "x86_64") {
-        match (integer.width, reg_index) {
-            (BitWidth::Bit8, 0) => "%dil",
-            (BitWidth::Bit16, 0) => "%di",
-            (BitWidth::Bit32, 0) => "%edi",
-            (BitWidth::Bit64, 0) => "%rdi",
-            (BitWidth::Bit8, 1) => "%sil",
-            (BitWidth::Bit16, 1) => "%si",
-            (BitWidth::Bit32, 1) => "%esi",
-            (BitWidth::Bit64, 1) => "%rsi",
-            (BitWidth::Bit8, 2) => "%dl",
-            (BitWidth::Bit16, 2) => "%dx",
-            (BitWidth::Bit32, 2) => "%edx",
-            (BitWidth::Bit64, 2) => "%rdx",
-            (BitWidth::Bit8, 3) => "%cl",
-            (BitWidth::Bit16, 3) => "%cx",
-            (BitWidth::Bit32, 3) => "%ecx",
-            (BitWidth::Bit64, 3) => "%rcx",
-            (BitWidth::Bit8, 4) => "%r8b",
-            (BitWidth::Bit16, 4) => "%r8w",
-            (BitWidth::Bit32, 4) => "%r8d",
-            (BitWidth::Bit64, 4) => "%r8",
-            (BitWidth::Bit8, 5) => "%r9b",
-            (BitWidth::Bit16, 5) => "%r9w",
-            (BitWidth::Bit32, 5) => "%r9d",
-            (BitWidth::Bit64, 5) => "%r9",
+        match integer.width {
+            BitWidth::Bit8 => format!("{{arg_{reg_index}}}"),
+            BitWidth::Bit16 => format!("{{arg_{reg_index}:x}}"),
+            BitWidth::Bit32 => format!("{{arg_{reg_index}:e}}"),
+            BitWidth::Bit64 => format!("{{arg_{reg_index}:r}}"),
             #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 0) => "%edi",
+            BitWidth::Pointer => format!("{{arg_{reg_index}:e}}"),
             #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 0) => "%rdi",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 1) => "%esi",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 1) => "%rsi",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 2) => "%edx",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 2) => "%rdx",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 3) => "%ecx",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 3) => "%rcx",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 4) => "%e8",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 4) => "%r8",
-            #[cfg(target_pointer_width = "32")]
-            (BitWidth::Pointer, 5) => "%e9",
-            #[cfg(target_pointer_width = "64")]
-            (BitWidth::Pointer, 5) => "%r9",
+            BitWidth::Pointer => format!("{{arg_{reg_index}:r}}"),
             #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
-            (BitWidth::Pointer, _) => compile_error!("Unsupported pointer width"),
-            _ => unreachable!(),
+            BitWidth::Pointer => compile_error!("Unsupported pointer width"),
         }
     } else if cfg!(target_arch = "aarch64") {
         // GNU Assembly syntax for SystemTap only uses the extended register
         // for some reason.
-        match reg_index {
-            0 => "x0",
-            1 => "x1",
-            2 => "x2",
-            3 => "x3",
-            4 => "x4",
-            5 => "x5",
-            _ => unreachable!(),
-        }
+        format!("{{arg_{reg_index}:x}}")
     } else {
         unreachable!("Unsupported Linux target architecture")
     }
