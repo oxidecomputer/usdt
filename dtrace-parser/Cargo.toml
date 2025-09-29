@@ -9,7 +9,7 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 [dependencies]
 pest = "2.8.2"
 pest_derive = "2.8.2"
-thiserror = "2.0.16"
+thiserror = "2.0.17"
 
 [dev-dependencies]
 rstest = "0.26.1"
