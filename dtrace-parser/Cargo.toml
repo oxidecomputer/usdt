@@ -7,7 +7,7 @@ description = "Parse DTrace provider definitions into Rust"
 repository = "https://github.com/oxidecomputer/usdt.git"
 
 [dependencies]
-pest = "2.8.2"
+pest = "2.8.3"
 pest_derive = "2.8.2"
 thiserror = "2.0.17"
 
