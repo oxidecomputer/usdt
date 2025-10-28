@@ -71,6 +71,7 @@ use quote::{format_ident, quote};
 use std::{
     collections::BTreeMap,
     convert::TryFrom,
+    env,
     io::Write,
     process::{Command, Stdio},
 };
@@ -315,7 +316,17 @@ fn contains_needle2<'a>(line: &'a str, needle: &str) -> Option<(&'a str, &'a str
 }
 
 fn build_header_from_provider(source: &str) -> Result<String, crate::Error> {
+    // Ensure that `/usr/sbin` is on the PATH, since that is the typical
+    // location for `dtrace`, but some build systems (such as Bazel) reset
+    // the environment variables.
+    let mut path = env::var_os("PATH").unwrap_or_default();
+    if !path.is_empty() {
+        path.push(":");
+    }
+    path.push("/usr/sbin");
+
     let mut child = Command::new("dtrace")
+        .env("PATH", path)
         .arg("-h")
         .arg("-s")
         .arg("/dev/stdin")
