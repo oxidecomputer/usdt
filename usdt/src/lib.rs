@@ -295,7 +295,7 @@ use std::{env, fs};
 
 pub use usdt_attr_macro::provider;
 #[doc(hidden)]
-pub use usdt_impl::to_json;
+pub use usdt_impl::{to_json, SerializeString};
 pub use usdt_impl::{Error, UniqueId};
 pub use usdt_macro::dtrace_provider;
 

@@ -169,7 +169,7 @@ fn compile_probe(
         let ty = typ.to_rust_ffi_type();
         syn::parse2::<syn::FnArg>(quote! { _: #ty }).unwrap()
     });
-    let (unpacked_args, in_regs) = common::construct_probe_args(types);
+    let (arg_lambda, unpacked_args, in_regs) = common::construct_probe_args(types);
     let type_check_fn =
         common::construct_type_check(&provider.name, probe_name, &provider.use_statements, types);
 
@@ -200,8 +200,9 @@ fn compile_probe(
         }
         unsafe {
             if #is_enabled_fn() != 0 {
-                #unpacked_args
+                #arg_lambda
                 #type_check_fn
+                #unpacked_args
                 ::std::arch::asm!(
                     ".reference {typedefs}",
                     #call_instruction,

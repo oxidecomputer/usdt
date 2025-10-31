@@ -421,6 +421,27 @@ impl Clone for UniqueId {
     }
 }
 
+#[doc(hidden)]
+pub trait SerializeString {
+    fn serialize(self) -> Vec<u8>;
+}
+
+#[doc(hidden)]
+impl<S: AsRef<str> + ?Sized> SerializeString for &S {
+    #[inline]
+    fn serialize(self) -> Vec<u8> {
+        [self.as_ref().as_bytes(), b"0"].concat()
+    }
+}
+
+#[doc(hidden)]
+impl SerializeString for String {
+    fn serialize(mut self) -> Vec<u8> {
+        self.push('\0');
+        self.into_bytes()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
