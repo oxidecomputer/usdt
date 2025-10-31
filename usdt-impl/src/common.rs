@@ -171,13 +171,10 @@ fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenSt
             // data in a result-like JSON blob, mapping the `Result`'s variants to the keys "ok"
             // and "err".
             quote! {
-                [
-                    match ::usdt::to_json(&#input) {
-                        Ok(json) => format!("{{\"ok\":{}}}", json),
-                        Err(e) => format!("{{\"err\":\"{}\"}}", e.to_string()),
-                    }.as_bytes(),
-                    &[0_u8]
-                ].concat()
+                match ::usdt::to_json(&#input) {
+                    Ok(json) => format!("{{\"ok\":{}}}\0", json).into_bytes(),
+                    Err(e) => format!("{{\"err\":\"{}\"}}\0", e.to_string()).into_bytes(),
+                }
             },
             quote! { .as_ptr() as usize },
         ),
@@ -186,9 +183,7 @@ fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenSt
             quote! { .as_ptr() as usize },
         ),
         DataType::Native(dtrace_parser::DataType::String) => (
-            quote! {
-                [(#input.as_ref() as &str).as_bytes(), &[0_u8]].concat()
-            },
+            quote! { ::usdt::SerializeString::serialize(#input) },
             quote! { .as_ptr() as usize },
         ),
         DataType::Native(_) => {
@@ -362,7 +357,7 @@ mod tests {
 
         let expected = quote! {
             let arg_0 = (*<_ as ::std::borrow::Borrow<*const u8>>::borrow(&args.0) as usize);
-            let arg_1 = [(args.1.as_ref() as &str).as_bytes(), &[0_u8]].concat();
+            let arg_1 = ::usdt::SerializeString::serialize(args.1);
         };
         assert_eq!(args.to_string(), expected.to_string());
 
@@ -404,7 +399,7 @@ mod tests {
         );
         assert_eq!(
             out.to_string(),
-            quote! { [(foo.as_ref() as &str).as_bytes(), &[0_u8]].concat() }.to_string()
+            quote! { ::usdt::SerializeString::serialize(foo) }.to_string()
         );
         assert_eq!(post.to_string(), quote! { .as_ptr() as usize }.to_string());
 
