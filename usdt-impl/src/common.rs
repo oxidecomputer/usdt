@@ -43,36 +43,36 @@ pub fn construct_type_check(
                 match ty {
                     syn::Type::Reference(reference) => {
                         if let Some(elem) = shared_slice_elem_type(reference) {
-                            quote! { _: impl AsRef<[#elem]> }
+                            quote! { _: &impl AsRef<[#elem]> }
                         } else {
                             let elem = &*reference.elem;
-                            quote! { _: impl ::std::borrow::Borrow<#elem> }
+                            quote! { _: &impl ::std::borrow::Borrow<#elem> }
                         }
                     }
                     syn::Type::Slice(slice) => {
                         let elem = &*slice.elem;
-                        quote! { _: impl AsRef<[#elem]> }
+                        quote! { _: &impl AsRef<[#elem]> }
                     }
                     syn::Type::Array(array) => {
                         let elem = &*array.elem;
-                        quote! { _: impl AsRef<[#elem]> }
+                        quote! { _: &impl AsRef<[#elem]> }
                     }
                     syn::Type::Path(_) => {
-                        quote! { _: impl ::std::borrow::Borrow<#ty> }
+                        quote! { _: &impl ::std::borrow::Borrow<#ty> }
                     }
                     _ => {
                         // Any other type must be specified exactly as given in the probe parameter
-                        quote! { _: #ty }
+                        quote! { _: &#ty }
                     }
                 }
             }
-            DataType::Native(dtrace_parser::DataType::String) => quote! { _: impl AsRef<str> },
+            DataType::Native(dtrace_parser::DataType::String) => quote! { _: &impl AsRef<str> },
             DataType::Native(dtrace_parser::DataType::CString) => {
-                quote! { _: impl AsRef<::core::ffi::CStr> }
+                quote! { _: &impl AsRef<::core::ffi::CStr> }
             }
             _ => {
                 let arg = typ.to_rust_type();
-                quote! { _: impl ::std::borrow::Borrow<#arg> }
+                quote! { _: &impl ::std::borrow::Borrow<#arg> }
             }
         })
         .collect::<Vec<_>>();
@@ -82,7 +82,7 @@ pub fn construct_type_check(
     let type_check_args = (0..types.len())
         .map(|i| {
             let index = syn::Index::from(i);
-            quote! { args.#index }
+            quote! { &args.#index }
         })
         .collect::<Vec<_>>();
 
@@ -106,7 +106,7 @@ fn shared_slice_elem_type(reference: &syn::TypeReference) -> Option<&syn::Type> 
 
 // Return code to destructure a probe arguments into identifiers, and to pass those to ASM
 // registers.
-pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
+pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream, TokenStream) {
     // x86_64 passes the first 6 arguments in registers, with the rest on the stack.
     // We limit this to 6 arguments in all cases for now, as handling those stack
     // arguments would be challenging with the current `asm!` macro implementation.
@@ -144,12 +144,9 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
         })
         .unzip();
     let arg_lambda = call_argument_closure(types);
-    let unpacked_args = quote! {
-        #arg_lambda
-        #(#unpacked_args)*
-    };
+    let unpacked_args = quote! { #(#unpacked_args)* };
     let in_regs = quote! { #(#in_regs,)* };
-    (unpacked_args, in_regs)
+    (arg_lambda, unpacked_args, in_regs)
 }
 
 /// Call the argument closure, assigning its output to `args`.
@@ -276,11 +273,11 @@ mod tests {
             #[allow(unused_imports)]
             #[allow(non_snake_case)]
             fn __usdt_private_provider_probe_type_check(
-                _: impl ::std::borrow::Borrow<u8>,
-                _: impl ::std::borrow::Borrow<i64>
+                _: &impl ::std::borrow::Borrow<u8>,
+                _: &impl ::std::borrow::Borrow<i64>
             ) { }
             let _ = || {
-                __usdt_private_provider_probe_type_check(args.0, args.1);
+                __usdt_private_provider_probe_type_check(&args.0, &args.1);
             };
         };
         let block = construct_type_check(provider, probe, &[], types);
@@ -296,9 +293,9 @@ mod tests {
         let expected = quote! {
             #[allow(unused_imports)]
             #[allow(non_snake_case)]
-            fn __usdt_private_provider_probe_type_check(_: impl AsRef<str>) { }
+            fn __usdt_private_provider_probe_type_check(_: &impl AsRef<str>) { }
             let _ = || {
-                __usdt_private_provider_probe_type_check(args.0);
+                __usdt_private_provider_probe_type_check(&args.0);
             };
         };
         let block = construct_type_check(provider, probe, &use_statements, types);
@@ -314,9 +311,9 @@ mod tests {
         let expected = quote! {
             #[allow(unused_imports)]
             #[allow(non_snake_case)]
-            fn __usdt_private_provider_probe_type_check(_: impl AsRef<[u8]>) { }
+            fn __usdt_private_provider_probe_type_check(_: &impl AsRef<[u8]>) { }
             let _ = || {
-                __usdt_private_provider_probe_type_check(args.0);
+                __usdt_private_provider_probe_type_check(&args.0);
             };
         };
         let block = construct_type_check(provider, probe, &use_statements, types);
@@ -333,9 +330,9 @@ mod tests {
             #[allow(unused_imports)]
             use my_module::MyType;
             #[allow(non_snake_case)]
-            fn __usdt_private_provider_probe_type_check(_: impl ::std::borrow::Borrow<MyType>) { }
+            fn __usdt_private_provider_probe_type_check(_: &impl ::std::borrow::Borrow<MyType>) { }
             let _ = || {
-                __usdt_private_provider_probe_type_check(args.0);
+                __usdt_private_provider_probe_type_check(&args.0);
             };
         };
         let block = construct_type_check(provider, probe, &use_statements, types);
@@ -355,9 +352,15 @@ mod tests {
         let registers = ["rdi", "rsi"];
         #[cfg(target_arch = "aarch64")]
         let registers = ["x0", "x1"];
-        let (args, regs) = construct_probe_args(types);
+
+        let (lambda, args, regs) = construct_probe_args(types);
+
         let expected = quote! {
             let args = ($args_lambda)();
+        };
+        assert_eq!(lambda.to_string(), expected.to_string());
+
+        let expected = quote! {
             let arg_0 = (*<_ as ::std::borrow::Borrow<*const u8>>::borrow(&args.0) as usize);
             let arg_1 = [(args.1.as_ref() as &str).as_bytes(), &[0_u8]].concat();
         };
