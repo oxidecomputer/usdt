@@ -155,7 +155,8 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
                 let #arg = #value;
             };
             // Here, we convert the argument to store it within a register.
-            let register_arg = if cfg!(usdt_backend_stapsdt) {
+            #[cfg(usdt_backend_stapsdt)]
+            let register_arg = {
                 // In SystemTap probes, the arguments can be passed freely in
                 // any registers without regard to standard function call ABIs.
                 // We thus do not need the register names in the STAPSDT
@@ -173,9 +174,9 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
                 } else {
                     quote! { #arg = in(reg) (#arg #at_use) }
                 }
-            } else {
-                quote! { in(#reg) (#arg #at_use) }
             };
+            #[cfg(not(usdt_backend_stapsdt))]
+            let register_arg = quote! { in(#reg) (#arg #at_use) };
             (destructured_arg, register_arg)
         })
         .unzip();
