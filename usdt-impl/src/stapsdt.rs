@@ -22,11 +22,10 @@
 #[path = "stapsdt/args.rs"]
 mod args;
 
-use crate::common::call_argument_closure;
+use crate::common::construct_probe_args;
 use crate::{common, DataType};
 use crate::{Probe, Provider};
 use args::format_argument;
-use dtrace_parser::{BitWidth, Integer};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::convert::TryFrom;
@@ -187,90 +186,6 @@ _.stapsdt.base:
         probe = probe.replace("__", "-"),
         arguments = arguments,
     )
-}
-
-// Convert a supported data type to 1. a type to store for the duration of the
-// probe invocation and 2. a transformation for compatibility with an asm
-// register.
-pub fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenStream) {
-    match typ {
-        DataType::Serializable(_) => (
-            // Convert the input to JSON. This is a fallible operation, however, so we wrap the
-            // data in a result-like JSON blob, mapping the `Result`'s variants to the keys "ok"
-            // and "err".
-            quote! {
-                [
-                    match ::usdt::to_json(&#input) {
-                        Ok(json) => format!("{{\"ok\":{}}}", json),
-                        Err(e) => format!("{{\"err\":\"{}\"}}", e.to_string()),
-                    }.as_bytes(),
-                    &[0_u8]
-                ].concat()
-            },
-            quote! { .as_ptr() as usize },
-        ),
-        DataType::Native(dtrace_parser::DataType::String) => (
-            quote! {
-                [(#input.as_ref() as &str).as_bytes(), &[0_u8]].concat()
-            },
-            quote! { .as_ptr() as usize },
-        ),
-        DataType::Native(_) => {
-            let ty = typ.to_rust_type();
-            (
-                quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input)) },
-                quote! {},
-            )
-        }
-        DataType::UniqueId => (quote! { #input.as_u64() as usize }, quote! {}),
-    }
-}
-
-// Return code to destructure a probe arguments into identifiers, and to pass those to ASM
-// registers.
-pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
-    // SystemTap probes don't have a strict calling convention; they'd take
-    // even sp-relative addresses.
-    let (unpacked_args, in_regs): (Vec<_>, Vec<_>) = types
-        .iter()
-        .enumerate()
-        .map(|(i, typ)| {
-            let arg = format_ident!("arg_{}", i);
-            let index = syn::Index::from(i);
-            let input = quote! { args.#index };
-            let (value, at_use) = asm_type_convert(typ, input);
-
-            // These values must refer to the actual traced data and prevent it
-            // from being dropped until after we've completed the probe
-            // invocation.
-            let destructured_arg = quote! {
-                let #arg = #value;
-            };
-            // Here, we convert the argument to store it within a register.
-            let register_arg = if (cfg!(target_arch = "x86_64") || cfg!(target_arch = "x86"))
-                && matches!(
-                    typ,
-                    DataType::Native(dtrace_parser::DataType::Integer(Integer {
-                        sign: _,
-                        width: BitWidth::Bit8
-                    }))
-                ) {
-                // x86 has a special "reg_byte" register class for taking in
-                // bytes.
-                quote! { #arg = in(reg_byte) (#arg #at_use) }
-            } else {
-                quote! { #arg = in(reg) (#arg #at_use) }
-            };
-            (destructured_arg, register_arg)
-        })
-        .unzip();
-    let arg_lambda = call_argument_closure(types);
-    let unpacked_args = quote! {
-        #arg_lambda
-        #(#unpacked_args)*
-    };
-    let in_regs = quote! { #(#in_regs,)* };
-    (unpacked_args, in_regs)
 }
 
 fn compile_probe(
