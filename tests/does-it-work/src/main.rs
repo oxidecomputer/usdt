@@ -242,7 +242,12 @@ mod tests {
                 semaphore_address
             );
 
-            // Verify the argument types
+            // Verify the argument types; the format of the line is eg.
+            // "Arguments: size@%reg size@%reg", but we cannot know which
+            // registers the compiler has chosen to use for arguments passing,
+            // so we have to instead split out the two arguments we expect to
+            // find for this probe specifically, check their sizes, and match
+            // the register strings ("%reg") against a list of possible values.
             let line = lines.next().expect("Expected a line containing arguments");
             let line = line.trim();
             let (args_header, args_rest) = line
