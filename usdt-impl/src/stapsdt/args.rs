@@ -17,10 +17,11 @@
 use crate::DataType;
 use dtrace_parser::{BitWidth, DataType as NativeDataType, Integer, Sign};
 
-/// Convert an Integer type and a register index into a GNU Assembler operation
-/// that reads the integer's value from the correct register. Effectively this
-/// means generating a string like `%REG` where `REG` is the register that the
-/// data is located in.
+/// Convert an Integer type and an argument index into a GNU Assembler
+/// operation that reads the integer's value from the argument by name. The
+/// exact register choice for argument passing is left up to the compiler,
+/// meaning that this function generates a string like "{arg_N}" with possible
+/// register type/size suffix after the `arg_N`, separated by a colon.
 fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> String {
     // See common.rs for note on argument passing and maximum supported
     // argument count.
