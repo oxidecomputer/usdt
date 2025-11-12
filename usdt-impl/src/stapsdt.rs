@@ -22,6 +22,7 @@
 #[path = "stapsdt/args.rs"]
 mod args;
 
+use crate::common::construct_probe_args;
 use crate::{common, DataType};
 use crate::{Probe, Provider};
 use args::format_argument;
@@ -192,7 +193,7 @@ fn compile_probe(
     probe: &Probe,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
+    let (unpacked_args, in_regs) = construct_probe_args(&probe.types);
     let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
     let type_check_fn = common::construct_type_check(
         &provider.name,
@@ -202,6 +203,13 @@ fn compile_probe(
     );
 
     let sema_name = format_ident!("__usdt_sema_{}_{}", provider.name, probe.name);
+    let options = if cfg!(target_arch = "x86_64") || cfg!(target_arch = "x86") {
+        // Use att_syntax on x86 to generate GNU Assembly Syntax for the
+        // registers automatically.
+        quote! { options(att_syntax, nomem, nostack, preserves_flags) }
+    } else {
+        quote! { options(nomem, nostack, preserves_flags) }
+    };
     let impl_block = quote! {
         unsafe extern "C" {
             // Note: C libraries use a struct containing an unsigned short
@@ -226,7 +234,7 @@ fn compile_probe(
                     "990:   nop",
                     #probe_rec,
                     #in_regs
-                    options(nomem, nostack, preserves_flags)
+                    #options
                 );
             }
         }
