@@ -79,7 +79,7 @@ fn compile_probe(
     probe: &Probe,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
+    let (arg_lambda, unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
     let is_enabled_rec = emit_probe_record(&provider.name, &probe.name, None);
     let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
     let type_check_fn = common::construct_type_check(
@@ -102,8 +102,9 @@ fn compile_probe(
             }
 
             if is_enabled != 0 {
-                #unpacked_args
+                #arg_lambda
                 #type_check_fn
+                #unpacked_args
                 unsafe {
                     ::std::arch::asm!(
                         "990:   nop",
