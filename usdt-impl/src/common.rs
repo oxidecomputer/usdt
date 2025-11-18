@@ -229,17 +229,15 @@ pub(crate) fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStre
         ),
         DataType::Native(_) => {
             let ty = typ.to_rust_type();
-            (
-                // For STAPSDT probes, we cannot "widen" the data type at the
-                // interface, as we've left the register choice up to the
-                // compiler and the compiler doesn't like mismatched register
-                // classes and types for single-byte values (reg_byte vs usize).
-                #[cfg(usdt_backend_stapsdt)]
-                quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input)) },
-                #[cfg(not(usdt_backend_stapsdt))]
-                quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input) as usize) },
-                quote! {},
-            )
+            #[cfg(not(usdt_backend_stapsdt))]
+            let value = quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input) as usize) };
+            // For STAPSDT probes, we cannot "widen" the data type at the
+            // interface, as we've left the register choice up to the
+            // compiler and the compiler doesn't like mismatched register
+            // classes and types for single-byte values (reg_byte vs usize).
+            #[cfg(usdt_backend_stapsdt)]
+            let value = quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input)) };
+            (value, quote! {})
         }
         DataType::UniqueId => (quote! { #input.as_u64() as usize }, quote! {}),
     }
