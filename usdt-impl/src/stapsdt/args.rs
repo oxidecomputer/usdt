@@ -18,7 +18,7 @@ use crate::DataType;
 use dtrace_parser::{BitWidth, DataType as NativeDataType, Integer, Sign};
 
 /// Convert an Integer type and an argument index into a GNU Assembler
-/// operation that reads the integer's value from the argument by name. The
+/// operand that reads the integer's value from the argument by name. The
 /// exact register choice for argument passing is left up to the compiler,
 /// meaning that this function generates a string like "{arg_N}" with possible
 /// register type/size suffix after the `arg_N`, separated by a colon.
@@ -90,8 +90,8 @@ const UNIQUE_ID: Integer = Integer {
     width: BitWidth::Bit64,
 };
 
-/// Convert a type and register index to its GNU Assembler operation as a
-/// String.
+/// Convert a NativeDataType and register index to its GNU Assembler operand
+/// as a String.
 fn native_data_type_to_asm_op(typ: &NativeDataType, reg_index: u8) -> String {
     match typ {
         NativeDataType::Integer(int) => integer_to_asm_op(int, reg_index).into(),
@@ -112,7 +112,7 @@ fn native_data_type_to_arg_size(typ: &NativeDataType) -> &'static str {
     }
 }
 
-/// Convert a DataType and register index to its GNU Assembler operation as a
+/// Convert a DataType and register index to a GNU Assembler operand as a
 /// String.
 fn data_type_to_asm_op(typ: &DataType, reg_index: u8) -> String {
     match typ {
@@ -158,4 +158,106 @@ pub(crate) fn format_argument((reg_index, typ): (usize, &DataType)) -> String {
         data_type_to_arg_size(typ),
         data_type_to_asm_op(typ, u8::try_from(reg_index).unwrap())
     )
+}
+
+#[cfg(test)]
+mod test {
+    use dtrace_parser::{BitWidth, Integer};
+
+    use crate::{
+        internal::args::{format_argument, integer_to_asm_op},
+        DataType,
+    };
+
+    fn int(width: BitWidth) -> Integer {
+        Integer {
+            sign: dtrace_parser::Sign::Signed,
+            width,
+        }
+    }
+
+    fn uint(width: BitWidth) -> Integer {
+        Integer {
+            sign: dtrace_parser::Sign::Unsigned,
+            width,
+        }
+    }
+
+    #[test]
+    fn integer_to_asm_op_tests() {
+        if cfg!(target_arch = "x86_64") {
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit8), 0), "{arg_0}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit16), 0), "{arg_0:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit32), 0), "{arg_0:e}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit64), 0), "{arg_0:r}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Pointer), 0), "{arg_0:r}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit8), 1), "{arg_1}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit16), 1), "{arg_1:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit32), 1), "{arg_1:e}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit64), 1), "{arg_1:r}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Pointer), 1), "{arg_1:r}");
+        } else if cfg!(target_arch = "aarch64") {
+            // GNU Assembly syntax for SystemTap only uses the extended register
+            // for some reason.
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit8), 0), "{arg_0:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit16), 0), "{arg_0:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit32), 0), "{arg_0:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit64), 0), "{arg_0:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Pointer), 0), "{arg_0:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit8), 1), "{arg_1:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit16), 1), "{arg_1:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit32), 1), "{arg_1:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Bit64), 1), "{arg_1:x}");
+            assert_eq!(integer_to_asm_op(&uint(BitWidth::Pointer), 1), "{arg_1:x}");
+        } else {
+            unreachable!("Unsupported Linux target architecture")
+        }
+    }
+
+    #[test]
+    fn format_argument_tests() {
+        if cfg!(target_arch = "x86_64") {
+            assert_eq!(format_argument((0, &DataType::UniqueId)), "8@{arg_0:r}");
+            assert_eq!(
+                format_argument((4, &DataType::Native(dtrace_parser::DataType::String))),
+                "8@{arg_4:r}"
+            );
+            assert_eq!(
+                format_argument((
+                    4,
+                    &DataType::Native(dtrace_parser::DataType::Integer(uint(BitWidth::Bit32)))
+                )),
+                "4@{arg_4:e}"
+            );
+            assert_eq!(
+                format_argument((
+                    3,
+                    &DataType::Native(dtrace_parser::DataType::Integer(int(BitWidth::Bit16)))
+                )),
+                "-2@{arg_3:x}"
+            );
+        } else if cfg!(target_arch = "aarch64") {
+            assert_eq!(format_argument((0, &DataType::UniqueId)), "8@{arg_0:x}");
+            assert_eq!(
+                format_argument((4, &DataType::Native(dtrace_parser::DataType::String))),
+                "8@{arg_4:x}"
+            );
+            assert_eq!(
+                format_argument((
+                    4,
+                    &DataType::Native(dtrace_parser::DataType::Integer(uint(BitWidth::Bit32)))
+                )),
+                "4@{arg_4:x}"
+            );
+            assert_eq!(
+                format_argument((
+                    3,
+                    &DataType::Native(dtrace_parser::DataType::Integer(int(BitWidth::Bit16)))
+                )),
+                "-2@{arg_3:x}"
+            );
+        } else {
+            unreachable!("Unsupported Linux target architecture")
+        }
+    }
 }
