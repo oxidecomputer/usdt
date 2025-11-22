@@ -156,6 +156,7 @@ impl Integer {
 pub enum DataType {
     Integer(Integer),
     Pointer(Integer),
+    CString,
     String,
 }
 
@@ -246,7 +247,7 @@ impl DataType {
         match self {
             DataType::Integer(int) => int.to_c_type(),
             DataType::Pointer(int) => format!("{}*", int.to_c_type()),
-            DataType::String => String::from("char*"),
+            DataType::CString | DataType::String => String::from("char*"),
         }
     }
 
@@ -255,7 +256,7 @@ impl DataType {
         match self {
             DataType::Integer(int) => int.to_rust_ffi_type(),
             DataType::Pointer(int) => format!("*const {}", int.to_rust_ffi_type()),
-            DataType::String => format!("*const {RUST_TYPE_PREFIX}char"),
+            DataType::CString | DataType::String => format!("*const {RUST_TYPE_PREFIX}char"),
         }
     }
 
@@ -265,6 +266,7 @@ impl DataType {
             DataType::Integer(int) => int.to_rust_type(),
             DataType::Pointer(int) => format!("*const {}", int.to_rust_type()),
             DataType::String => String::from("&str"),
+            DataType::CString => String::from("&::core::ffi::CStr"),
         }
     }
 }
