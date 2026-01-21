@@ -82,6 +82,9 @@ mod test {
 
     /// Constant pointers to integer types are also supported
     fn work_with_pointer(_buffer: *const u8, _: u64) {}
+
+    /// C-string types are also supported
+    fn cstring(_: &CStr, _: CString) {}
 }
 
 fn main() {
@@ -106,5 +109,6 @@ fn main() {
         test::arg_as_tuple!(|| (arg.x, &arg.buffer[..]));
         test::not_json_serializable!(|| Whoops::NoBueno(0));
         test::work_with_pointer!(|| (buffer.as_ptr(), buffer.len() as u64));
+        test::cstring!(|| (c"hello world", c"and when owned".to_owned()));
     }
 }
