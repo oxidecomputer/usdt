@@ -29,12 +29,16 @@ pub fn construct_type_check(
     use_statements: &[syn::ItemUse],
     types: &[DataType],
 ) -> TokenStream {
-    // If there are zero arguments, there's nothing to type-check. The
-    // zero-arg match arm in `build_probe_macro` hardcodes `|| ()`, so
-    // verifying the closure returns `()` adds no value and generates a
-    // `clippy::redundant_closure_call` warning.
+    // If there are zero arguments, verify that the closure returns ().
+    // This catches cases like `probe!(|| "wrong type")`.  The
+    // `#[allow]` suppresses `clippy::redundant_closure_call`, which
+    // fires because the normal invocation path (`probe!()`) expands to
+    // `probe!(|| ())`, producing `(|| ())()`.
     if types.is_empty() {
-        return quote! {};
+        return quote! {
+            #[allow(clippy::redundant_closure_call)]
+            let _: () = ($args_lambda)();
+        };
     }
     let type_check_params = types
         .iter()
@@ -244,8 +248,12 @@ mod tests {
 
     #[test]
     fn test_construct_type_check_empty() {
+        let expected = quote! {
+            #[allow(clippy::redundant_closure_call)]
+            let _ : () = ($args_lambda)();
+        };
         let block = construct_type_check("", "", &[], &[]);
-        assert!(block.is_empty());
+        assert_eq!(block.to_string(), expected.to_string());
     }
 
     #[test]
