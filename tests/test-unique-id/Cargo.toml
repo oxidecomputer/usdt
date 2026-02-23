@@ -9,4 +9,4 @@ usdt = { path = "../../usdt" }
 usdt-tests-common = { path = "../../usdt-tests-common" }
 
 [dev-dependencies]
-subprocess = "0.2"
+subprocess = "1.0"
