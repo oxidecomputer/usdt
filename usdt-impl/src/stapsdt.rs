@@ -153,7 +153,7 @@ fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> Str
         .popsection
 .endif
 // Second define the actual USDT probe
-        .pushsection .note.stapsdt, "", "note"
+        .pushsection .note.stapsdt, "o", "note", .Lprobe_{label}
         .balign 4
         .4byte 992f-991f, 994f-993f, 3    // length, type
 991:
@@ -161,7 +161,7 @@ fn emit_probe_record(prov: &str, probe: &str, types: Option<&[DataType]>) -> Str
 992:
         .balign 4
 993:
-        .8byte 990b             // probe PC address
+        .8byte .Lprobe_{label}  // probe PC address
         .8byte _.stapsdt.base   // link-time sh_addr of base .stapsdt.base section
         .8byte {sema_name}      // probe semaphore address
         .asciz "{prov}"         // provider name
@@ -223,9 +223,11 @@ fn compile_probe(
             #[allow(named_asm_labels)]
             unsafe {
                 ::std::arch::asm!(
-                    "990:   nop",
+                    ".Lprobe_{label}: nop",
                     #probe_rec,
                     #in_regs
+                    // hack to get a unique label name.
+                    label = label {},
                     options(nomem, nostack, preserves_flags)
                 );
             }
