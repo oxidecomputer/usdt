@@ -164,7 +164,7 @@ mod tests {
 
             const TIMEOUT: Duration = Duration::from_secs(10);
             let mut comm = bpftrace
-                .commnicate()
+                .communicate()
                 .expect("failed to get communicator with subprocess")
                 .limit_time(TIMEOUT);
             if bpftrace
