@@ -190,7 +190,10 @@ fn parse_probe_argument(
                 Ok((None, DataType::UniqueId))
             } else {
                 let check_fn = build_serializable_check_function(item, fn_index, arg_index);
-                Ok((Some(check_fn), DataType::Serializable(item.clone())))
+                Ok((
+                    Some(check_fn),
+                    DataType::Serializable(Box::new(item.clone())),
+                ))
             }
         }
         syn::Type::Ptr(ref pointer) => {
@@ -227,13 +230,16 @@ fn parse_probe_argument(
                 (None, DataType::Native(ty)) => Ok((None, DataType::Native(ty))),
                 _ => Ok((
                     Some(build_serializable_check_function(item, fn_index, arg_index)),
-                    DataType::Serializable(item.clone()),
+                    DataType::Serializable(Box::new(item.clone())),
                 )),
             }
         }
         syn::Type::Array(_) | syn::Type::Slice(_) | syn::Type::Tuple(_) => {
             let check_fn = build_serializable_check_function(item, fn_index, arg_index);
-            Ok((Some(check_fn), DataType::Serializable(item.clone())))
+            Ok((
+                Some(check_fn),
+                DataType::Serializable(Box::new(item.clone())),
+            ))
         }
         _ => Err(syn::Error::new(
             item.span(),
@@ -488,7 +494,7 @@ mod tests {
         let ty = syn::parse_str(name).unwrap();
         let out = parse_probe_argument(&ty, 0, 0).unwrap();
         assert!(out.0.is_some());
-        assert_eq!(out.1, DataType::Serializable(ty));
+        assert_eq!(out.1, DataType::Serializable(Box::new(ty)));
         if let (Some(chk), DataType::Serializable(ty)) = out {
             println!("{}", quote! { #chk });
             println!("{}", quote! { #ty });

@@ -6,8 +6,8 @@ error: proc macro panicked
    |
    = help: message: Could not read D source file "../../../tests/compile-errors/providers/type-mismatch.d" in "$WORKSPACE/target/tests/trybuild/compile-errors"
 
-error[E0433]: failed to resolve: use of undeclared crate or module `mismatch`
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `mismatch`
   --> src/type-mismatch.rs:19:5
    |
 19 |     mismatch::bad!(|| (bad));
-   |     ^^^^^^^^ use of undeclared crate or module `mismatch`
+   |     ^^^^^^^^ use of unresolved module or unlinked crate `mismatch`
