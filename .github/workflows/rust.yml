@@ -59,15 +59,13 @@ jobs:
           run: |
             export IGNORE_OSVERSION=yes
             sudo -E pkg update
-            sudo -E pkg install -y curl openssl
+            sudo -E pkg install -y curl security/ca_root_nss
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             source $HOME/.cargo/env
 
             # Enable DTrace kernel module and allow regular users to register probes
             sudo kldload dtraceall
             sudo chmod 666 /dev/dtrace/helper
-
-            openssl s_client -connect index.crates.io:443 </dev/null 2>&1
 
             cargo +${{ matrix.toolchain }} test \
               --release \
