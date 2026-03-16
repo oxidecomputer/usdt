@@ -59,7 +59,7 @@ jobs:
           run: |
             export IGNORE_OSVERSION=yes
             sudo -E pkg update
-            sudo -E pkg install -y curl
+            sudo -E pkg install -y curl security/ca_root_nss
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             source $HOME/.cargo/env
 
