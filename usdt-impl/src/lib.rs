@@ -138,7 +138,7 @@ pub fn compile_provider(
 pub enum DataType {
     Native(dtrace_parser::DataType),
     UniqueId,
-    Serializable(syn::Type),
+    Serializable(Box<syn::Type>),
 }
 
 impl DataType {
@@ -165,7 +165,7 @@ impl DataType {
         match self {
             DataType::Native(ty) => syn::parse_str(&ty.to_rust_type()).unwrap(),
             DataType::UniqueId => syn::parse_str("::usdt::UniqueId").unwrap(),
-            DataType::Serializable(ref inner) => inner.clone(),
+            DataType::Serializable(ref inner) => *inner.clone(),
         }
     }
 }
@@ -178,7 +178,7 @@ impl From<dtrace_parser::DataType> for DataType {
 
 impl From<&syn::Type> for DataType {
     fn from(t: &syn::Type) -> Self {
-        DataType::Serializable(t.clone())
+        DataType::Serializable(Box::new(t.clone()))
     }
 }
 

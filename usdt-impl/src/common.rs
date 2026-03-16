@@ -40,7 +40,7 @@ pub fn construct_type_check(
         .iter()
         .map(|typ| match typ {
             DataType::Serializable(ty) => {
-                match ty {
+                match &**ty {
                     syn::Type::Reference(reference) => {
                         if let Some(elem) = shared_slice_elem_type(reference) {
                             quote! { _: impl AsRef<[#elem]> }
