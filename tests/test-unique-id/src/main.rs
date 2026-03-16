@@ -152,7 +152,7 @@ mod tests {
                 .arg(std::process::id().to_string())
                 .stderr(subprocess::Redirection::Pipe)
                 .stdout(subprocess::Redirection::Pipe)
-                .popen()
+                .start()
                 .expect("Failed to run bpftrace");
             thread::sleep(Duration::from_millis(1000));
             let id = UniqueId::new();
@@ -163,7 +163,10 @@ mod tests {
             thr.join().unwrap();
 
             const TIMEOUT: Duration = Duration::from_secs(10);
-            let mut comm = bpftrace.communicate_start(None).limit_time(TIMEOUT);
+            let mut comm = bpftrace
+                .commnicate()
+                .expect("failed to get communicator with subprocess")
+                .limit_time(TIMEOUT);
             if bpftrace
                 .wait_timeout(TIMEOUT)
                 .expect("bpftrace command failed")
@@ -171,7 +174,7 @@ mod tests {
             {
                 std::process::Command::new(root_command())
                     .arg("kill")
-                    .arg(format!("{}", bpftrace.pid().unwrap()))
+                    .arg(format!("{}", bpftrace.pid()))
                     .spawn()
                     .expect("Failed to spawn kill")
                     .wait()
@@ -179,8 +182,6 @@ mod tests {
                 panic!("bpftrace didn't exit within timeout of {:?}", TIMEOUT);
             }
             let (stdout, stderr) = comm.read_string().expect("Failed to read bpftrace output");
-            let stdout = stdout.unwrap_or_else(|| String::from("<EMPTY>"));
-            let stderr = stderr.unwrap_or_else(|| String::from("<EMPTY>"));
             eprintln!("stdout: {}", stdout.trim());
             eprintln!("stderr: {}", stderr.trim());
             let actual_id: u64 = stdout.trim().parse().unwrap_or_else(|_| {
