@@ -163,7 +163,7 @@ pub fn register_probes() -> Result<(), crate::Error> {
         .unwrap_or_else(|| String::from("unknown-module"));
     let mut modname = [0; 64];
     for (i, byte) in module_name.bytes().take(modname.len() - 1).enumerate() {
-        modname[i] = byte as i8;
+        modname[i] = byte as std::os::raw::c_char;
     }
     ioctl_section(&serialize_section(&section), modname)
 }
