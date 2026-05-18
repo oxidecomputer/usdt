@@ -22,6 +22,7 @@
 #[path = "stapsdt/args.rs"]
 mod args;
 
+use crate::common::construct_probe_args;
 use crate::{common, DataType};
 use crate::{Probe, Provider};
 use args::format_argument;
@@ -192,7 +193,7 @@ fn compile_probe(
     probe: &Probe,
     config: &crate::CompileProvidersConfig,
 ) -> TokenStream {
-    let (unpacked_args, in_regs) = common::construct_probe_args(&probe.types);
+    let (unpacked_args, in_regs) = construct_probe_args(&probe.types);
     let probe_rec = emit_probe_record(&provider.name, &probe.name, Some(&probe.types));
     let type_check_fn = common::construct_type_check(
         &provider.name,
@@ -202,6 +203,33 @@ fn compile_probe(
     );
 
     let sema_name = format_ident!("__usdt_sema_{}_{}", provider.name, probe.name);
+    let options = if cfg!(target_arch = "x86_64") || cfg!(target_arch = "x86") {
+        // STAPSDT probes contain an "arguments" string which contains the
+        // size, type, and location of each argument. This string is expected
+        // to be in the AT&T syntax: we change the syntax for x86 only, as only
+        // there the syntax effects register naming. The rest of our inline
+        // assembly here is the same in both AT&T and Intel syntax, so we can
+        // freely change the syntax without changing the generating code.
+        // The arguments string on x86 looks like this:
+        // * "2@%ax -4@%edi 8f@%rsi"
+        // and in our inline assembly it is as follows:
+        // * "2@{arg0} -4@{arg1} 8f@{arg2}"
+        // The argument size and type is explicitly named on the left side of
+        // the "@" sign, but the register is given by argument name instead of
+        // explicitly naming eg. "%ax". This gives the compiler the freedom to
+        // choose for itself where it wants to place the arguments. The only
+        // thing we need to make sure of is that the argument register strings
+        // are in the AT&T syntax: in Intel syntax the the "%" character would
+        // be missing from the register names.
+        // Note that we could manually fill in the "%" character and still use
+        // Intel syntax, but that will break down if Rust's inline assembly
+        // ever gets memory operands. Memory operands in the syntax look like:
+        // * "8@0x18(%rsp)"
+        // for "8-byte unsigned integer at stack + 0x18".
+        quote! { options(att_syntax, nomem, nostack, preserves_flags) }
+    } else {
+        quote! { options(nomem, nostack, preserves_flags) }
+    };
     let impl_block = quote! {
         unsafe extern "C" {
             // Note: C libraries use a struct containing an unsigned short
@@ -226,7 +254,7 @@ fn compile_probe(
                     "990:   nop",
                     #probe_rec,
                     #in_regs
-                    options(nomem, nostack, preserves_flags)
+                    #options
                 );
             }
         }
