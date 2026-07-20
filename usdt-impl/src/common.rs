@@ -67,6 +67,9 @@ pub fn construct_type_check(
                 }
             }
             DataType::Native(dtrace_parser::DataType::String) => quote! { _: impl AsRef<str> },
+            DataType::Native(dtrace_parser::DataType::CString) => {
+                quote! { _: impl AsRef<::core::ffi::CStr> }
+            }
             _ => {
                 let arg = typ.to_rust_type();
                 quote! { _: impl ::std::borrow::Borrow<#arg> }
@@ -179,6 +182,10 @@ fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenSt
                     &[0_u8]
                 ].concat()
             },
+            quote! { .as_ptr() as usize },
+        ),
+        DataType::Native(dtrace_parser::DataType::CString) => (
+            quote! { #input.as_ref() as &::core::ffi::CStr },
             quote! { .as_ptr() as usize },
         ),
         DataType::Native(dtrace_parser::DataType::String) => (
@@ -395,6 +402,16 @@ mod tests {
         assert_eq!(
             out.to_string(),
             quote! { [(foo.as_ref() as &str).as_bytes(), &[0_u8]].concat() }.to_string()
+        );
+        assert_eq!(post.to_string(), quote! { .as_ptr() as usize }.to_string());
+
+        let (out, post) = asm_type_convert(
+            &DataType::Native(dtrace_parser::DataType::CString),
+            TokenStream::from_str("foo").unwrap(),
+        );
+        assert_eq!(
+            out.to_string(),
+            quote! { foo.as_ref() as &::core::ffi::CStr }.to_string()
         );
         assert_eq!(post.to_string(), quote! { .as_ptr() as usize }.to_string());
     }
