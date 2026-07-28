@@ -10,7 +10,7 @@ repository = "https://github.com/oxidecomputer/usdt.git"
 dtrace-parser = { path = "../dtrace-parser", version = "=0.3.0" }
 proc-macro2 = "1"
 serde_tokenstream = "0.2"
-syn = { version = "2", features = ["full"] }
+syn = { version = "3", features = ["full"] }
 quote = "1"
 usdt-impl = { path = "../usdt-impl", default-features = false, version = "=0.6.0" }
 
