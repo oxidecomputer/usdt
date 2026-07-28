@@ -392,7 +392,7 @@ fn check_probe_function_signature(
     signature: &syn::Signature,
 ) -> Result<&syn::Signature, syn::Error> {
     let to_err = |span, msg| Err(syn::Error::new(span, msg));
-    if let syn::Safety::Safe(item) = signature.safety {
+    if let syn::Safety::Unsafe(item) = signature.safety {
         return to_err(item.span(), "Probe functions may not be unsafe");
     }
     if let Some(ref item) = signature.abi {
