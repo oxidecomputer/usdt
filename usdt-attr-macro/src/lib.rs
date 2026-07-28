@@ -197,8 +197,11 @@ fn parse_probe_argument(
             }
         }
         syn::Type::Ptr(ref pointer) => {
-            if pointer.mutability.is_some() {
-                return Err(syn::Error::new(item.span(), "Pointer types must be const"));
+            match pointer.mutability {
+                syn::PointerMutability::Const(_) => {}
+                syn::PointerMutability::Mut(_) => {
+                    return Err(syn::Error::new(item.span(), "Pointer types must be const"));
+                }
             }
             let ty = &*pointer.elem;
             if let syn::Type::Path(ref path) = ty {
@@ -389,7 +392,7 @@ fn check_probe_function_signature(
     signature: &syn::Signature,
 ) -> Result<&syn::Signature, syn::Error> {
     let to_err = |span, msg| Err(syn::Error::new(span, msg));
-    if let Some(item) = signature.unsafety {
+    if let syn::Safety::Safe(item) = signature.safety {
         return to_err(item.span(), "Probe functions may not be unsafe");
     }
     if let Some(ref item) = signature.abi {
