@@ -101,6 +101,26 @@ fn shared_slice_elem_type(reference: &syn::TypeReference) -> Option<&syn::Type> 
     }
 }
 
+/// Returns true if the DataType requires the special "reg_byte" register class
+/// to be used for the `asm!` macro arguments passing. This only happens for
+/// STAPSDT probes on x86.
+#[cfg(usdt_backend_stapsdt)]
+fn use_reg_byte(typ: &DataType) -> bool {
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+    {
+        use dtrace_parser::{BitWidth, Integer};
+        matches!(
+            typ,
+            DataType::Native(dtrace_parser::DataType::Integer(Integer {
+                sign: _,
+                width: BitWidth::Bit8
+            }))
+        )
+    }
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "x86")))]
+    false
+}
+
 // Return code to destructure a probe arguments into identifiers, and to pass those to ASM
 // registers.
 pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
@@ -135,8 +155,28 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
                 let #arg = #value;
             };
             // Here, we convert the argument to store it within a register.
+            #[cfg(usdt_backend_stapsdt)]
+            let register_arg = {
+                // In SystemTap probes, the arguments can be passed freely in
+                // any registers without regard to standard function call ABIs.
+                // We thus do not need the register names in the STAPSDT
+                // backend. Intead, we use the "name = in(reg) arg" pattern to
+                // bind each argument into a local name (we shadow the original
+                // argument name here): this name can then be used by the
+                // `asm!` macro to refer to the argument "by register"; the
+                // compiler will fill in the actual register name at each
+                // reference point. This does away with a need for the compiler
+                // to generate code moving arugments around in registers before
+                // a probe site.
+                let _ = reg;
+                if use_reg_byte(typ) {
+                    quote! { #arg = in(reg_byte) (#arg #at_use) }
+                } else {
+                    quote! { #arg = in(reg) (#arg #at_use) }
+                }
+            };
+            #[cfg(not(usdt_backend_stapsdt))]
             let register_arg = quote! { in(#reg) (#arg #at_use) };
-
             (destructured_arg, register_arg)
         })
         .unzip();
@@ -164,7 +204,7 @@ pub fn call_argument_closure(types: &[DataType]) -> TokenStream {
 // Convert a supported data type to 1. a type to store for the duration of the
 // probe invocation and 2. a transformation for compatibility with an asm
 // register.
-fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenStream) {
+pub(crate) fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenStream) {
     match typ {
         DataType::Serializable(_) => (
             // Convert the input to JSON. This is a fallible operation, however, so we wrap the
@@ -189,10 +229,15 @@ fn asm_type_convert(typ: &DataType, input: TokenStream) -> (TokenStream, TokenSt
         ),
         DataType::Native(_) => {
             let ty = typ.to_rust_type();
-            (
-                quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input) as usize) },
-                quote! {},
-            )
+            #[cfg(not(usdt_backend_stapsdt))]
+            let value = quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input) as usize) };
+            // For STAPSDT probes, we cannot "widen" the data type at the
+            // interface, as we've left the register choice up to the
+            // compiler and the compiler doesn't like mismatched register
+            // classes and types for single-byte values (reg_byte vs usize).
+            #[cfg(usdt_backend_stapsdt)]
+            let value = quote! { (*<_ as ::std::borrow::Borrow<#ty>>::borrow(&#input)) };
+            (value, quote! {})
         }
         DataType::UniqueId => (quote! { #input.as_u64() as usize }, quote! {}),
     }
@@ -349,9 +394,16 @@ mod tests {
         #[cfg(target_arch = "aarch64")]
         let registers = ["x0", "x1"];
         let (args, regs) = construct_probe_args(types);
+        #[cfg(not(usdt_backend_stapsdt))]
         let expected = quote! {
             let args = ($args_lambda)();
             let arg_0 = (*<_ as ::std::borrow::Borrow<*const u8>>::borrow(&args.0) as usize);
+            let arg_1 = [(args.1.as_ref() as &str).as_bytes(), &[0_u8]].concat();
+        };
+        #[cfg(usdt_backend_stapsdt)]
+        let expected = quote! {
+            let args = ($args_lambda)();
+            let arg_0 = (*<_ as ::std::borrow::Borrow<*const u8>>::borrow(&args.0));
             let arg_1 = [(args.1.as_ref() as &str).as_bytes(), &[0_u8]].concat();
         };
         assert_eq!(args.to_string(), expected.to_string());
@@ -361,8 +413,15 @@ mod tests {
             .zip(regs.to_string().split(','))
             .enumerate()
         {
+            // We don't need the register names for STAPSDT probes.
+            #[cfg(usdt_backend_stapsdt)]
+            let _ = expected;
+
             let reg = actual.replace(' ', "");
+            #[cfg(not(usdt_backend_stapsdt))]
             let expected = format!("in(\"{}\")(arg_{}", expected, i);
+            #[cfg(usdt_backend_stapsdt)]
+            let expected = format!("arg_{i}=in(reg)(arg_{i}");
             assert!(
                 reg.starts_with(&expected),
                 "reg: {}; expected {}",
@@ -382,10 +441,12 @@ mod tests {
             })),
             TokenStream::from_str("foo").unwrap(),
         );
-        assert_eq!(
-            out.to_string(),
-            quote! {(*<_ as ::std::borrow::Borrow<u8>>::borrow(&foo) as usize)}.to_string()
-        );
+        #[cfg(usdt_backend_stapsdt)]
+        let out_expected = quote! {(*<_ as ::std::borrow::Borrow<u8>>::borrow(&foo))}.to_string();
+        #[cfg(not(usdt_backend_stapsdt))]
+        let out_expected =
+            quote! {(*<_ as ::std::borrow::Borrow<u8>>::borrow(&foo) as usize)}.to_string();
+        assert_eq!(out.to_string(), out_expected);
         assert_eq!(post.to_string(), quote! {}.to_string());
 
         let (out, post) = asm_type_convert(
