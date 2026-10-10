@@ -312,6 +312,8 @@ fn is_simple_type(ident: &syn::Ident) -> bool {
             | "i64"
             | "String"
             | "str"
+            | "CString"
+            | "CStr"
             | "usize"
             | "isize"
     )
@@ -372,6 +374,8 @@ fn data_type_from_path(path: &syn::Path, pointer: bool) -> DataType {
         }))
     } else if path.is_ident("String") || path.is_ident("str") {
         DataType::Native(DType::String)
+    } else if path.is_ident("CString") || path.is_ident("CStr") {
+        DataType::Native(DType::CString)
     } else if path.is_ident("isize") {
         DataType::Native(variant(Integer {
             sign: Sign::Signed,
@@ -471,6 +475,10 @@ mod tests {
     #[case("String", DType::String)]
     #[case("&&str", DType::String)]
     #[case("&String", DType::String)]
+    #[case("&CStr", DType::CString)]
+    #[case("CString", DType::CString)]
+    #[case("&&CStr", DType::CString)]
+    #[case("&CString", DType::CString)]
     fn test_parse_probe_argument_native(#[case] name: &str, #[case] ty: dtrace_parser::DataType) {
         let arg = syn::parse_str(name).unwrap();
         let out = parse_probe_argument(&arg, 0, 0).unwrap();
