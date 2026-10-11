@@ -95,8 +95,6 @@ fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
             _ => unreachable!(),
         }
     } else if cfg!(target_arch = "e2k") {
-        // GNU Assembly syntax for SystemTap only uses the extended register
-        // for some reason.
         match reg_index {
             0 => "g0",
             1 => "g1",
@@ -106,8 +104,7 @@ fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
             5 => "g5",
             _ => unreachable!(),
         }
-    }
- else {
+    } else {
         unreachable!("Unsupported Linux target architecture")
     }
 }
