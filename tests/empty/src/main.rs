@@ -22,7 +22,7 @@ fn main() {
     register_probes().unwrap();
 
     let counter: u8 = 0;
-    stuff::start_work!(|| (counter));
+    stuff::start_work!(|| counter);
     stuff::stop_work!(|| ("the probe has fired", counter));
     stuff::noargs!(|| ());
     stuff::noargs!();
