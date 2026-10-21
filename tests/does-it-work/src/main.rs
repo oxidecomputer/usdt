@@ -242,21 +242,70 @@ mod tests {
                 semaphore_address
             );
 
-            // Verify the argument types
+            // Verify the argument types; the format of the line is eg.
+            // "Arguments: size@%reg size@%reg", but we cannot know which
+            // registers the compiler has chosen to use for arguments passing,
+            // so we have to instead split out the two arguments we expect to
+            // find for this probe specifically, check their sizes, and match
+            // the register strings ("%reg") against a list of possible values.
             let line = lines.next().expect("Expected a line containing arguments");
             let line = line.trim();
-            let arguments_line = if cfg!(target_arch = "x86_64") {
-                "Arguments: 1@%dil 8@%rsi"
-            } else if cfg!(target_arch = "aarch64") {
-                "Arguments: 1@x0 8@x1"
-            } else {
-                unreachable!("Unsupported Linux target architecture")
-            };
+            let (args_header, args_rest) = line
+                .split_once(" ")
+                .expect("Expected arguments line to have one space");
+            let (first_arg, second_arg) = args_rest
+                .split_once(" ")
+                .expect("Expected arguments line to have two spaces");
+            let (first_arg_size, first_arg_register) = first_arg
+                .split_once("@")
+                .expect("Expected first argument to have @ sign");
+            let (second_arg_size, second_arg_register) = second_arg
+                .split_once("@")
+                .expect("Expected first argument to have @ sign");
             assert_eq!(
-                line, arguments_line,
+                first_arg_size, "1",
+                "First argument size appears incorrect: {}",
+                first_arg_size
+            );
+            assert_eq!(
+                second_arg_size, "8",
+                "Second argument size appears incorrect: {}",
+                second_arg_size
+            );
+            assert_eq!(
+                args_header, "Arguments:",
                 "Arguments line appears incorrect: {}",
                 line
             );
+            if cfg!(target_arch = "x86_64") {
+                assert!(
+                    ["%ah", "%al", "%bh", "%bl", "%ch", "%cl", "%dh", "%dl", "%dil", "%sil"]
+                        .contains(&first_arg_register),
+                    "First argument register appears incorrect: {}",
+                    first_arg_register
+                );
+                assert!(
+                    ["%rax", "%rbx", "%rcx", "%rdx", "%rdi", "%rsi"].contains(&second_arg_register),
+                    "Second argument register appears incorrect: {}",
+                    second_arg_register
+                );
+            } else if cfg!(target_arch = "aarch64") {
+                fn is_valid_register(reg: &str) -> bool {
+                    reg.starts_with('x') && str::parse::<u8>(&reg[1..]).is_ok_and(|val| val <= 30)
+                }
+                assert!(
+                    is_valid_register(first_arg_register),
+                    "First argument register appears incorrect: {}",
+                    first_arg_register
+                );
+                assert!(
+                    is_valid_register(second_arg_register),
+                    "Second argument register appears incorrect: {}",
+                    second_arg_register
+                );
+            } else {
+                unreachable!("Unsupported Linux target architecture")
+            }
 
             thr.join().expect("Failed to join test runner thread");
         }
