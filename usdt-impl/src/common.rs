@@ -111,8 +111,10 @@ pub fn construct_probe_args(types: &[DataType]) -> (TokenStream, TokenStream) {
     let abi_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
     #[cfg(target_arch = "aarch64")]
     let abi_regs = ["x0", "x1", "x2", "x3", "x4", "x5"];
-    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
-    compile_error!("USDT only supports x86_64 and ARM64 architectures");
+    #[cfg(target_arch = "e2k")]
+    let abi_regs = ["g0", "g1", "g2", "g3", "g4", "g5"];
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "e2k")))]
+    compile_error!("USDT only supports x86_64, E2K and ARM64 architectures");
 
     assert!(
         types.len() <= abi_regs.len(),
@@ -348,6 +350,8 @@ mod tests {
         let registers = ["rdi", "rsi"];
         #[cfg(target_arch = "aarch64")]
         let registers = ["x0", "x1"];
+        #[cfg(target_arch = "e2k")]
+        let registers = ["g0", "g1"];
         let (args, regs) = construct_probe_args(types);
         let expected = quote! {
             let args = ($args_lambda)();
