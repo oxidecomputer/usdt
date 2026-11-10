@@ -31,3 +31,6 @@ default = []
 # platforms with linker integration for USDT probes (currently only MacOS),
 # that data is required in order to register the probes with the kernel.
 des = ["dof", "dof/des"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(target_arch, values("e2k"))'] }

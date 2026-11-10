@@ -229,7 +229,7 @@ As of v0.6.0, this crate supports:
 - illumos and other Solaris derivatives
 - macOS
 - FreeBSD
-- x86-64 Linux, through the emission of SystemTap v3 probes. ARM support is not
+- x86-64 Linux, through the emission of SystemTap v3 probes. ARM and E2K support is not
   tested, but may work by accident.
 
 ## References

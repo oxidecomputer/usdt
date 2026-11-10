@@ -178,8 +178,13 @@ fn compile_probe(
     let call_instruction = quote! { "call {extern_probe_fn}" };
     #[cfg(target_arch = "aarch64")]
     let call_instruction = quote! { "bl {extern_probe_fn}" };
-    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-    compile_error!("USDT only supports x86_64 and AArch64 architectures");
+    #[cfg(target_arch = "e2k")]
+    let call_instruction = quote! {
+        "disp %ctpr1, {extern_probe_fn}",
+        "call %ctpr1, wbs = 0x0"
+    };
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "e2k")))]
+    compile_error!("USDT only supports x86_64, E2K and AArch64 architectures");
 
     let impl_block = quote! {
         unsafe extern "C" {
@@ -458,6 +463,10 @@ mod tests {
             "asm ! (\".reference {typedefs}\"",
             #[cfg(target_arch = "x86_64")]
             "call {extern_probe_fn}",
+            #[cfg(target_arch = "e2k")]
+            "disp %ctpr1, {extern_probe_fn}",
+            #[cfg(target_arch = "e2k")]
+            "call %ctpr1, wbs = 0x0",
             #[cfg(target_arch = "aarch64")]
             "bl {extern_probe_fn}",
             "\".reference {stability}",

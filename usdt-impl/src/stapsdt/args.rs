@@ -94,6 +94,16 @@ fn integer_to_asm_op(integer: &Integer, reg_index: u8) -> &'static str {
             5 => "x5",
             _ => unreachable!(),
         }
+    } else if cfg!(target_arch = "e2k") {
+        match reg_index {
+            0 => "g0",
+            1 => "g1",
+            2 => "g2",
+            3 => "g3",
+            4 => "g4",
+            5 => "g5",
+            _ => unreachable!(),
+        }
     } else {
         unreachable!("Unsupported Linux target architecture")
     }
