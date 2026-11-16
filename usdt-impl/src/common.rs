@@ -223,6 +223,16 @@ pub(crate) fn build_probe_macro(
                 compile_error!("USDT probe macros should be invoked with a closure returning the arguments");
             };
             ($args_lambda:expr) => {
+                // The generated code casts each argument to `usize` for its
+                // register and defines a type-check function after the
+                // argument bindings. The caller cannot change either, so
+                // keep these pedantic lints out of the caller's crate.
+                #[allow(
+                    clippy::cast_lossless,
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    clippy::items_after_statements,
+                )]
                 {
                     #impl_block
                 }
