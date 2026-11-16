@@ -226,15 +226,19 @@ pub(crate) fn build_probe_macro(
                 // The generated code casts each argument to `usize` for its
                 // register and defines a type-check function after the
                 // argument bindings. The caller cannot change either, so
-                // keep these pedantic lints out of the caller's crate.
-                #[allow(
-                    clippy::cast_lossless,
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    clippy::items_after_statements,
-                )]
+                // keep these pedantic lints out of the caller's crate. The
+                // outer block keeps the attribute off the expansion itself,
+                // which may be used as an expression.
                 {
-                    #impl_block
+                    #[allow(
+                        clippy::cast_lossless,
+                        clippy::cast_possible_truncation,
+                        clippy::cast_sign_loss,
+                        clippy::items_after_statements,
+                    )]
+                    {
+                        #impl_block
+                    }
                 }
             };
         }
