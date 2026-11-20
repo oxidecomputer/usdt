@@ -86,8 +86,10 @@ fn compile_probe(
         &probe.types,
     );
     let impl_block = quote! {
-        #args
-        #type_check_fn
+        if false {
+            #args
+            #type_check_fn
+        }
     };
     common::build_probe_macro(config, &probe.name, &probe.types, impl_block)
 }

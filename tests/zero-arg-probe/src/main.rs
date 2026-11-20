@@ -27,6 +27,13 @@ fn main() {
 
 #[cfg(test)]
 mod test {
+    #[test]
+    fn disabled_probe_skips_closure() {
+        let mut called = false;
+        super::zero::here__i__am!(|| called = true);
+        assert!(!called);
+    }
+
     // We just want to make sure that main builds and runs.
     #[test]
     fn test_main() {
