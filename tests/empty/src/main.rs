@@ -26,6 +26,11 @@ fn main() {
     stuff::stop_work!(|| ("the probe has fired", counter));
     stuff::noargs!(|| ());
     stuff::noargs!();
+
+    // A probe macro expands to an expression, so it also works where a value
+    // is expected.
+    let () = stuff::start_work!(|| counter);
+    let () = stuff::noargs!();
 }
 
 #[cfg(test)]
