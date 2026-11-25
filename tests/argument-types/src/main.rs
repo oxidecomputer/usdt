@@ -126,3 +126,13 @@ fn main() {
     // This line will fail to compile, indicating that `arg` is borrowed after it's been moved.
     // println!("{:#?}", arg.x);
 }
+
+#[test]
+fn disabled_probe_skips_closure() {
+    let mut called = false;
+    refs::u8_as_value!(|| {
+        called = true;
+        42
+    });
+    assert!(!called);
+}
